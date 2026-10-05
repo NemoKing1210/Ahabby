@@ -5,6 +5,14 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-10-05
+
+### Added
+
+- The update dialog now shows the version you have installed next to the one that would be
+  installed, so the effect of the command is visible before it runs. When no newer version was
+  found, it says so instead
+
 ## [0.5.2] - 2026-10-05
 
 ### Changed

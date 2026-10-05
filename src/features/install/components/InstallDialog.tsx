@@ -111,6 +111,29 @@ export function InstallDialog({
             <JobConsole jobId={jobId} />
           ) : (
             <>
+              {action === 'update' ? (
+                <div className="border-border bg-surface flex flex-col gap-2 rounded-lg border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted text-[13px]">{t('install.versionInstalled')}</span>
+                    <code className="font-mono text-[12px]">
+                      {agent.version?.raw ?? t('agents.noVersion')}
+                    </code>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted text-[13px]">{t('install.versionLatest')}</span>
+                    {agent.update ? (
+                      <code className="text-accent-strong font-mono text-[12px]">
+                        {agent.update.latest}
+                      </code>
+                    ) : (
+                      <span className="text-faint text-[12px]">
+                        {t('install.versionLatestUnknown')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-muted text-[13px]">{t('install.manager')}</span>
                 <Select
