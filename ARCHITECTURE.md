@@ -67,8 +67,8 @@ manifests ──► AdapterRegistry ──► Scanner ──► ScanReport ─�
 
 - **One scan, one source of truth.** `list_agents` runs (or returns the cached) scan; the agent page, the
   sidebar counters and the library all read from it. A rescan replaces it atomically.
-- **Mutations return the new report.** `save_config`, `delete_skill` and `delete_mcp_server` respond with
-  `MutationResult<T> { data, report }`, so the UI never shows a stale file list after a write.
+- **Mutations return the new report.** `save_config`, `delete_skill`, `delete_mcp_server` and `remove_agent`
+  respond with `MutationResult<T> { data, report }`, so the UI never shows a stale file list after a write.
 - **Frontend state**: server state lives in React Query (`shared/api/ipc.ts` is the only module that calls
   `invoke`). Zustand is used for one thing only: the install-job console. No component calls `invoke`.
 
@@ -77,19 +77,19 @@ manifests ──► AdapterRegistry ──► Scanner ──► ScanReport ─�
 Requirements: every write to someone else's file is validated, backed up and reversible; destructive actions
 are confirmed; secrets stay masked; no arbitrary shell from the UI.
 
-| Concern                         | Mechanism                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Arbitrary command execution     | The UI sends an **agent id + method id**. `plan_for()` resolves the command from the manifest, and `domain::manifest::validate_command` rejects any command whose first token is not the manager's binary, an allow-listed installer (for `script` methods) or the agent's own binary. Commands containing newlines, backticks or `$(…)` are rejected. |
-| Shell injection                 | Non-script commands are executed as `program + args` (no shell). Only `script` methods run through the platform shell, because official installers need it.                                                                                                                                                                                            |
-| Writing to unexpected paths     | `remove_skill` requires the target to live under a skills directory the manifest declared. `remove_mcp_server` requires the file to be one of the manifest's declared config/MCP files. `save_config` requires the path to be one of the scanned config files of that agent (checked in `AppState::config_target`).                                    |
-| Corrupting a file               | Content is validated per format before saving (JSON, TOML, YAML parse; markdown/text only UTF-8). TOML edits go through `toml_edit`, so comments and formatting survive; JSON uses `serde_json` with `preserve_order`.                                                                                                                                 |
-| Losing data                     | `platform::write_atomic` writes a temp file in the same directory, `fsync`s it, then renames over the original — and takes a timestamped backup first. Unix file permissions are preserved.                                                                                                                                                            |
-| Overwriting a concurrent change | The editor sends the sha256 it read; the backend re-reads and refuses with `stale_file` if the file changed.                                                                                                                                                                                                                                           |
-| Irreversible deletion           | Skills are moved to the OS trash (`trash` crate), never unlinked. Backups can be restored from the UI (and the restore itself is backed up).                                                                                                                                                                                                           |
-| Secrets leaking to the UI       | MCP `env` and `headers` values whose key looks secret are masked **in the backend** (`domain::secrets`), and the raw JSON view is redacted too. `reveal_mcp_secret` returns one key at a time, on explicit request.                                                                                                                                    |
-| Destructive actions             | `delete_skill` and `delete_mcp_server` require `confirm: true`, which only the confirmation dialog sends. Uninstall is offered only when the manifest provides an uninstall command.                                                                                                                                                                   |
-| Excessive permissions           | `src-tauri/capabilities/default.json` grants exactly one capability (`core:event:default`) for the install console. There is no filesystem or shell plugin: all I/O happens in Rust. The webview CSP forbids remote script, frames and objects.                                                                                                        |
-| Opening links                   | `open_url` accepts only `http`/`https`; the file-manager command accepts only existing paths inside the user's home or Ahabby's own directories.                                                                                                                                                                                                       |
+| Concern                         | Mechanism                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Arbitrary command execution     | The UI sends an **agent id + method id**. `plan_for()` resolves the command from the manifest, and `domain::manifest::validate_command` rejects any command whose first token is not the manager's binary, an allow-listed installer (for `script` methods) or the agent's own binary. Commands containing newlines, backticks or `$(…)` are rejected.                                                                                                                   |
+| Shell injection                 | Non-script commands are executed as `program + args` (no shell). Only `script` methods run through the platform shell, because official installers need it.                                                                                                                                                                                                                                                                                                              |
+| Writing to unexpected paths     | `remove_skill` requires the target to live under a skills directory the manifest declared. `remove_mcp_server` requires the file to be one of the manifest's declared config/MCP files. `save_config` requires the path to be one of the scanned config files of that agent (checked in `AppState::config_target`). `remove_agent` only ever deletes a manifest that is a direct `*.toml` child of Ahabby's own user catalog directory (`AppState::user_manifest_path`). |
+| Corrupting a file               | Content is validated per format before saving (JSON, TOML, YAML parse; markdown/text only UTF-8). TOML edits go through `toml_edit`, so comments and formatting survive; JSON uses `serde_json` with `preserve_order`.                                                                                                                                                                                                                                                   |
+| Losing data                     | `platform::write_atomic` writes a temp file in the same directory, `fsync`s it, then renames over the original — and takes a timestamped backup first. Unix file permissions are preserved.                                                                                                                                                                                                                                                                              |
+| Overwriting a concurrent change | The editor sends the sha256 it read; the backend re-reads and refuses with `stale_file` if the file changed.                                                                                                                                                                                                                                                                                                                                                             |
+| Irreversible deletion           | Skills and user manifests are moved to the OS trash (`trash` crate), never unlinked. Backups can be restored from the UI (and the restore itself is backed up).                                                                                                                                                                                                                                                                                                          |
+| Secrets leaking to the UI       | MCP `env` and `headers` values whose key looks secret are masked **in the backend** (`domain::secrets`), and the raw JSON view is redacted too. `reveal_mcp_secret` returns one key at a time, on explicit request.                                                                                                                                                                                                                                                      |
+| Destructive actions             | `delete_skill`, `delete_mcp_server` and `remove_agent` require `confirm: true`, which only the confirmation dialog sends. Uninstall is offered only when the manifest provides an uninstall command. A shipped agent (or a user manifest that overrides a builtin) is hidden instead of deleted, and can be restored from Settings.                                                                                                                                      |
+| Excessive permissions           | `src-tauri/capabilities/default.json` grants exactly one capability (`core:event:default`) for the install console. There is no filesystem or shell plugin: all I/O happens in Rust. The webview CSP forbids remote script, frames and objects.                                                                                                                                                                                                                          |
+| Opening links                   | `open_url` accepts only `http`/`https`; the file-manager command accepts only existing paths inside the user's home or Ahabby's own directories.                                                                                                                                                                                                                                                                                                                         |
 
 ## 4. Manifest policy: verified paths
 
@@ -113,6 +113,8 @@ Agent file layouts change, and guessing one is worse than admitting uncertainty:
 - Version checks are optional, cached for `version_cache_minutes`, run only for installed agents, and their
   failures are silent.
 - The last report is cached in memory: navigation is instant, and `force = false` never rescans.
+- Agents the user removed (`settings::hidden_agents`) are filtered out of the report and its counters
+  before it is cached, so the list, the sidebar counters and the Library all agree they are gone.
 
 ## 6. Frontend structure
 
@@ -120,13 +122,13 @@ Agent file layouts change, and guessing one is worse than admitting uncertainty:
 src/
 ├─ app/         providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell
 ├─ features/
-│  ├─ agents/   list, clickable card, agent page (about/overview/configs/skills/mcp/other)
+│  ├─ agents/   list, clickable card, agent page (about/overview/configs/skills/mcp/other), removal flow
 │  ├─ configs/  snapshot hooks, editor dialog, diff view, backup restore
 │  ├─ skills/   skill list + detail (rendered markdown), delete flow
 │  ├─ mcp/      server cards, masked secret reveal, delete flow
 │  ├─ library/  aggregated skills/MCP/other with search, agent filter, grouping
 │  ├─ install/  plan preview dialog, streamed job console, Zustand job store
-│  └─ settings/ language, theme, scan paths, network checks, backup dir, catalog dir
+│  └─ settings/ language, theme, scan paths, network checks, backup dir, catalog dir, hidden agents
 └─ shared/
    ├─ api/      ipc.ts (typed invoke wrappers), events.ts, keys.ts, errors.ts
    ├─ bindings/ generated by ts-rs — do not edit
@@ -182,6 +184,11 @@ Recorded here because the task intentionally left them open:
     unusual installation visible).
 14. **The catalog ships with 10 agents.** The task asked for 8–9; Claude Code is included and is the reference
     implementation for the specialised adapter.
+15. **Removing an agent is a deletion only when it has its own manifest.** A manifest in the user catalog is
+    moved to the OS trash; an agent whose manifest ships with Ahabby (or whose user manifest overrides a
+    builtin) is only hidden, because deleting the override would resurrect the builtin. Hidden ids live in
+    `settings.json` and are filtered out of every scan, so the agent leaves the list, the counters and the
+    Library together.
 
 ## 8. Testing
 

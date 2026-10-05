@@ -5,6 +5,55 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-05
+
+### Added
+
+- Agent cards have a context menu: right-click a card (or press the keyboard's context-menu key while
+  a control on it has focus) for open details, website and docs, copying the binary path, showing it in
+  the file manager, install/update — with the version it would install — and removal. Entries whose
+  action cannot run are not offered at all
+- The app now opens on a splash instead of an empty window: the icon mark, the wordmark and a loading
+  bar are painted with the first HTML frame, before the bundle and the stylesheet exist, follow the
+  light/dark theme (including a pinned one) and cross-fade into the app once it has rendered
+
+### Changed
+
+- The window no longer answers a right click with the WebView's own menu (Back, Reload, Save as). Text
+  entry keeps it, because that is the only clipboard UI available without a paste command
+- Dragging across the interface no longer leaves a text selection behind. Code, rendered markdown and
+  form fields stay selectable so they can still be copied
+
+## [0.6.2] - 2026-10-05
+
+### Fixed
+
+- Every clickable control now shows a pointer cursor. Buttons (including the tab bar), filter
+  chips, disclosure toggles and select options previously kept the operating system's default
+  arrow because Tailwind v4 no longer styles native `<button>` elements
+
+## [0.6.1] - 2026-10-05
+
+### Fixed
+
+- The highlight behind the active sidebar item is visible in the dark theme again; the pill and the
+  item hover used a surface token that composited to the same shade as the translucent sidebar
+
+## [0.6.0] - 2026-10-05
+
+### Added
+
+- The agents list now has a filter row next to the search box: an install-state scope (all,
+  installed, available) and toggleable chips for the properties a card already shows — update
+  available, needs verification, warnings, skills and MCP servers. A chip only appears while it
+  can still match, and its number is what turning it on would leave, so a stack of filters can
+  never quietly end in an empty page; one click on “Clear filters” resets everything
+- Agents can be removed from Ahabby with a confirmation dialog. A manifest you dropped into your
+  own catalog is deleted — the file is moved to the OS trash, never unlinked — while an agent
+  whose manifest ships with Ahabby (or whose user manifest overrides one) is only hidden, because
+  deleting the file would bring the builtin back. Hidden agents are listed in Settings, where
+  they can be restored, and a removed agent disappears from the list, the counters and the Library
+
 ## [0.5.3] - 2026-10-05
 
 ### Added

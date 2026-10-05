@@ -10,7 +10,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.5.3`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.7.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -150,6 +150,13 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
 - **Dialogs** are conditionally mounted with a `key` for state reset and an `onOpenChange` that unmounts —
   not always-present with an `open` prop. A dialog that stays mounted while `open` flips (e.g. `ConfirmDialog`)
   plays the exit animation; an unmounting one only animates in.
+- **Right click**: the WebView's own menu is cancelled app-wide by `src/app/nativeMenu.ts` (wired in
+  `main.tsx`), except inside text entry, where it is the only clipboard UI — a surface with actions of its
+  own uses `src/shared/ui/ContextMenu.tsx`, whose content is never given an exit animation so Radix restores
+  focus before a dialog opens. The card's trigger is the whole card, so the keyboard context-menu key works.
+- **Text selection**: `body` is `user-select: none` (see `globals.css`) — form fields, `.cm-editor`, `code`,
+  `pre`, `.ah-prose` and anything marked `.select-text` opt back in. Add a `ContextMenu` action instead of a
+  selectable region when a value is meant to be copied.
 - **Motion**: JS-driven animation goes through `motion` (import from `motion/react`) with the tokens in
   `src/shared/lib/motion.ts`; CSS-driven animation uses the keyframes in `globals.css` and Tailwind's
   `animate-[…]`. Reuse `AnimatedList` for card stacks and `Reveal` for disclosure content instead of
@@ -207,7 +214,8 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
 
 ## Important Files
 
-- Entry points: `index.html`, `src/main.tsx`, `src/app/router.tsx`, `src/app/providers.tsx`;
+- Entry points: `index.html` (carries the boot splash markup and its inline styles, which only
+  `src/app/splash.ts` takes down), `src/main.tsx`, `src/app/router.tsx`, `src/app/providers.tsx`;
   `src-tauri/src/main.rs`, `src-tauri/src/lib.rs` (`run()` + `handlers!()` macro), `src-tauri/src/state.rs`
   (`AppState`).
 - Config/build: `package.json`, `tsconfig.json`, `vite.config.ts` (aliases + test block), `eslint.config.js`,

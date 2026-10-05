@@ -49,6 +49,9 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
   a file that changed on disk since you opened it.
 - **Runs installs and updates with a visible command:** streamed output, cancellable, and only commands that
   come from a manifest — never from the interface.
+- **Removes agents you do not use:** a manifest from your own catalog is moved to the trash, an agent that
+  ships with Ahabby is hidden instead — both behind a confirmation dialog, and hidden agents can be brought
+  back from Settings.
 - **Keeps secrets masked**: MCP tokens and headers are masked in the backend, and revealed one value at a
   time when you ask for it.
 - **Speaks English and Russian**, light and dark theme, warm editorial design.
