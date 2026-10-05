@@ -4,7 +4,7 @@ import type { ButtonHTMLAttributes } from 'react'
 import { cn } from '@/shared/lib/cn'
 
 const chipStyles = cva(
-  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium whitespace-nowrap transition-colors duration-150 ease-warm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.75rem] font-medium whitespace-nowrap transition-colors duration-150 ease-warm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       active: {
@@ -45,7 +45,7 @@ export function Chip({ label, count, className, active, ...props }: ChipProps) {
       {count === undefined ? null : (
         <span
           aria-hidden
-          className={cn('text-[11px] tabular-nums', active ? 'opacity-80' : 'text-faint')}
+          className={cn('text-[0.6875rem] tabular-nums', active ? 'opacity-80' : 'text-faint')}
         >
           {count}
         </span>

@@ -11,8 +11,8 @@ import { AGENT_BRANDS } from './agentBrands'
  * monogram tile, so an unknown agent never gets a made-up colour.
  */
 const SIZES = {
-  sm: { tile: 'size-8 text-[13px]', edge: 32 },
-  md: { tile: 'size-10 text-[15px]', edge: 40 },
+  sm: { tile: 'size-8 text-[0.8125rem]', edge: 32 },
+  md: { tile: 'size-10 text-[0.9375rem]', edge: 40 },
   lg: { tile: 'size-14 text-xl', edge: 56 },
 } as const
 

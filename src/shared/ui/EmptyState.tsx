@@ -31,7 +31,7 @@ export function EmptyState({
       {Icon ? <Icon className="text-faint size-6" aria-hidden /> : null}
       <div className="flex flex-col gap-1">
         <p className="text-foreground font-serif text-base">{title}</p>
-        {hint ? <p className="text-muted max-w-md text-[13px]">{hint}</p> : null}
+        {hint ? <p className="text-muted max-w-md text-[0.8125rem]">{hint}</p> : null}
       </div>
       {action}
     </div>
@@ -61,7 +61,7 @@ export function ErrorState({
         <AlertTriangle className="text-danger-fg size-4" aria-hidden />
         <p className="text-foreground text-sm">{i18n.t(`errors.${appError.code}`)}</p>
       </div>
-      <p className="text-muted font-mono text-[12px] break-words">{appError.message}</p>
+      <p className="text-muted font-mono text-[0.75rem] break-words">{appError.message}</p>
       {onRetry ? (
         <div>
           <Button variant="secondary" size="sm" onClick={onRetry}>

@@ -29,7 +29,7 @@ export function SecretValue({
 
   if (!entry.masked) {
     return (
-      <div className="flex items-baseline gap-2 font-mono text-[12px]">
+      <div className="flex items-baseline gap-2 font-mono text-[0.75rem]">
         <span className="text-muted">{entry.key}</span>
         <span className="text-foreground break-all">{entry.value ?? ''}</span>
       </div>
@@ -37,7 +37,7 @@ export function SecretValue({
   }
 
   return (
-    <div className="flex items-center gap-2 font-mono text-[12px]">
+    <div className="flex items-center gap-2 font-mono text-[0.75rem]">
       <span className="text-muted">{entry.key}</span>
       <span className="text-foreground break-all">{shown ?? '•'.repeat(8)}</span>
       <Button

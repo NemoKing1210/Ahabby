@@ -17,7 +17,7 @@ const buttonStyles = cva(
         link: 'border-transparent text-accent-strong underline-offset-4 hover:underline',
       },
       size: {
-        sm: 'h-8 px-3 text-[13px]',
+        sm: 'h-8 px-3 text-[0.8125rem]',
         md: 'h-9 px-3.5',
         lg: 'h-10 px-4',
         icon: 'size-9',

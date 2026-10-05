@@ -34,12 +34,67 @@ pub enum Theme {
     Dark,
 }
 
+/// Accent colour picked in Settings. `Custom` reads [`Settings::accent_custom`]; every other
+/// variant maps to a preset hue the frontend owns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub enum AccentColor {
+    #[default]
+    Clay,
+    Indigo,
+    Sky,
+    Teal,
+    Green,
+    Amber,
+    Violet,
+    Rose,
+    Graphite,
+    Custom,
+}
+
+/// Interface typeface. `Serif` is the bundled Lora; `System` uses whatever the OS ships.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub enum FontFamily {
+    #[default]
+    Inter,
+    System,
+    Serif,
+}
+
+/// Typeface used for code, paths and the config editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub enum MonoFont {
+    #[default]
+    Jetbrains,
+    System,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export, export_to = "../../src/shared/bindings/")]
 pub struct Settings {
     pub language: Language,
     pub theme: Theme,
+    /// Accent colour of the interface.
+    pub accent: AccentColor,
+    /// `#rrggbb` used when `accent` is [`AccentColor::Custom`]; ignored otherwise.
+    pub accent_custom: Option<String>,
+    /// Percent that scales spacing, controls, icons and corner radii.
+    pub interface_scale: u32,
+    /// Percent that scales type only.
+    pub text_scale: u32,
+    /// Interface typeface.
+    pub font_family: FontFamily,
+    /// Typeface used for code, paths and the config editor.
+    pub mono_font: MonoFont,
     /// Extra directories that are searched for agent binaries and configs.
     pub extra_scan_paths: Vec<String>,
     /// Turns the optional "a newer version exists" checks on/off (no network by default
@@ -58,11 +113,31 @@ pub struct Settings {
     pub hidden_agents: Vec<HiddenAgent>,
 }
 
+fn is_hex_color(value: &str) -> bool {
+    let trimmed = value.trim();
+    let digits = trimmed.strip_prefix('#').unwrap_or(trimmed);
+    matches!(digits.len(), 3 | 6)
+        && digits
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+}
+
+/// Percent scales are clamped to this range; the UI offers a few steps inside it.
+const MIN_SCALE: u32 = 80;
+const MAX_SCALE: u32 = 150;
+const DEFAULT_SCALE: u32 = 100;
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             language: Language::default(),
             theme: Theme::default(),
+            accent: AccentColor::default(),
+            accent_custom: None,
+            interface_scale: DEFAULT_SCALE,
+            text_scale: DEFAULT_SCALE,
+            font_family: FontFamily::default(),
+            mono_font: MonoFont::default(),
             extra_scan_paths: Vec::new(),
             network_version_checks: true,
             backup_dir: None,
@@ -75,6 +150,21 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// Forces hand-edited values back into a shape the frontend can render: scales inside
+    /// their range, a custom accent that is actually a colour (or the default preset).
+    pub fn sanitized(mut self) -> Self {
+        self.interface_scale = self.interface_scale.clamp(MIN_SCALE, MAX_SCALE);
+        self.text_scale = self.text_scale.clamp(MIN_SCALE, MAX_SCALE);
+        self.accent_custom = self
+            .accent_custom
+            .map(|value| value.trim().to_string())
+            .filter(|value| is_hex_color(value));
+        if self.accent == AccentColor::Custom && self.accent_custom.is_none() {
+            self.accent = AccentColor::Clay;
+        }
+        self
+    }
+
     /// Validated proxy configuration for version checks and install/update jobs.
     pub fn proxy(&self) -> Result<Proxy> {
         match self.proxy_mode {
@@ -120,6 +210,7 @@ impl SettingsService {
         let settings = std::fs::read_to_string(&path)
             .ok()
             .and_then(|raw| serde_json::from_str::<Settings>(&raw).ok())
+            .map(Settings::sanitized)
             .unwrap_or_default();
         Self {
             path,
@@ -139,6 +230,7 @@ impl SettingsService {
     }
 
     pub fn save(&self, settings: Settings) -> Result<Settings> {
+        let settings = settings.sanitized();
         let parent = self
             .path
             .parent()
@@ -168,6 +260,72 @@ mod tests {
         assert_eq!(settings.proxy_mode, ProxyMode::None);
         assert!(settings.proxy_url.is_none());
         assert_eq!(settings.proxy().unwrap(), Proxy::none());
+        assert_eq!(settings.accent, AccentColor::Clay);
+        assert!(settings.accent_custom.is_none());
+        assert_eq!(settings.interface_scale, DEFAULT_SCALE);
+        assert_eq!(settings.text_scale, DEFAULT_SCALE);
+        assert_eq!(settings.font_family, FontFamily::Inter);
+        assert_eq!(settings.mono_font, MonoFont::Jetbrains);
+    }
+
+    #[test]
+    fn appearance_values_are_sanitized() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        let mut settings = service.get();
+        settings.interface_scale = 5;
+        settings.text_scale = 900;
+        settings.accent = AccentColor::Custom;
+        settings.accent_custom = Some("not a colour".to_string());
+        settings.font_family = FontFamily::Serif;
+        settings.mono_font = MonoFont::System;
+
+        let saved = service.save(settings).unwrap();
+        assert_eq!(saved.interface_scale, MIN_SCALE);
+        assert_eq!(saved.text_scale, MAX_SCALE);
+        assert_eq!(saved.font_family, FontFamily::Serif);
+        assert_eq!(saved.mono_font, MonoFont::System);
+        assert_eq!(
+            saved.accent,
+            AccentColor::Clay,
+            "a custom accent without a usable colour falls back to the default"
+        );
+        assert!(saved.accent_custom.is_none());
+        assert_eq!(SettingsService::load(dir.path()).get(), saved);
+    }
+
+    #[test]
+    fn custom_accent_keeps_a_valid_hex() {
+        let mut settings = Settings {
+            accent: AccentColor::Custom,
+            accent_custom: Some("  #7B83EB ".to_string()),
+            ..Settings::default()
+        };
+        let sanitized = settings.clone().sanitized();
+        assert_eq!(sanitized.accent_custom.as_deref(), Some("#7B83EB"));
+
+        settings.accent_custom = Some("#abc".to_string());
+        assert_eq!(
+            settings.sanitized().accent_custom.as_deref(),
+            Some("#abc"),
+            "the short form is kept; the frontend expands it"
+        );
+    }
+
+    #[test]
+    fn hand_edited_appearance_in_a_file_is_clamped_on_load() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"interfaceScale":10,"textScale":400,"accent":"violet","fontFamily":"system"}"#,
+        )
+        .unwrap();
+        let settings = SettingsService::load(dir.path()).get();
+        assert_eq!(settings.interface_scale, MIN_SCALE);
+        assert_eq!(settings.text_scale, MAX_SCALE);
+        assert_eq!(settings.accent, AccentColor::Violet);
+        assert_eq!(settings.font_family, FontFamily::System);
+        assert_eq!(settings.mono_font, MonoFont::Jetbrains);
     }
 
     #[test]

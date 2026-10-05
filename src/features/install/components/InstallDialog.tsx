@@ -114,19 +114,23 @@ export function InstallDialog({
               {action === 'update' ? (
                 <div className="border-border bg-surface flex flex-col gap-2 rounded-lg border p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted text-[13px]">{t('install.versionInstalled')}</span>
-                    <code className="font-mono text-[12px]">
+                    <span className="text-muted text-[0.8125rem]">
+                      {t('install.versionInstalled')}
+                    </span>
+                    <code className="font-mono text-[0.75rem]">
                       {agent.version?.raw ?? t('agents.noVersion')}
                     </code>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted text-[13px]">{t('install.versionLatest')}</span>
+                    <span className="text-muted text-[0.8125rem]">
+                      {t('install.versionLatest')}
+                    </span>
                     {agent.update ? (
-                      <code className="text-accent-strong font-mono text-[12px]">
+                      <code className="text-accent-strong font-mono text-[0.75rem]">
                         {agent.update.latest}
                       </code>
                     ) : (
-                      <span className="text-faint text-[12px]">
+                      <span className="text-faint text-[0.75rem]">
                         {t('install.versionLatestUnknown')}
                       </span>
                     )}
@@ -135,7 +139,7 @@ export function InstallDialog({
               ) : null}
 
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-muted text-[13px]">{t('install.manager')}</span>
+                <span className="text-muted text-[0.8125rem]">{t('install.manager')}</span>
                 <Select
                   ariaLabel={t('install.manager')}
                   value={methodId ?? ''}
@@ -154,34 +158,34 @@ export function InstallDialog({
               </div>
 
               {plan.isLoading ? (
-                <div className="text-muted flex items-center gap-2 text-[13px]">
+                <div className="text-muted flex items-center gap-2 text-[0.8125rem]">
                   <Spinner /> {t('common.loading')}
                 </div>
               ) : null}
 
               {plan.data ? (
                 <div className="flex flex-col gap-2">
-                  <span className="text-faint text-[11px] tracking-wide uppercase">
+                  <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
                     {t('install.command')}
                   </span>
-                  <code className="bg-surface-2 rounded-lg px-3 py-2 font-mono text-[12px] break-all">
+                  <code className="bg-surface-2 rounded-lg px-3 py-2 font-mono text-[0.75rem] break-all">
                     {plan.data.displayCommand}
                   </code>
                   {plan.data.managerAvailable ? null : (
                     <div className="border-border bg-surface flex items-start gap-2 rounded-lg border p-3">
                       <TriangleAlert className="text-warning-fg mt-0.5 size-4" aria-hidden />
                       <div className="flex flex-col gap-1">
-                        <span className="text-foreground text-[13px]">
+                        <span className="text-foreground text-[0.8125rem]">
                           {t('install.managerMissing', { manager: plan.data.manager })}
                         </span>
-                        <span className="text-muted text-[12px]">
+                        <span className="text-muted text-[0.75rem]">
                           {t('install.managerMissingHint')}
                         </span>
                       </div>
                     </div>
                   )}
                   {plan.data.warnings.length > 0 ? (
-                    <ul className="text-muted flex flex-col gap-1 text-[12px]">
+                    <ul className="text-muted flex flex-col gap-1 text-[0.75rem]">
                       {plan.data.warnings.map((warning) => (
                         <li key={warning}>· {warning}</li>
                       ))}
@@ -192,8 +196,8 @@ export function InstallDialog({
 
               {plan.error ? (
                 <div className="border-border flex flex-col gap-2 rounded-lg border p-3">
-                  <span className="text-foreground text-[13px]">{t('install.noMethods')}</span>
-                  <span className="text-muted text-[12px]">{String(plan.error)}</span>
+                  <span className="text-foreground text-[0.8125rem]">{t('install.noMethods')}</span>
+                  <span className="text-muted text-[0.75rem]">{String(plan.error)}</span>
                 </div>
               ) : null}
 

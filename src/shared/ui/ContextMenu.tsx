@@ -17,7 +17,7 @@ export const ContextMenu = ContextMenuPrimitive.Root
 export const ContextMenuTrigger = ContextMenuPrimitive.Trigger
 
 const ITEM_BASE =
-  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-faint'
+  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[0.8125rem] outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-faint'
 
 export function ContextMenuContent({
   className,
@@ -65,7 +65,7 @@ export function ContextMenuLabel({
 }: ComponentProps<typeof ContextMenuPrimitive.Label>) {
   return (
     <ContextMenuPrimitive.Label
-      className={cn('text-faint truncate px-2.5 py-1.5 text-[11px] tracking-wide', className)}
+      className={cn('text-faint truncate px-2.5 py-1.5 text-[0.6875rem] tracking-wide', className)}
       {...props}
     />
   )

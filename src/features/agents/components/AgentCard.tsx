@@ -57,7 +57,7 @@ export function AgentCard({
 
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-foreground group-hover:text-accent-strong font-serif text-[15px]">
+                <span className="text-foreground group-hover:text-accent-strong font-serif text-[0.9375rem]">
                   {agent.name}
                 </span>
                 {installed ? (
@@ -83,9 +83,9 @@ export function AgentCard({
                 ) : null}
               </div>
 
-              <p className="text-muted max-w-prose text-[13px]">{agent.description}</p>
+              <p className="text-muted max-w-prose text-[0.8125rem]">{agent.description}</p>
 
-              <div className="text-faint flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[12px]">
+              <div className="text-faint flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[0.75rem]">
                 {agent.binaryPath ? (
                   <code className="font-mono">{shortenPath(agent.binaryPath, 3)}</code>
                 ) : null}

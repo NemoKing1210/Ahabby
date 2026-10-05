@@ -12,5 +12,5 @@ pub use config_editor::{list_backups, preview, read_snapshot, restore, save, MAX
 pub use installer::{JobOutcome, JobOutputEvent, JobRunner, JobSink, StreamKind};
 pub use library::aggregate;
 pub use scanner::{ScanReport, Scanner};
-pub use settings::{Language, Settings, SettingsService, Theme};
+pub use settings::{AccentColor, FontFamily, Language, MonoFont, Settings, SettingsService, Theme};
 pub use version_checker::{ReleaseSource, VersionChecker};

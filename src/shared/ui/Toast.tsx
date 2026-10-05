@@ -107,7 +107,7 @@ export function Toaster() {
                 {item.title}
               </ToastPrimitive.Title>
               {item.description ? (
-                <ToastPrimitive.Description className="text-muted text-[13px] break-words">
+                <ToastPrimitive.Description className="text-muted text-[0.8125rem] break-words">
                   {item.description}
                 </ToastPrimitive.Description>
               ) : null}

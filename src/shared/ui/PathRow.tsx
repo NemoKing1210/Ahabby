@@ -27,7 +27,7 @@ export function PathRow({
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <Tooltip content={path}>
-        <code className="bg-surface-2 text-muted min-w-0 flex-1 truncate rounded-md px-2 py-1 font-mono text-[12px]">
+        <code className="bg-surface-2 text-muted min-w-0 flex-1 truncate rounded-md px-2 py-1 font-mono text-[0.75rem]">
           {shortenPath(path, 5)}
         </code>
       </Tooltip>

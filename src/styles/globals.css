@@ -9,6 +9,23 @@
    Design tokens. Every visual value lives here; components only consume tokens.
    --------------------------------------------------------------------------- */
 :root {
+  /* Appearance, driven by Settings (`src/app/appearance.ts`).
+     Two independent knobs: the root font size is multiplied by `--ah-font-scale`, so every
+     rem-sized piece of type grows while the layout stays put (`--spacing` is pinned to px
+     below), and `--ah-ui-scale` multiplies spacing and radii instead. */
+  --ah-font-scale: 1;
+  --ah-ui-scale: 1;
+  --ah-font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --ah-font-serif: 'Lora', ui-serif, Georgia, 'Times New Roman', serif;
+  --ah-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Tailwind's spacing unit. Pinned to px (instead of the default `0.25rem`) so the text
+     scale never drags the layout with it; `--ah-ui-scale` is what resizes the layout. */
+  --spacing: calc(4px * var(--ah-ui-scale));
+
   /* Warm, editorial palette — light. */
   --ah-background: #faf9f5;
   --ah-surface: #ffffff;
@@ -75,12 +92,11 @@
 }
 
 @theme inline {
-  --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-    sans-serif;
-  --font-serif: 'Lora', ui-serif, Georgia, 'Times New Roman', serif;
-  --font-mono:
-    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  /* Indirection, not literals: `font-sans` / `font-serif` / `font-mono` then resolve to the
+     live appearance tokens, so a font change in Settings reaches every utility. */
+  --font-sans: var(--ah-font-sans);
+  --font-serif: var(--ah-font-serif);
+  --font-mono: var(--ah-font-mono);
 
   --color-background: var(--ah-background);
   --color-surface: var(--ah-surface);
@@ -108,11 +124,19 @@
   --color-overlay: var(--ah-overlay);
   --color-ring: var(--ah-ring);
 
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
+  --radius-sm: calc(8px * var(--ah-ui-scale));
+  --radius-md: calc(10px * var(--ah-ui-scale));
+  --radius-lg: calc(12px * var(--ah-ui-scale));
+  --radius-xl: calc(16px * var(--ah-ui-scale));
+  --radius-2xl: calc(20px * var(--ah-ui-scale));
+
+  /* Concentric card stack (`AnimatedList`): the cards sit one `--group-gap` apart. Only the
+     corners at the exposed ends keep `--radius-group`; a corner facing a neighbouring card
+     is rounded by `--radius-group-inner`, a step smaller, so the inner corners read as
+     clearly tighter than the outer ones. */
+  --group-gap: var(--spacing);
+  --radius-group: var(--radius-xl);
+  --radius-group-inner: var(--radius-sm);
 
   --shadow-popover: var(--ah-shadow-popover);
 
@@ -129,6 +153,8 @@
   html {
     height: 100%;
     -webkit-text-size-adjust: 100%;
+    /* The text-size knob multiplies the root size, so every rem-based type token follows. */
+    font-size: calc(16px * var(--ah-font-scale));
   }
 
   body {
@@ -137,7 +163,7 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-size: 14px;
+    font-size: 0.875rem;
     line-height: 1.55;
     font-feature-settings:
       'cv05' 1,
@@ -397,7 +423,8 @@
 @layer components {
   .ah-prose {
     color: var(--color-foreground);
-    font-size: 13.5px;
+    /* rem, not px: rendered markdown follows the text-size setting like the rest of the UI. */
+    font-size: 0.84375rem;
     line-height: 1.65;
     overflow-wrap: break-word;
   }
@@ -510,4 +537,31 @@
     background-color: var(--color-surface-2);
     font-weight: 500;
   }
+}
+
+/* Card stacks read as one run: the cards sit `--group-gap` apart and only the corners at the
+   exposed ends keep the full radius — the corners facing a neighbour are rounded by
+   `--radius-group-inner`, a step smaller, so the outer ends stay visibly rounder.
+   `AnimatedList` renders `.ah-card-group` (each child wrapped in a motion div); a plain
+   stack of `Card`s renders `.ah-card-stack`. Unlayered on purpose, so the radius overrides
+   `Card`'s own `rounded-xl` without touching its border, surface or hover. */
+.ah-card-group,
+.ah-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--group-gap);
+}
+
+:is(.ah-card-group > * > *, .ah-card-stack > *) {
+  border-radius: var(--radius-group-inner);
+}
+
+:is(.ah-card-group > *:first-child > *, .ah-card-stack > *:first-child) {
+  border-top-left-radius: var(--radius-group);
+  border-top-right-radius: var(--radius-group);
+}
+
+:is(.ah-card-group > *:last-child > *, .ah-card-stack > *:last-child) {
+  border-bottom-left-radius: var(--radius-group);
+  border-bottom-right-radius: var(--radius-group);
 }

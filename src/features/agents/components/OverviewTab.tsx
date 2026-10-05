@@ -26,235 +26,239 @@ export function OverviewTab({
 
   return (
     <div className="flex flex-col gap-5">
-      <Card className="flex flex-col gap-4 p-5">
-        <div className="flex flex-col gap-1.5">
-          <h3 className="text-[15px]">{t('agent.overview.about')}</h3>
-          <p className="text-muted max-w-prose text-[13px]">{agent.description}</p>
-        </div>
-
-        <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-          <KeyValue label={t('agent.overview.vendor')}>
-            {agent.vendor ?? <span className="text-muted">{t('common.unknown')}</span>}
-          </KeyValue>
-          <KeyValue label={t('agent.overview.category')}>
-            {agent.category ? (
-              t(`agent.category.${agent.category}`, { defaultValue: agent.category })
-            ) : (
-              <span className="text-muted">{t('common.unknown')}</span>
-            )}
-          </KeyValue>
-        </dl>
-
-        {agent.website || agent.docs || agent.github ? (
-          <div className="flex flex-wrap gap-2">
-            {agent.website ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void ipc.openUrl(agent.website ?? '').catch(toastAppError)}
-              >
-                <Globe className="size-3.5" aria-hidden />
-                {t('agents.website')}
-              </Button>
-            ) : null}
-            {agent.docs ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void ipc.openUrl(agent.docs ?? '').catch(toastAppError)}
-              >
-                <FileText className="size-3.5" aria-hidden />
-                {t('agents.docs')}
-              </Button>
-            ) : null}
-            {agent.github ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  void ipc.openUrl(`https://github.com/${agent.github ?? ''}`).catch(toastAppError)
-                }
-              >
-                <GitBranch className="size-3.5" aria-hidden />
-                {t('agent.overview.repository')}
-              </Button>
-            ) : null}
+      <div className="ah-card-stack">
+        <Card className="flex flex-col gap-4 p-5">
+          <div className="flex flex-col gap-1.5">
+            <h3 className="text-[0.9375rem]">{t('agent.overview.about')}</h3>
+            <p className="text-muted max-w-prose text-[0.8125rem]">{agent.description}</p>
           </div>
-        ) : null}
 
-        {agent.features.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <h4 className="text-[13px] font-medium">{t('agent.overview.features')}</h4>
-            <ul className="text-muted flex flex-col gap-1.5 text-[13px]">
-              {agent.features.map((feature) => (
-                <li key={feature} className="flex items-start gap-2">
-                  <Check className="text-accent-strong mt-0.5 size-3.5 shrink-0" aria-hidden />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </Card>
+          <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+            <KeyValue label={t('agent.overview.vendor')}>
+              {agent.vendor ?? <span className="text-muted">{t('common.unknown')}</span>}
+            </KeyValue>
+            <KeyValue label={t('agent.overview.category')}>
+              {agent.category ? (
+                t(`agent.category.${agent.category}`, { defaultValue: agent.category })
+              ) : (
+                <span className="text-muted">{t('common.unknown')}</span>
+              )}
+            </KeyValue>
+          </dl>
 
-      <Card className="p-5">
-        <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-          <KeyValue label={t('agent.overview.status')}>
-            {installed ? (
-              <Badge tone="success" dot="success">
-                {t('agents.installed')}
-              </Badge>
-            ) : (
-              <Badge tone="neutral" dot="neutral">
-                {t('agents.notInstalled')}
-              </Badge>
-            )}
-          </KeyValue>
-
-          <KeyValue label={t('agent.overview.version')}>
-            {agent.version ? (
-              <span className="flex items-center gap-2">
-                <code className="font-mono">{agent.version.raw}</code>
-                {agent.update ? (
-                  <Badge tone="accent">
-                    {t('agents.updateTo', { version: agent.update.latest })}
-                  </Badge>
-                ) : null}
-              </span>
-            ) : (
-              <span className="text-muted">{t('agents.noVersion')}</span>
-            )}
-          </KeyValue>
-
-          <KeyValue label={t('agent.overview.binary')} mono>
-            {agent.binaryPath ?? <span className="text-muted">{t('agents.notInstalled')}</span>}
-          </KeyValue>
-
-          <KeyValue label={t('agent.overview.foundIn')}>
-            {agent.foundIn === 'path' || agent.foundIn === 'the system PATH'
-              ? t('agent.overview.foundInPath')
-              : (agent.foundIn ?? t('common.unknown'))}
-          </KeyValue>
-
-          <KeyValue label={t('agent.overview.installedVia')}>
-            {agent.installedVia ?? <span className="text-muted">{t('common.unknown')}</span>}
-          </KeyValue>
-
-          <KeyValue label={t('agent.overview.manifest')}>
-            {agent.manifestSource.kind === 'builtin'
-              ? t('agent.overview.manifestBuiltin')
-              : t('agent.overview.manifestUser', { path: agent.manifestSource.path })}
-          </KeyValue>
-        </dl>
-
-        {agent.binaryPath ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void ipc.revealPath(agent.binaryPath ?? '').catch(toastAppError)}
-            >
-              <FolderOpen className="size-3.5" aria-hidden />
-              {t('common.reveal')}
-            </Button>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card className="flex flex-col gap-3 p-5">
-        <h3 className="text-[15px]">{t('agent.overview.installOptions')}</h3>
-        {agent.installOptions.length === 0 ? (
-          <p className="text-muted text-[13px]">{t('install.noMethods')}</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {agent.installOptions.map((option) => (
-              <li
-                key={option.id}
-                className="border-border flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
-              >
-                <div className="flex min-w-0 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-foreground text-[13px]">{option.id}</span>
-                    <Badge tone="outline">{option.manager}</Badge>
-                    {option.detected ? (
-                      <Badge tone="accent">
-                        {t('agents.detectedVia', { method: option.manager })}
-                      </Badge>
-                    ) : null}
-                    {!option.available ? (
-                      <Badge tone="neutral">
-                        {option.unavailableReason ?? t('common.notAvailable')}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <code className="text-faint font-mono text-[11px] break-all">
-                    {shortenPath(option.command, 8)}
-                  </code>
-                </div>
+          {agent.website || agent.docs || agent.github ? (
+            <div className="flex flex-wrap gap-2">
+              {agent.website ? (
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={!option.available}
-                  onClick={() => onInstall(agent, installed ? 'update' : 'install')}
+                  onClick={() => void ipc.openUrl(agent.website ?? '').catch(toastAppError)}
                 >
-                  {installed ? (
-                    <RefreshCw className="size-3.5" aria-hidden />
-                  ) : (
-                    <Play className="size-3.5" aria-hidden />
-                  )}
-                  {installed ? t('agents.update') : t('agents.install')}
+                  <Globe className="size-3.5" aria-hidden />
+                  {t('agents.website')}
                 </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {agent.installDocsUrl ? (
-          <Button
-            variant="link"
-            size="sm"
-            className="self-start px-0"
-            onClick={() => void ipc.openUrl(agent.installDocsUrl ?? '').catch(toastAppError)}
-          >
-            {t('install.docsInstead')}
-          </Button>
-        ) : null}
-      </Card>
+              ) : null}
+              {agent.docs ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void ipc.openUrl(agent.docs ?? '').catch(toastAppError)}
+                >
+                  <FileText className="size-3.5" aria-hidden />
+                  {t('agents.docs')}
+                </Button>
+              ) : null}
+              {agent.github ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    void ipc
+                      .openUrl(`https://github.com/${agent.github ?? ''}`)
+                      .catch(toastAppError)
+                  }
+                >
+                  <GitBranch className="size-3.5" aria-hidden />
+                  {t('agent.overview.repository')}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
-      {agent.warnings.length > 0 ? (
-        <Card className="flex flex-col gap-2 p-5">
-          <h3 className="text-[15px]">{t('agent.overview.warnings')}</h3>
-          <ul className="text-muted flex flex-col gap-1 font-mono text-[12px]">
-            {agent.warnings.map((warning) => (
-              <li key={warning} className="break-all">
-                · {warning}
-              </li>
-            ))}
-          </ul>
+          {agent.features.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <h4 className="text-[0.8125rem] font-medium">{t('agent.overview.features')}</h4>
+              <ul className="text-muted flex flex-col gap-1.5 text-[0.8125rem]">
+                {agent.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <Check className="text-accent-strong mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </Card>
-      ) : null}
 
-      {agent.unverified.length > 0 || agent.notes ? (
-        <Card className="flex flex-col gap-2 p-5">
-          <h3 className="text-[15px]">
-            {agent.unverified.length > 0 ? t('agents.unverified') : t('agent.overview.notes')}
-          </h3>
-          {agent.unverified.length > 0 ? (
-            <ul className="text-warning-fg flex flex-col gap-1 font-mono text-[12px]">
-              {agent.unverified.map((field) => (
-                <li key={field}>{field}</li>
+        <Card className="p-5">
+          <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+            <KeyValue label={t('agent.overview.status')}>
+              {installed ? (
+                <Badge tone="success" dot="success">
+                  {t('agents.installed')}
+                </Badge>
+              ) : (
+                <Badge tone="neutral" dot="neutral">
+                  {t('agents.notInstalled')}
+                </Badge>
+              )}
+            </KeyValue>
+
+            <KeyValue label={t('agent.overview.version')}>
+              {agent.version ? (
+                <span className="flex items-center gap-2">
+                  <code className="font-mono">{agent.version.raw}</code>
+                  {agent.update ? (
+                    <Badge tone="accent">
+                      {t('agents.updateTo', { version: agent.update.latest })}
+                    </Badge>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="text-muted">{t('agents.noVersion')}</span>
+              )}
+            </KeyValue>
+
+            <KeyValue label={t('agent.overview.binary')} mono>
+              {agent.binaryPath ?? <span className="text-muted">{t('agents.notInstalled')}</span>}
+            </KeyValue>
+
+            <KeyValue label={t('agent.overview.foundIn')}>
+              {agent.foundIn === 'path' || agent.foundIn === 'the system PATH'
+                ? t('agent.overview.foundInPath')
+                : (agent.foundIn ?? t('common.unknown'))}
+            </KeyValue>
+
+            <KeyValue label={t('agent.overview.installedVia')}>
+              {agent.installedVia ?? <span className="text-muted">{t('common.unknown')}</span>}
+            </KeyValue>
+
+            <KeyValue label={t('agent.overview.manifest')}>
+              {agent.manifestSource.kind === 'builtin'
+                ? t('agent.overview.manifestBuiltin')
+                : t('agent.overview.manifestUser', { path: agent.manifestSource.path })}
+            </KeyValue>
+          </dl>
+
+          {agent.binaryPath ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void ipc.revealPath(agent.binaryPath ?? '').catch(toastAppError)}
+              >
+                <FolderOpen className="size-3.5" aria-hidden />
+                {t('common.reveal')}
+              </Button>
+            </div>
+          ) : null}
+        </Card>
+
+        <Card className="flex flex-col gap-3 p-5">
+          <h3 className="text-[0.9375rem]">{t('agent.overview.installOptions')}</h3>
+          {agent.installOptions.length === 0 ? (
+            <p className="text-muted text-[0.8125rem]">{t('install.noMethods')}</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {agent.installOptions.map((option) => (
+                <li
+                  key={option.id}
+                  className="border-border flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-foreground text-[0.8125rem]">{option.id}</span>
+                      <Badge tone="outline">{option.manager}</Badge>
+                      {option.detected ? (
+                        <Badge tone="accent">
+                          {t('agents.detectedVia', { method: option.manager })}
+                        </Badge>
+                      ) : null}
+                      {!option.available ? (
+                        <Badge tone="neutral">
+                          {option.unavailableReason ?? t('common.notAvailable')}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <code className="text-faint font-mono text-[0.6875rem] break-all">
+                      {shortenPath(option.command, 8)}
+                    </code>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!option.available}
+                    onClick={() => onInstall(agent, installed ? 'update' : 'install')}
+                  >
+                    {installed ? (
+                      <RefreshCw className="size-3.5" aria-hidden />
+                    ) : (
+                      <Play className="size-3.5" aria-hidden />
+                    )}
+                    {installed ? t('agents.update') : t('agents.install')}
+                  </Button>
+                </li>
               ))}
             </ul>
-          ) : null}
-          {agent.unverified.length > 0 ? (
-            <p className="text-muted text-[12px]">{t('agents.unverifiedHint')}</p>
-          ) : null}
-          {agent.notes ? (
-            <p className="text-muted text-[12px] whitespace-pre-line">{agent.notes}</p>
+          )}
+          {agent.installDocsUrl ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="self-start px-0"
+              onClick={() => void ipc.openUrl(agent.installDocsUrl ?? '').catch(toastAppError)}
+            >
+              {t('install.docsInstead')}
+            </Button>
           ) : null}
         </Card>
-      ) : null}
 
-      <p className="text-faint text-[12px]">
+        {agent.warnings.length > 0 ? (
+          <Card className="flex flex-col gap-2 p-5">
+            <h3 className="text-[0.9375rem]">{t('agent.overview.warnings')}</h3>
+            <ul className="text-muted flex flex-col gap-1 font-mono text-[0.75rem]">
+              {agent.warnings.map((warning) => (
+                <li key={warning} className="break-all">
+                  · {warning}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
+
+        {agent.unverified.length > 0 || agent.notes ? (
+          <Card className="flex flex-col gap-2 p-5">
+            <h3 className="text-[0.9375rem]">
+              {agent.unverified.length > 0 ? t('agents.unverified') : t('agent.overview.notes')}
+            </h3>
+            {agent.unverified.length > 0 ? (
+              <ul className="text-warning-fg flex flex-col gap-1 font-mono text-[0.75rem]">
+                {agent.unverified.map((field) => (
+                  <li key={field}>{field}</li>
+                ))}
+              </ul>
+            ) : null}
+            {agent.unverified.length > 0 ? (
+              <p className="text-muted text-[0.75rem]">{t('agents.unverifiedHint')}</p>
+            ) : null}
+            {agent.notes ? (
+              <p className="text-muted text-[0.75rem] whitespace-pre-line">{agent.notes}</p>
+            ) : null}
+          </Card>
+        ) : null}
+      </div>
+
+      <p className="text-faint text-[0.75rem]">
         {t('agent.overview.scanTime', {
           duration: formatDuration(agent.scanMs) ?? '—',
         })}

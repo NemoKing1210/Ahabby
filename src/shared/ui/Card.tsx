@@ -27,7 +27,7 @@ export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingEle
 }
 
 export function CardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-muted text-[13px]', className)} {...props} />
+  return <p className={cn('text-muted text-[0.8125rem]', className)} {...props} />
 }
 
 export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -57,8 +57,8 @@ export function KeyValue({
 }) {
   return (
     <div className={cn('flex flex-col gap-0.5 py-1.5', className)}>
-      <dt className="text-faint text-[11px] tracking-wide uppercase">{label}</dt>
-      <dd className={cn('text-foreground text-sm break-all', mono && 'font-mono text-[13px]')}>
+      <dt className="text-faint text-[0.6875rem] tracking-wide uppercase">{label}</dt>
+      <dd className={cn('text-foreground text-sm break-all', mono && 'font-mono text-[0.8125rem]')}>
         {children}
       </dd>
     </div>

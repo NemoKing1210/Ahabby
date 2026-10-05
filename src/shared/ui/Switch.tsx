@@ -44,7 +44,7 @@ export function SwitchField({
         <label htmlFor={id} className="text-foreground text-sm">
           {label}
         </label>
-        {hint ? <p className="text-muted max-w-prose text-[13px]">{hint}</p> : null}
+        {hint ? <p className="text-muted max-w-prose text-[0.8125rem]">{hint}</p> : null}
       </div>
       <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
     </div>

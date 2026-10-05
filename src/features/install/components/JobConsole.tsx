@@ -43,7 +43,7 @@ export function JobConsole({ jobId, className }: { jobId: string; className?: st
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex items-center justify-between gap-3">
-        <div className="text-muted flex items-center gap-2 text-[12px]">
+        <div className="text-muted flex items-center gap-2 text-[0.75rem]">
           <Terminal className="size-3.5" aria-hidden />
           <span className="font-mono break-all">{job.command}</span>
         </div>
@@ -73,7 +73,7 @@ export function JobConsole({ jobId, className }: { jobId: string; className?: st
 
       <div
         ref={scrollRef}
-        className="border-border bg-surface-2 max-h-72 min-h-32 overflow-y-auto rounded-lg border p-3 font-mono text-[12px] leading-relaxed"
+        className="border-border bg-surface-2 max-h-72 min-h-32 overflow-y-auto rounded-lg border p-3 font-mono text-[0.75rem] leading-relaxed"
         role="log"
         aria-live="polite"
       >
@@ -95,7 +95,7 @@ export function JobConsole({ jobId, className }: { jobId: string; className?: st
       </div>
 
       {job.outcome ? (
-        <div className="flex items-center gap-2 text-[13px]">
+        <div className="flex items-center gap-2 text-[0.8125rem]">
           {job.outcome.ok ? (
             <CheckCircle2 className="text-success-fg size-4" aria-hidden />
           ) : (

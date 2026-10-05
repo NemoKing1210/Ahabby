@@ -1,6 +1,7 @@
 import { motion } from 'motion/react'
 import { Children, isValidElement, useEffect, useState, type ReactNode } from 'react'
 
+import { cn } from '@/shared/lib/cn'
 import { softTransition, useSoftSlide } from '@/shared/lib/motion'
 
 /** How long after mount a newly added row is still treated as part of the initial entrance. */
@@ -9,7 +10,9 @@ const STAGGER_STEP_S = 0.04
 const STAGGER_MAX_INDEX = 6
 
 /**
- * Vertical stack of cards that eases in once, on first paint.
+ * Vertical stack of cards that eases in once, on first paint. The cards sit close together
+ * (see `.ah-card-group`): the corners at the exposed ends keep the full radius, while a
+ * corner facing a neighbour is rounded a little less, so the rows meet concentrically.
  *
  * Rows that arrive later (filtering, rescanning) fade in on their own without a stagger
  * delay, so typing in a filter never feels like the list is catching up.
@@ -24,7 +27,7 @@ export function AnimatedList({ className, children }: { className?: string; chil
   }, [])
 
   return (
-    <div className={className}>
+    <div className={cn('ah-card-group', className)}>
       {Children.map(children, (child, index) =>
         isValidElement(child) ? (
           <motion.div

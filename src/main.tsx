@@ -6,6 +6,7 @@ import '@/styles/globals.css'
 import { ipc } from '@/shared/api/ipc'
 import { DEFAULT_LANGUAGE, initI18n, type Language } from '@/shared/i18n'
 
+import { appearanceApplier } from './app/appearance'
 import { AppProviders } from './app/providers'
 import { AppRouter } from './app/router'
 import { suppressNativeMenu } from './app/nativeMenu'
@@ -32,6 +33,7 @@ async function boot() {
     const settings = await ipc.getSettings()
     language = settings.language
     themeApplier.apply(settings.theme)
+    appearanceApplier.apply(settings)
   } catch {
     // A missing/unreadable settings file is not fatal: fall back to the defaults.
     themeApplier.apply('system')
