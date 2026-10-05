@@ -13,6 +13,7 @@ pub mod skills;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::error::{AppError, Result};
 use crate::services::ScanReport;
 
 /// A mutation result plus the state of the world afterwards.
@@ -32,6 +33,37 @@ where
 impl<T: TS> MutationResult<T> {
     pub fn new(data: T, report: ScanReport) -> Self {
         Self { data, report }
+    }
+}
+
+/// Refuses a destructive command that the frontend did not ask to confirm.
+///
+/// Every command that deletes something or executes a resolved installer takes a `confirm`
+/// argument and passes it here, so a UI that forgets its dialog cannot silently delete or
+/// install: the frontend always sends an agent id, never a command line, and this is the
+/// second half of that contract.
+pub fn require_confirmation(confirm: bool, action: &str) -> Result<()> {
+    if confirm {
+        return Ok(());
+    }
+    Err(AppError::InvalidInput(format!(
+        "{action} requires explicit confirmation"
+    )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::require_confirmation;
+    use crate::error::AppError;
+
+    #[test]
+    fn unconfirmed_actions_are_refused_with_a_stable_code() {
+        assert!(require_confirmation(true, "deleting a skill").is_ok());
+
+        let error = require_confirmation(false, "deleting a skill").unwrap_err();
+        // The UI branches on `code`, never on the message.
+        assert!(matches!(error, AppError::InvalidInput(_)));
+        assert!(error.to_string().contains("deleting a skill"));
     }
 }
 

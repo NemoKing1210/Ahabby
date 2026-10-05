@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, StopCircle, Terminal, XCircle } from 'lucide-react'
 
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Badge } from '@/shared/ui/Badge'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { Spinner } from '@/shared/ui/Primitives'
 import { toastAppError } from '@/shared/ui/Toast'
 
@@ -27,6 +28,7 @@ export function JobConsole({ jobId, className }: { jobId: string; className?: st
   const { t } = useTranslation()
   const job = useJobStore((state) => state.jobs[jobId])
   const cancel = useCancelJob()
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function JobConsole({ jobId, className }: { jobId: string; className?: st
             variant="ghost"
             size="sm"
             disabled={cancel.isPending}
-            onClick={() => cancel.mutate(jobId, { onError: (error) => toastAppError(error) })}
+            onClick={() => setConfirmingCancel(true)}
           >
             <StopCircle className="size-3.5" aria-hidden />
             {t('install.cancel')}
@@ -108,6 +110,26 @@ export function JobConsole({ jobId, className }: { jobId: string; className?: st
           </span>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmingCancel}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingCancel(false)
+        }}
+        title={t('install.cancelJobTitle')}
+        description={t('install.cancelJobBody')}
+        confirmLabel={t('install.cancel')}
+        busy={cancel.isPending}
+        onConfirm={() => {
+          cancel.mutate(jobId, {
+            onSuccess: () => setConfirmingCancel(false),
+            onError: (error) => {
+              setConfirmingCancel(false)
+              toastAppError(error)
+            },
+          })
+        }}
+      />
     </div>
   )
 }

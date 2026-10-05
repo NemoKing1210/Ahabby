@@ -46,17 +46,31 @@ pub async fn plan_install(
 }
 
 /// Resolve and start a job. Returns the job id; output arrives through `job://output`.
+///
+/// Requires `confirm` to be `true`: the frontend shows the resolved command first, and the
+/// backend refuses to execute anything that was not explicitly confirmed.
 #[tauri::command]
 pub async fn run_install(
     state: State<'_, AppState>,
     agent_id: String,
     action: ActionRequest,
     method_id: Option<String>,
+    confirm: bool,
 ) -> Result<String> {
+    let action = InstallAction::from(action);
+    super::require_confirmation(
+        confirm,
+        match action {
+            InstallAction::Install => "installing an agent",
+            InstallAction::Update => "updating an agent",
+            InstallAction::Uninstall => "uninstalling an agent",
+        },
+    )?;
+
     let adapter = state.adapter(&agent_id)?;
     let context = state.platform_context();
     let plan = adapter
-        .install_plan(&context, action.into(), method_id.as_deref())
+        .install_plan(&context, action, method_id.as_deref())
         .await?;
 
     if plan.manager == crate::domain::Manager::Manual {

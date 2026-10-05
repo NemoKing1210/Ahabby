@@ -59,6 +59,7 @@ macro_rules! handlers {
             commands::install::rescan_after_job,
             commands::settings::get_settings,
             commands::settings::save_settings,
+            commands::settings::set_window_theme,
         ]
     };
 }

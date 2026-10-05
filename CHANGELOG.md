@@ -5,6 +5,61 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-10-05
+
+### Changed
+
+- Avatar tiles now use each agent's own brand colour, with the mark drawn in the colour that stays legible
+  on it, instead of the earlier neutral tile and per-agent tint. That applies to the agents the icon
+  library ships (its own avatar colours) and to the ones it does not — Aider, Amazon Q, Augment, Codebuff,
+  Continue, Crush, Factory Droid, Forge, gptme, omp, Open Interpreter, Plandex, ShellGPT, Tabby, Warp and
+  Zed — whose colours were taken from the vendor's own site or logo. An icon key with neither entry still
+  gets a plain neutral monogram instead of a made-up colour
+
+## [0.5.1] - 2026-10-05
+
+### Changed
+
+- Cancelling a running install or update now asks for confirmation first, so an accidental click can no
+  longer leave an agent half-installed
+
+### Fixed
+
+- The backend now refuses `run_install` unless the frontend explicitly confirms it, the same way it
+  already refused a skill or MCP server deletion. Installing, updating and uninstalling an agent run a
+  command from the manifest, and that command can no longer be executed without the confirmation dialog
+  having been shown
+
+## [0.5.0] - 2026-10-05
+
+### Added
+
+- Agent avatars now show the real product logo instead of initials: the cards and the agent's own page
+  draw brand marks from `@lobehub/icons` (Claude Code, Codex, Cursor, Windsurf, Cline, GitHub Copilot,
+  Gemini CLI, Qwen, OpenHands, Kiro, Goose, Amp, Junie, Kilo Code, OpenCode, OpenClaw, Pi and Hermes).
+  Agents without a matching logo keep the deterministic monogram, and the logo follows the manifest's
+  `icon` key, so a new agent picks it up by declaring the same key
+
+## [0.4.3] - 2026-10-05
+
+### Added
+
+- Every agent card in the list now shows how many skills, MCP servers, config files and other
+  resources that agent has, so the counts are visible without opening the agent's page
+
+## [0.4.2] - 2026-10-05
+
+### Changed
+
+- The native window header is now painted in the theme's own colour instead of the Windows accent and
+  the gradient it comes with, so it blends into the app
+
+### Fixed
+
+- Switching the theme no longer snaps back to the previous one: repainting the native header used to
+  flip the webview's own `prefers-color-scheme`, and a leftover listener chased the app back to the
+  theme it had just left
+
 ## [0.4.1] - 2026-10-05
 
 ### Removed

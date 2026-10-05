@@ -4,7 +4,7 @@ import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
 import type { Settings } from '@/shared/bindings/Settings'
 import { initI18n } from '@/shared/i18n'
-import { applyTheme } from '@/app/theme'
+import { themeApplier } from '@/app/theme'
 
 export function useSettings() {
   return useQuery({
@@ -45,7 +45,7 @@ export function useSaveSettings() {
     onSuccess: (saved) => {
       client.setQueryData(queryKeys.settings(), saved)
       initI18n(saved.language)
-      applyTheme(saved.theme)
+      themeApplier.apply(saved.theme)
       void client.invalidateQueries({ queryKey: ['backup-root'] })
     },
   })

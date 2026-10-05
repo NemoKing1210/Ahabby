@@ -10,7 +10,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.4.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.5.2`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -29,7 +29,7 @@ commands → services → adapters → catalog → domain
   `ClaudeAdapter` (`adapter = "claude"`), because Claude Code reads MCP from two files and plugin-managed
   skills must never be deleted.
 - `platform` — OS-specific: path expansion (`${VAR}`), binary lookup, package-manager detection, process
-  execution with timeouts, atomic writes + backups.
+  execution with timeouts, atomic writes + backups, native window chrome (Windows: DWM).
 - `services` — scanner, config editor, installer + job runner, version checker, settings, library.
 - `commands` — thin Tauri command surface; validates input, calls a service.
 
@@ -158,18 +158,30 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   slide offset for the whole tween.
 - **Config edits** must follow: edit → `previewConfigSave` (diff + validation + hash) → `saveConfig`.
   Stale-file errors are detected via `isStaleFileError`.
+- **Theme**: `src/app/theme.ts` owns the only `prefers-color-scheme` subscription (through the app-wide
+  `themeApplier`) and pushes the resolved palette to the native title bar. Always apply themes through
+  that applier — a stale subscription re-applies a theme the user has already left.
 - **i18n**: add every new string to **both** `en.json` and `ru.json`; parity is enforced by
   `src/shared/i18n/locales.test.ts`. Plurals use i18next `_one`/`_other`.
-- **Icons**: `AgentIcon` renders a deterministic monogram (no trademarked logos) — do not add brand assets.
+- **Icons**: `AgentIcon` paints the manifest `icon` key with the brand palette from
+  `src/shared/ui/agentBrands.ts` (background + contrasting mark, from `@lobehub/icons` `AVATAR_*`
+  constants for the brands it ships, verified brand hexes with a `# SOURCE:` comment otherwise).
+  Unmapped keys get a neutral monogram. Deep-import leaf components
+  (`@lobehub/icons/es/<Brand>/components/{Color,Mono,Inner}`), never the per-brand index — that
+  index also pulls the library's `Avatar` wrapper, dragging `@lobehub/ui` and `antd` into the bundle.
 
 ### Backend patterns
 
 - **Every disk write goes through `platform::write_atomic`** (temp file → fsync → rename, timestamped
   backup first, Unix permissions preserved). Do not open a config file for writing anywhere else.
+- The native title bar is painted by `set_window_theme` → `platform::set_window_chrome`. On Windows it
+  must go through DWM, not `Window::set_theme`: tao turns that into a theme change that reaches our own
+  webview and flips the `prefers-color-scheme` a `system` theme is resolved from.
 - Services take a `PlatformContext` and must not depend on `AppHandle` (except where a `JobSink` is needed).
 - Commands resolve inputs through `AppState` (e.g. `config_target(agent_id, path)` is the security seam: the
   path must exactly match a declared config of that agent, else `CommandNotAllowed`). `remove_skill` /
-  `remove_mcp_server` require `confirm: true`.
+  `remove_mcp_server` / `run_install` all take `confirm` and go through `commands::require_confirmation`, so a
+  UI that skips its dialog is refused instead of deleting or executing something.
 - Commands are never trusted from the UI: the UI sends an agent id + method id; `plan_for()` resolves the
   command from the manifest and `validate_command` enforces the first token (manager binary, allow-listed
   installer for `script`, or the agent's own binary) and rejects newlines/backticks/`$(…)`. Non-script commands

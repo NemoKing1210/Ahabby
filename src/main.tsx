@@ -8,7 +8,7 @@ import { DEFAULT_LANGUAGE, initI18n, type Language } from '@/shared/i18n'
 
 import { AppProviders } from './app/providers'
 import { AppRouter } from './app/router'
-import { applyTheme } from './app/theme'
+import { themeApplier } from './app/theme'
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {
@@ -26,10 +26,10 @@ async function boot() {
   try {
     const settings = await ipc.getSettings()
     language = settings.language
-    applyTheme(settings.theme)
+    themeApplier.apply(settings.theme)
   } catch {
     // A missing/unreadable settings file is not fatal: fall back to the defaults.
-    applyTheme('system')
+    themeApplier.apply('system')
   }
   initI18n(language)
 

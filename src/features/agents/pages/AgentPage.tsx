@@ -64,7 +64,7 @@ export function AgentPage() {
 
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">
-            <AgentIcon id={agent.id} name={agent.name} size="lg" />
+            <AgentIcon name={agent.name} icon={agent.icon} size="lg" />
             <div className="flex min-w-0 flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl">{agent.name}</h1>

@@ -1,7 +1,7 @@
 {
   "name": "ahabby",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.5.2",
   "type": "module",
   "description": "Ahabby — a control panel for AI coding agents installed on your machine.",
   "license": "MIT",
@@ -50,6 +50,7 @@
     "@codemirror/legacy-modes": "^6.5.4",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.6",
+    "@lobehub/icons": "^5.23.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-scroll-area": "^1.2.15",
     "@radix-ui/react-select": "^2.3.7",

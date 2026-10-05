@@ -24,6 +24,7 @@ import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { Settings } from '@/shared/bindings/Settings'
 import type { Skill } from '@/shared/bindings/Skill'
 import type { SkillRemoval } from '@/shared/bindings/SkillRemoval'
+import type { Theme } from '@/shared/bindings/Theme'
 
 export const ipc = {
   // --- agents -------------------------------------------------------------------------
@@ -65,8 +66,8 @@ export const ipc = {
   // --- install / update ---------------------------------------------------------------
   planInstall: (agentId: string, action: InstallAction, methodId?: string | null) =>
     invoke<InstallPlan>('plan_install', { agentId, action, methodId: methodId ?? null }),
-  runInstall: (agentId: string, action: InstallAction, methodId?: string | null) =>
-    invoke<string>('run_install', { agentId, action, methodId: methodId ?? null }),
+  runInstall: (agentId: string, action: InstallAction, methodId?: string | null, confirm = false) =>
+    invoke<string>('run_install', { agentId, action, methodId: methodId ?? null, confirm }),
   cancelJob: (jobId: string) => invoke<boolean>('cancel_job', { jobId }),
   runningJobs: () => invoke<string[]>('running_jobs'),
   rescanAfterJob: () => invoke<ScanReport>('rescan_after_job'),
@@ -74,4 +75,6 @@ export const ipc = {
   // --- settings -----------------------------------------------------------------------
   getSettings: () => invoke<Settings>('get_settings'),
   saveSettings: (settings: Settings) => invoke<Settings>('save_settings', { settings }),
+  setWindowTheme: (theme: Theme, dark: boolean, caption: string, text: string) =>
+    invoke<void>('set_window_theme', { theme, dark, caption, text }),
 }

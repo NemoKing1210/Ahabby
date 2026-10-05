@@ -24,11 +24,7 @@ pub async fn delete_mcp_server(
     server_id: String,
     confirm: bool,
 ) -> Result<MutationResult<McpRemoval>> {
-    if !confirm {
-        return Err(AppError::InvalidInput(
-            "removing an MCP server requires explicit confirmation".to_string(),
-        ));
-    }
+    crate::commands::require_confirmation(confirm, "removing an MCP server")?;
     let server = state.mcp_server(&agent_id, &server_id)?;
     let adapter = state.adapter(&agent_id)?;
     let context = state.platform_context();

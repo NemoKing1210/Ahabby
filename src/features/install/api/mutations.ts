@@ -32,12 +32,16 @@ export interface RunInstallVars {
 /**
  * Starts a job. The command itself never leaves the backend: the frontend only sends the
  * agent id and the method id, and receives a job id plus a stream of output events.
+ *
+ * `confirm: true` is the same contract the deletions use — it is only ever sent from
+ * `InstallDialog`, which is where the user sees the resolved command.
  */
 export function useRunInstall() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (vars: RunInstallVars) => ipc.runInstall(vars.agentId, vars.action, vars.methodId),
+    mutationFn: (vars: RunInstallVars) =>
+      ipc.runInstall(vars.agentId, vars.action, vars.methodId, true),
     onSuccess: (jobId, vars) => {
       useJobStore.getState().start({
         jobId,

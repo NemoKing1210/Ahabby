@@ -13,7 +13,8 @@ import type { SkillSpec } from "./SkillSpec";
  */
 export type AgentManifest = { id: string, name: string, description: string, tagline?: string | null, website?: string | null, docs?: string | null, 
 /**
- * Icon key resolved by the frontend (`src/shared/ui/AgentIcon.tsx`).
+ * Brand key resolved by the frontend (`src/shared/ui/agentBrands.ts` → `AgentIcon.tsx`).
+ * Unmapped keys fall back to a neutral monogram.
  */
 icon?: string | null, category?: string | null, 
 /**

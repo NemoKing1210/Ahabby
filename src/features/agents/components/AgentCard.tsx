@@ -1,5 +1,13 @@
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, FileText, Sparkles, TriangleAlert } from 'lucide-react'
+import {
+  Boxes,
+  ExternalLink,
+  FileCog,
+  FileText,
+  Server,
+  Sparkles,
+  TriangleAlert,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { ipc } from '@/shared/api/ipc'
@@ -38,7 +46,7 @@ export function AgentCard({
           aria-label={agent.name}
           className="focus-visible:outline-ring flex min-w-0 flex-1 items-start gap-4 rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          <AgentIcon id={agent.id} name={agent.name} />
+          <AgentIcon name={agent.name} icon={agent.icon} />
 
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
@@ -83,6 +91,30 @@ export function AgentCard({
                     {t('agents.warnings', { count: agent.warnings.length })}
                   </span>
                 </Tooltip>
+              ) : null}
+              {agent.skills.length > 0 ? (
+                <span className="inline-flex items-center gap-1">
+                  <Sparkles className="size-3" aria-hidden />
+                  {t('agents.card.skills', { count: agent.skills.length })}
+                </span>
+              ) : null}
+              {agent.mcpServers.length > 0 ? (
+                <span className="inline-flex items-center gap-1">
+                  <Server className="size-3" aria-hidden />
+                  {t('agents.card.mcp', { count: agent.mcpServers.length })}
+                </span>
+              ) : null}
+              {agent.configs.length > 0 ? (
+                <span className="inline-flex items-center gap-1">
+                  <FileCog className="size-3" aria-hidden />
+                  {t('agents.card.configs', { count: agent.configs.length })}
+                </span>
+              ) : null}
+              {agent.other.length > 0 ? (
+                <span className="inline-flex items-center gap-1">
+                  <Boxes className="size-3" aria-hidden />
+                  {t('agents.card.other', { count: agent.other.length })}
+                </span>
               ) : null}
             </div>
           </div>

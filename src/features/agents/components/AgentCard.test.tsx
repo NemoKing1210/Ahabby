@@ -117,6 +117,32 @@ describe('AgentCard', () => {
     expect(screen.getByText('1 warning')).toBeInTheDocument()
   })
 
+  it('shows how many skills, MCP servers, configs and resources the agent has', () => {
+    renderWithProviders(
+      <AgentCard
+        agent={agent({
+          skills: [{}, {}] as Agent['skills'],
+          mcpServers: [{}] as Agent['mcpServers'],
+          configs: [{}, {}, {}] as Agent['configs'],
+          other: [{}] as Agent['other'],
+        })}
+        onInstall={() => undefined}
+      />,
+    )
+
+    expect(screen.getByText('2 skills')).toBeInTheDocument()
+    expect(screen.getByText('1 MCP server')).toBeInTheDocument()
+    expect(screen.getByText('3 configs')).toBeInTheDocument()
+    expect(screen.getByText('1 resource')).toBeInTheDocument()
+  })
+
+  it('hides the resource counts when the agent has none', () => {
+    renderWithProviders(<AgentCard agent={agent()} onInstall={() => undefined} />)
+
+    expect(screen.queryByText('0 skills')).not.toBeInTheDocument()
+    expect(screen.queryByText('0 configs')).not.toBeInTheDocument()
+  })
+
   it('opens the agent page when the info area is clicked', async () => {
     const { container } = renderWithProviders(
       <Routes>

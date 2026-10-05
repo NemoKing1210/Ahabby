@@ -409,7 +409,8 @@ pub struct AgentManifest {
     pub website: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub docs: Option<String>,
-    /// Icon key resolved by the frontend (`src/shared/ui/AgentIcon.tsx`).
+    /// Brand key resolved by the frontend (`src/shared/ui/agentBrands.ts` → `AgentIcon.tsx`).
+    /// Unmapped keys fall back to a neutral monogram.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

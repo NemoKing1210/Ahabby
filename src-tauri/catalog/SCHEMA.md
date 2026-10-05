@@ -15,23 +15,23 @@ shows them to the user with a "needs verification" badge instead of pretending t
 
 ## Top level
 
-| key           | type             | notes                                                                       |
-| ------------- | ---------------- | --------------------------------------------------------------------------- |
-| `id`          | string, required | `[a-z0-9_-]+`, stable, used as the primary key                              |
-| `name`        | string, required | display name                                                                |
-| `description` | string, required | one sentence for the card                                                   |
-| `tagline`     | string           | short marketing-free summary                                                |
-| `website`     | string           | product page                                                                |
-| `docs`        | string           | documentation root                                                          |
-| `icon`        | string           | icon key rendered by `src/shared/ui/AgentIcon.tsx` (falls back to initials) |
-| `category`    | string           | free-form grouping (`cli`, `editor`, `extension`)                           |
-| `popular`     | bool             | show in "available to install" even on a bare machine                       |
-| `vendor`      | string           | who publishes the agent, shown on its own page                              |
-| `features`    | [string]         | short highlights, shown on the agent's own page                             |
-| `github`      | string           | `owner/repo`, used for the release check and the repository link            |
-| `adapter`     | string           | `manifest` (default) or `claude`; see `ARCHITECTURE.md`                     |
-| `unverified`  | [string]         | dotted paths that still need a docs check, e.g. `["skills.path"]`           |
-| `notes`       | string           | provenance notes shown in the UI                                            |
+| key           | type             | notes                                                                                                                                           |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | string, required | `[a-z0-9_-]+`, stable, used as the primary key                                                                                                  |
+| `name`        | string, required | display name                                                                                                                                    |
+| `description` | string, required | one sentence for the card                                                                                                                       |
+| `tagline`     | string           | short marketing-free summary                                                                                                                    |
+| `website`     | string           | product page                                                                                                                                    |
+| `docs`        | string           | documentation root                                                                                                                              |
+| `icon`        | string           | brand key: `src/shared/ui/agentBrands.ts` maps it to the brand's tile colours and logo for `AgentIcon.tsx`; unmapped keys fall back to initials |
+| `category`    | string           | free-form grouping (`cli`, `editor`, `extension`)                                                                                               |
+| `popular`     | bool             | show in "available to install" even on a bare machine                                                                                           |
+| `vendor`      | string           | who publishes the agent, shown on its own page                                                                                                  |
+| `features`    | [string]         | short highlights, shown on the agent's own page                                                                                                 |
+| `github`      | string           | `owner/repo`, used for the release check and the repository link                                                                                |
+| `adapter`     | string           | `manifest` (default) or `claude`; see `ARCHITECTURE.md`                                                                                         |
+| `unverified`  | [string]         | dotted paths that still need a docs check, e.g. `["skills.path"]`                                                                               |
+| `notes`       | string           | provenance notes shown in the UI                                                                                                                |
 
 ## `[binaries]`
 

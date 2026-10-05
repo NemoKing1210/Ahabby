@@ -3,7 +3,7 @@
 use tauri::State;
 
 use crate::domain::{Library, Skill};
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::services;
 use crate::state::AppState;
 
@@ -36,11 +36,7 @@ pub async fn delete_skill(
     skill_id: String,
     confirm: bool,
 ) -> Result<MutationResult<SkillRemoval>> {
-    if !confirm {
-        return Err(AppError::InvalidInput(
-            "deleting a skill requires explicit confirmation".to_string(),
-        ));
-    }
+    crate::commands::require_confirmation(confirm, "deleting a skill")?;
     let skill = state.skill(&agent_id, &skill_id)?;
     let adapter = state.adapter(&agent_id)?;
     let context = state.platform_context();
