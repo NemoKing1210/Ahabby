@@ -8,6 +8,13 @@ icon = "opencode"
 category = "cli"
 popular = true
 github = "anomalyco/opencode"
+vendor = "Anomaly"
+features = [
+    "Open-source coding agent for the terminal",
+    "One JSON config for providers, models, agents and permissions",
+    "Skills plus markdown agents and commands",
+    "Local and remote MCP servers",
+]
 unverified = []
 notes = "Global paths, MCP shape, skills, rules, agents and commands verified against the official docs (config, mcp-servers, skills, rules, agents, commands, troubleshooting) and the anomalyco/opencode install script on 2026-10-05. The repository was renamed from sst/opencode to anomalyco/opencode; GitHub redirects the old slug."
 

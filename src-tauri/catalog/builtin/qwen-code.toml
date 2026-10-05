@@ -8,6 +8,13 @@ icon = "qwen"
 category = "cli"
 popular = true
 github = "QwenLM/qwen-code"
+vendor = "Qwen Team"
+features = [
+    "Open-source agentic coding CLI from the Qwen team",
+    "Sub-agents, skills, hooks and MCP",
+    "User- and system-scope settings",
+    "Global memory and rules",
+]
 unverified = []
 notes = "Verified 2026-10-05. The npm package is @qwen-code/qwen-code and its only bin is 'qwen'. User data lives under ~/.qwen/ (settings.json, skills/, rules/, commands/, agents/, QWEN.md); project files live under <project>/.qwen/. Note that Qwen's MCP HTTP servers use 'httpUrl' and SSE servers use 'url', so remote servers that declare 'httpUrl' may not be recognised by Ahabby's MCP reader even though the 'mcpServers' key path is correct."
 

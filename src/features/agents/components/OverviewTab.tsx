@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { FileText, FolderOpen, Play, RefreshCw } from 'lucide-react'
+import { Check, FileText, FolderOpen, GitBranch, Globe, Play, RefreshCw } from 'lucide-react'
 
 import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
@@ -26,6 +26,77 @@ export function OverviewTab({
 
   return (
     <div className="flex flex-col gap-5">
+      <Card className="flex flex-col gap-4 p-5">
+        <div className="flex flex-col gap-1.5">
+          <h3 className="text-[15px]">{t('agent.overview.about')}</h3>
+          <p className="text-muted max-w-prose text-[13px]">{agent.description}</p>
+        </div>
+
+        <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+          <KeyValue label={t('agent.overview.vendor')}>
+            {agent.vendor ?? <span className="text-muted">{t('common.unknown')}</span>}
+          </KeyValue>
+          <KeyValue label={t('agent.overview.category')}>
+            {agent.category ? (
+              t(`agent.category.${agent.category}`, { defaultValue: agent.category })
+            ) : (
+              <span className="text-muted">{t('common.unknown')}</span>
+            )}
+          </KeyValue>
+        </dl>
+
+        {agent.website || agent.docs || agent.github ? (
+          <div className="flex flex-wrap gap-2">
+            {agent.website ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void ipc.openUrl(agent.website ?? '').catch(toastAppError)}
+              >
+                <Globe className="size-3.5" aria-hidden />
+                {t('agents.website')}
+              </Button>
+            ) : null}
+            {agent.docs ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void ipc.openUrl(agent.docs ?? '').catch(toastAppError)}
+              >
+                <FileText className="size-3.5" aria-hidden />
+                {t('agents.docs')}
+              </Button>
+            ) : null}
+            {agent.github ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  void ipc.openUrl(`https://github.com/${agent.github ?? ''}`).catch(toastAppError)
+                }
+              >
+                <GitBranch className="size-3.5" aria-hidden />
+                {t('agent.overview.repository')}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {agent.features.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[13px] font-medium">{t('agent.overview.features')}</h4>
+            <ul className="text-muted flex flex-col gap-1.5 text-[13px]">
+              {agent.features.map((feature) => (
+                <li key={feature} className="flex items-start gap-2">
+                  <Check className="text-accent-strong mt-0.5 size-3.5 shrink-0" aria-hidden />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </Card>
+
       <Card className="p-5">
         <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
           <KeyValue label={t('agent.overview.status')}>
@@ -85,17 +156,6 @@ export function OverviewTab({
             >
               <FolderOpen className="size-3.5" aria-hidden />
               {t('common.reveal')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                void ipc.openUrl(agent.docs ?? agent.website ?? '').catch(toastAppError)
-              }
-              disabled={!agent.docs && !agent.website}
-            >
-              <FileText className="size-3.5" aria-hidden />
-              {t('agents.docs')}
             </Button>
           </div>
         ) : null}

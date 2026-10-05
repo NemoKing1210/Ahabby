@@ -8,6 +8,13 @@ icon = "cline"
 category = "extension"
 popular = true
 github = "cline/cline"
+vendor = "Cline"
+features = [
+    "Autonomous coding agent for VS Code and other IDEs",
+    "Terminal CLI sharing the same global state",
+    "Plan/act workflow with per-tool approval",
+    "Global skills and rules, plus MCP servers",
+]
 unverified = ["configs.vscode-globalstorage-mcp.path", "other.global-rules-documents.path"]
 notes = "Verified 2026-10-05. Cline is primarily the VS Code extension 'saoudrizwan.claude-dev' (marketplace id confirmed), but since 3.x it also ships an official CLI ('cline', npm package 'cline') and stores shared global state under ~/.cline/ for IDE, CLI and SDK alike. Unverified entries: (1) the legacy VS Code globalStorage file is where older extension versions kept MCP settings, but current Cline docs only document ~/.cline/data/settings/cline_mcp_settings.json, so the globalStorage path needs a real-machine check; (2) on Windows the Documents\\Cline\\Rules location may live under a OneDrive folder, which Cline resolves from the OneDrive environment variables, not necessarily %USERPROFILE%\\Documents. Workspace rules are declared relative to the repository root."
 

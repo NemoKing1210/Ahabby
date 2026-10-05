@@ -417,7 +417,13 @@ pub struct AgentManifest {
     /// Shows up in the "available to install" section even when the machine is bare.
     #[serde(default)]
     pub popular: bool,
-    /// `owner/repo` used for the optional GitHub release check.
+    /// Who publishes the agent — shown on the agent's own page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<String>,
+    /// Short, human-readable highlights shown on the agent's own page.
+    #[serde(default)]
+    pub features: Vec<String>,
+    /// `owner/repo` used for the optional GitHub release check and the repository link.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub github: Option<String>,
     /// Which adapter implementation reads this agent. Defaults to the manifest driven

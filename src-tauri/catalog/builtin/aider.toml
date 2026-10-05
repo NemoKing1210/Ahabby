@@ -8,6 +8,13 @@ icon = "aider"
 category = "cli"
 popular = true
 github = "Aider-AI/aider"
+vendor = "Aider-AI"
+features = [
+    "AI pair programming in the terminal",
+    "Commits changes straight to your local git repository",
+    "Model-agnostic — any LLM reachable through LiteLLM",
+    "Configured with YAML (.aider.conf.yml) and a workspace CONVENTIONS.md",
+]
 unverified = []
 notes = "Verified 2026-10-05. Aider is published on PyPI as 'aider-chat' and exposes exactly one console script, 'aider' (pyproject.toml [project.scripts]). Aider has no native MCP support: feature request Aider-AI/aider#3314 is still open and the MCP client PR is unmerged, so no [mcp] block is declared. 'CONVENTIONS.md' is a workspace file (read from the repository root and referenced with `read:` in .aider.conf.yml), so its path is declared relative to the project root."
 

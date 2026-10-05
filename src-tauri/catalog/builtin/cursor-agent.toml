@@ -8,6 +8,13 @@ icon = "cursor"
 category = "cli"
 popular = true
 github = "cursor/cursor"
+vendor = "Anysphere"
+features = [
+    "Cursor's coding agent in the terminal",
+    "Shares MCP servers, skills and rules with the Cursor editor",
+    "Sub-agent definitions",
+    "JSONC config that keeps your comments",
+]
 unverified = ["other.subagents.path"]
 notes = """Binary names agent and cursor-agent verified from the official installer script (both symlinks are created).
 Global config and MCP paths taken from the Cursor CLI docs on 2026-10-05.

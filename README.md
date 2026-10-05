@@ -12,6 +12,8 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
   CLI, Aider, Cline, Continue, Qwen Code — one declarative manifest each, no code per agent.
 - **Shows what is actually installed:** version, path, how it was installed, and whether a newer version
   exists (optional, uses the npm registry or GitHub releases).
+- **Gives every agent its own page:** what the tool is, who publishes it, its key features, and tabs for its
+  config files, skills, rules and other resources, and MCP servers.
 - **Groups everything in a Library view:** every skill (with its `SKILL.md` frontmatter and rendered body),
   every MCP server (transport, command/URL, which agents use it) and every other resource.
 - **Edits configs safely:** validate → diff → timestamped backup → atomic write, and a refusal to overwrite

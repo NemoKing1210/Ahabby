@@ -120,7 +120,7 @@ Agent file layouts change, and guessing one is worse than admitting uncertainty:
 src/
 ├─ app/         providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell
 ├─ features/
-│  ├─ agents/   list, card, overview/other tabs, pages
+│  ├─ agents/   list, clickable card, agent page (about/overview/configs/skills/mcp/other)
 │  ├─ configs/  snapshot hooks, editor dialog, diff view, backup restore
 │  ├─ skills/   skill list + detail (rendered markdown), delete flow
 │  ├─ mcp/      server cards, masked secret reveal, delete flow

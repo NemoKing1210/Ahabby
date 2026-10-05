@@ -77,6 +77,10 @@
   },
   "agent": {
     "backToList": "Все агенты",
+    "category": {
+      "cli": "Терминал (CLI)",
+      "extension": "Расширение для IDE"
+    },
     "tabs": {
       "overview": "Обзор",
       "configs": "Конфиги",
@@ -85,6 +89,11 @@
       "other": "Другое"
     },
     "overview": {
+      "about": "Об инструменте",
+      "vendor": "Разработчик",
+      "category": "Категория",
+      "repository": "Репозиторий",
+      "features": "Ключевые возможности",
       "status": "Статус",
       "version": "Версия",
       "binary": "Бинарь",

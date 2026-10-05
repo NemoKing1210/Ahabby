@@ -21,7 +21,15 @@ icon?: string | null, category?: string | null,
  */
 popular: boolean, 
 /**
- * `owner/repo` used for the optional GitHub release check.
+ * Who publishes the agent — shown on the agent's own page.
+ */
+vendor?: string | null, 
+/**
+ * Short, human-readable highlights shown on the agent's own page.
+ */
+features: Array<string>, 
+/**
+ * `owner/repo` used for the optional GitHub release check and the repository link.
  */
 github?: string | null, 
 /**

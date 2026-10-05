@@ -12,7 +12,19 @@ import type { Version } from "./Version";
 /**
  * The fully scanned agent — the main entity of the UI.
  */
-export type Agent = { id: string, name: string, description: string, tagline?: string | null, icon?: string | null, category?: string | null, website?: string | null, docs?: string | null, popular: boolean, status: AgentStatus, binaryPath?: string | null, foundIn?: string | null, version?: Version | null, 
+export type Agent = { id: string, name: string, description: string, tagline?: string | null, icon?: string | null, category?: string | null, website?: string | null, docs?: string | null, 
+/**
+ * Who publishes the agent (from the manifest) — shown on the agent's own page.
+ */
+vendor?: string | null, 
+/**
+ * Short highlights from the manifest — shown on the agent's own page.
+ */
+features: Array<string>, 
+/**
+ * `owner/repo`, used for the repository link and the version check.
+ */
+github?: string | null, popular: boolean, status: AgentStatus, binaryPath?: string | null, foundIn?: string | null, version?: Version | null, 
 /**
  * Method Ahabby *thinks* the agent was installed with (from the binary location).
  */

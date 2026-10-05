@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Route, Routes } from 'react-router-dom'
 
 import type { Agent } from '@/shared/bindings/Agent'
 import { renderWithProviders } from '@/test/render'
@@ -17,6 +18,7 @@ function agent(overrides: Partial<Agent> = {}): Agent {
     category: 'cli',
     website: 'https://claude.com/claude-code',
     docs: 'https://code.claude.com/docs',
+    features: [],
     popular: true,
     status: 'installed',
     binaryPath: '/usr/local/bin/claude',
@@ -113,5 +115,18 @@ describe('AgentCard', () => {
       />,
     )
     expect(screen.getByText('1 warning')).toBeInTheDocument()
+  })
+
+  it('opens the agent page when the info area is clicked', async () => {
+    const { container } = renderWithProviders(
+      <Routes>
+        <Route path="/" element={<AgentCard agent={agent()} onInstall={() => undefined} />} />
+        <Route path="/agents/:agentId" element={<h1>Agent page</h1>} />
+      </Routes>,
+    )
+
+    await userEvent.click(within(container).getByText('Anthropic terminal agent'))
+
+    expect(screen.getByRole('heading', { name: 'Agent page' })).toBeInTheDocument()
   })
 })

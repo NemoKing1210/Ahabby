@@ -24,6 +24,13 @@ icon = "claude"
 category = "cli"
 popular = true
 github = "anthropics/claude-code"
+vendor = "Anthropic"
+features = [
+    "Anthropic's terminal-native agentic coding tool",
+    "Personal skills, sub-agents, hooks and custom commands",
+    "MCP servers at user and project scope",
+    "Layered memory via CLAUDE.md and AGENTS.md",
+]
 adapter = "claude"
 unverified = ["other[1].path"]
 notes = """Paths confirmed against code.claude.com/docs on 2026-10-05.

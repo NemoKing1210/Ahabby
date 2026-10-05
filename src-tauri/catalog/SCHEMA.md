@@ -26,7 +26,9 @@ shows them to the user with a "needs verification" badge instead of pretending t
 | `icon`        | string           | icon key rendered by `src/shared/ui/AgentIcon.tsx` (falls back to initials) |
 | `category`    | string           | free-form grouping (`cli`, `editor`, `extension`)                           |
 | `popular`     | bool             | show in "available to install" even on a bare machine                       |
-| `github`      | string           | `owner/repo`, used for the optional release check                           |
+| `vendor`      | string           | who publishes the agent, shown on its own page                              |
+| `features`    | [string]         | short highlights, shown on the agent's own page                             |
+| `github`      | string           | `owner/repo`, used for the release check and the repository link            |
 | `adapter`     | string           | `manifest` (default) or `claude`; see `ARCHITECTURE.md`                     |
 | `unverified`  | [string]         | dotted paths that still need a docs check, e.g. `["skills.path"]`           |
 | `notes`       | string           | provenance notes shown in the UI                                            |
@@ -147,6 +149,11 @@ docs = "https://example.com/docs"
 icon = "example"
 category = "cli"
 popular = true
+vendor = "Example Inc."
+features = [
+    "What the agent does best",
+    "How it stores skills and MCP servers",
+]
 github = "example/example-cli"
 unverified = []
 notes = "All paths confirmed against https://example.com/docs/config on 2026-10-05."

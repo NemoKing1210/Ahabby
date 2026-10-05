@@ -8,6 +8,13 @@ icon = "copilot"
 category = "cli"
 popular = true
 github = "github/copilot-cli"
+vendor = "GitHub"
+features = [
+    "GitHub's terminal-native coding agent",
+    "Native GitHub and MCP integration",
+    "Custom instructions, agents and hooks",
+    "Language-server definitions",
+]
 unverified = []
 notes = "All paths taken from the official Copilot CLI configuration-directory reference and install/MCP/skills guides on 2026-10-05. Copilot CLI evolves quickly; the ~/.copilot layout and command surface are moving targets, re-check the reference on upgrade."
 

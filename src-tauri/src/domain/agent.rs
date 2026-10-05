@@ -98,6 +98,15 @@ pub struct Agent {
     pub website: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub docs: Option<String>,
+    /// Who publishes the agent (from the manifest) — shown on the agent's own page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<String>,
+    /// Short highlights from the manifest — shown on the agent's own page.
+    #[serde(default)]
+    pub features: Vec<String>,
+    /// `owner/repo`, used for the repository link and the version check.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github: Option<String>,
     pub popular: bool,
     pub status: AgentStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -8,6 +8,13 @@ icon = "gemini"
 category = "cli"
 popular = true
 github = "google-gemini/gemini-cli"
+vendor = "Google"
+features = [
+    "Google's open-source terminal AI agent",
+    "Gemini models straight in your shell",
+    "MCP servers in settings.json",
+    "Global context and instruction files",
+]
 unverified = []
 notes = "Paths and commands confirmed against the official Gemini CLI docs and the google-gemini/gemini-cli repository on 2026-10-05."
 

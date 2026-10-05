@@ -8,6 +8,13 @@ icon = "continue"
 category = "extension"
 popular = true
 github = "continuedev/continue"
+vendor = "Continue"
+features = [
+    "Open-source IDE agent for VS Code and JetBrains",
+    "Custom rules, prompts and docs",
+    "MCP servers in config.yaml",
+    "Also ships a `cn` terminal CLI",
+]
 unverified = ["mcp.key_path"]
 notes = "Verified 2026-10-05. Continue ships as IDE extensions (VS Code / JetBrains) plus the Continue CLI, whose executable is 'cn' (npm package @continuedev/cli). Unverified: Continue stores MCP servers under 'mcpServers' in config.yaml, but that key is a YAML list of objects with a 'name' field, not the name -> server map Ahabby's MCP reader expects, so mcp.key_path needs an adapter check. Rules directories are workspace-scoped (.continue/rules) and are declared relative to the project root; only global config files are listed as configs."
 

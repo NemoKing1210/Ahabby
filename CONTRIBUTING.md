@@ -69,6 +69,8 @@ website = "https://example.com"
 docs = "https://example.com/docs"
 icon = "example"
 popular = true
+vendor = "Example Inc."
+features = ["What sets this agent apart"]
 github = "example/example-cli"
 notes = "Paths confirmed against https://example.com/docs/config on 2026-10-05."
 

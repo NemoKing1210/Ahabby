@@ -8,6 +8,13 @@ icon = "codex"
 category = "cli"
 popular = true
 github = "openai/codex"
+vendor = "OpenAI"
+features = [
+    "OpenAI's local coding agent for the terminal",
+    "Sandboxed execution with configurable approval policies",
+    "MCP servers declared in config.toml",
+    "Layered AGENTS.md instructions",
+]
 unverified = []
 notes = "Paths and commands confirmed against the official OpenAI Codex docs and the openai/codex repository on 2026-10-05."
 
