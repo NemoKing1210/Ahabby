@@ -5,6 +5,80 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.2] - 2026-10-06
+
+### Changed
+
+- The sidebar is a floating panel inset from the window edges instead of a strip fused to them: it groups the
+  screens under a "Navigation" label with the pinned agents below it, marks the current screen with an accent
+  pill and its count, and keeps the terminal and rescan controls in a footer of their own — collapsed to the
+  icon rail every control stays named for screen readers and described by a tooltip
+
+## [0.18.1] - 2026-10-06
+
+### Fixed
+
+- The file editor scrolls again: the code area is bounded by the dialog and its contents scroll inside it,
+  instead of the whole editor growing to fit every line and being clipped at the bottom
+- The file editor got its top spacing back — the code no longer sits flush against the quick-action bar
+
+## [0.18.0] - 2026-10-06
+
+### Added
+
+- Agents can be started in a terminal: the agent's page, its card and its right-click menu all offer "Run in
+  terminal", and so does every favourite row in the sidebar — one click next to a pinned agent, or a right
+  click on it (which is also how the collapsed sidebar rail offers it) — and Ahabby starts the executable the
+  scan found, never a command line from the interface
+- Ahabby's own terminal lives in a dock at the bottom of the window instead of on a screen of its own: its tab
+  strip stays visible while the rest of the interface is used above it, it collapses to just that strip and
+  expands again, and its top edge can be dragged to any height — a collapsed tab keeps its full scrollback, and
+  the page above is never navigated away from
+- The dock's terminals are complete working terminals: copy/paste, find, links that open in the system browser,
+  an explicit restart of a finished agent, and a shell prompt in the working directory once the agent exits —
+  closing a tab closes the whole console, so no shell is left behind
+- Settings has a terminal picker: the built-in terminal is the default, and the terminals installed on this
+  machine are offered next to it (Windows Terminal, PowerShell 7, WezTerm, Ghostty, kitty, Alacritty, Warp,
+  Terminal, iTerm2, GNOME Terminal, Konsole, Xfce Terminal, Tilix, Terminator, foot, xterm) — each one is
+  detected before it can be chosen, and a terminal that cannot be told to run a program says so
+- Terminal sessions are asked for by agent id, never by command, and they are killed with the app
+- Skill, MCP and other-resource cards now show the file's date — the creation time when the platform reports
+  one, otherwise the modification time under its own label, never mislabelled — with the exact date and time
+  in the tooltip, and the skill detail dialog lists both
+
+### Changed
+
+- The Library can be filtered and sorted properly: a source picker (everything / shared only / agents only),
+  a sort picker (name A–Z and Z–A, newest and oldest first, largest and smallest first — groups follow their
+  leading item), and a chip row of the active tab's own refinements: "needs verification" for skills, the
+  transport for MCP servers, the kind for the other resources, each chip showing how many items it leaves
+
+## [0.17.0] - 2026-10-06
+
+### Added
+
+- The Library now lists the shared, agent-neutral resources of the machine: global skills, MCP servers and
+  instructions from `~/.agents` belong to no single agent, so they get their own "Shared" owner — a neutral
+  tile and a tag everywhere an agent would be named, their own section when grouped by agent, and their own
+  entry in the agent filter
+- Shared resources behave like any other: they can be opened, edited (with the usual backup and validation)
+  and deleted through the trash, under the same path checks that guard an agent's own files
+- A resource an agent manifest declares inside a shared root no longer shows up as that one agent's — goose,
+  codebuff and the rest are reported through the shared surface, so nothing is counted twice
+- Removing an agent now asks what to do: **Hide** keeps it on the machine but drops it from Ahabby
+  (restorable from Settings → Hidden agents), while **Uninstall** really removes it by running the uninstall
+  command its manifest declares — with the exact command shown and its output streamed live. The delete
+  choice only appears when a real removal is possible; otherwise the dialog says why (no uninstall command
+  for the platform, or the package manager it needs is missing)
+
+### Changed
+
+- `catalog/shared.toml` describes the cross-agent surface (@see `catalog/SCHEMA.md`), and `shared` is a
+  reserved manifest id: a user manifest claiming it is rejected with a catalog problem instead of silently
+  shadowing it
+- `remove_agent` takes an explicit `hide`/`delete` mode instead of deciding on its own, and manifests are
+  validated so an uninstall command must pass the same safety whitelist as install commands
+
 ## [0.15.0] - 2026-10-06
 
 ### Added

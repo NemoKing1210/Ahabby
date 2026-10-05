@@ -2,8 +2,15 @@
 import type { Agent } from "./Agent";
 import type { CatalogProblem } from "./CatalogProblem";
 import type { Os } from "./Os";
+import type { SharedResources } from "./SharedResources";
 
 /**
  * Result of one full scan.
  */
-export type ScanReport = { agents: Array<Agent>, problems: Array<CatalogProblem>, scannedAtMs: number, durationMs: number, installed: number, availableToInstall: number, os: Os, };
+export type ScanReport = { agents: Array<Agent>, problems: Array<CatalogProblem>, scannedAtMs: number, durationMs: number, installed: number, availableToInstall: number, os: Os, 
+/**
+ * Resources that belong to no single agent: global skills, MCP servers and documents
+ * from the cross-agent locations (`~/.agents/...`). Shown by the Library; never part of
+ * the agent list or its counts.
+ */
+shared: SharedResources, };

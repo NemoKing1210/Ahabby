@@ -1,0 +1,57 @@
+# The agent-neutral ("shared") surface.
+#
+# Skills, MCP servers and documents here belong to no single agent — every installed agent
+# can read them. This file is NOT an agent manifest: it lives outside `catalog/builtin/`, so
+# `build.rs` never embeds it and it never shows up in the agent list. Its id is reserved and
+# rejected in user manifests (see `catalog::loader`).
+#
+# Because the surface is only ever read (never detected, installed or versioned), `binaries`
+# is a placeholder that is never looked up.
+id = "shared"
+name = "Shared"
+description = "Global skills, MCP servers and documents that every installed agent can read."
+notes = """Resources that belong to no single agent, discovered in the cross-agent locations
+documented by the tools themselves. Any agent manifest that declares the same path (goose
+declares ~/.agents/skills, codebuff ~/.agents/mcp.json, cline and warp ~/.agents/AGENTS.md) is
+reported through this surface instead of as that one agent's resource, so the Library never
+double-counts a shared document."""
+
+[binaries]
+names = ["ahabby-shared"]
+version_args = []
+
+# SOURCE: https://opencode.ai/docs/skills/ — "Global agent-compatible: ~/.agents/skills"
+# SOURCE: https://dotagentsprotocol.com/ — global layer lives at ~/.agents/
+# SOURCE: https://zed.dev/docs/ai/skills, https://goose-docs.ai/docs/guides/context-engineering/using-skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/skills", linux = "${HOME}/.agents/skills" }
+description = "Global skills under ~/.agents/skills, shared by every agent that supports the convention."
+
+# SOURCE: https://dotagentsprotocol.com/#formats — mcp.json maps the MCP standard
+# SOURCE: https://codebuff.com/docs — ~/.agents/mcp.json is the user-scope MCP config (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+path = { windows = "${USERPROFILE}/.agents/mcp.json", macos = "${HOME}/.agents/mcp.json", linux = "${HOME}/.agents/mcp.json" }
+description = "Shared MCP servers in ~/.agents/mcp.json."
+
+# SOURCE: https://codebuff.com/docs (checked 2026-10-05)
+[[configs]]
+id = "mcp"
+label = "mcp.json"
+description = "Shared MCP server definitions, addressable so a secret can be revealed."
+format = "json"
+path = { windows = "${USERPROFILE}/.agents/mcp.json", macos = "${HOME}/.agents/mcp.json", linux = "${HOME}/.agents/mcp.json" }
+
+# SOURCE: https://agents.md/ — the open AGENTS.md format
+# SOURCE: https://dotagentsprotocol.com/ — AGENTS.md maps the AGENTS.md standard
+# SOURCE: https://docs.cline.bot/customization/cline-rules, https://warp.dev (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global instructions every agent reads, from ~/.agents/AGENTS.md."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.agents/AGENTS.md", macos = "${HOME}/.agents/AGENTS.md", linux = "${HOME}/.agents/AGENTS.md" }

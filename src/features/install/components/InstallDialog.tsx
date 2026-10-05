@@ -46,11 +46,16 @@ export function InstallDialog({
   const [methodOverride, setMethodOverride] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
 
-  const options = agent.installOptions
+  const options =
+    action === 'uninstall'
+      ? agent.installOptions.filter((option) => option.uninstallCommand)
+      : agent.installOptions
   const preferred =
-    options.find((option) => option.detected && option.available) ??
-    options.find((option) => option.available) ??
-    options[0]
+    action === 'uninstall'
+      ? (options.find((option) => option.available) ?? options[0])
+      : (options.find((option) => option.detected && option.available) ??
+        options.find((option) => option.available) ??
+        options[0])
   const methodId = methodOverride ?? preferred?.id ?? null
 
   const plan = useInstallPlan(agent.id, action, methodId)

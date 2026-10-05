@@ -3,13 +3,15 @@ import { MotionConfig } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 import { ipc } from '@/shared/api/ipc'
-import { onJobDone, onJobOutput } from '@/shared/api/events'
+import { onJobDone, onJobOutput, onTerminalExit, onTerminalOutput } from '@/shared/api/events'
 import { queryKeys } from '@/shared/api/keys'
 import { Toaster } from '@/shared/ui/Toast'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { ScanRefreshProvider } from '@/features/agents/api/scan'
 import { useJobStore } from '@/features/install/store'
+import { reconcileTerminalSessions, writeTerminalOutput } from '@/features/terminal/lib/session'
+import { useTerminalStore } from '@/features/terminal/store'
 
 function createQueryClient() {
   return new QueryClient({
@@ -56,6 +58,42 @@ function JobEventBridge() {
   return null
 }
 
+/** One reconciliation per page load; the tab list is what decides which sessions survive. */
+let reconciled = false
+
+/**
+ * Bridges the backend's terminal sessions into the tab store.
+ *
+ * Output has to be routed even for a tab that is not on screen, which is why the subscription
+ * lives here and not in a component; the store buffers whatever a terminal that is not mounted
+ * yet would have missed.
+ */
+function TerminalEventBridge() {
+  useEffect(() => {
+    const listeners = [
+      onTerminalOutput(writeTerminalOutput),
+      onTerminalExit((exit) =>
+        useTerminalStore.getState().finish(exit.sessionId, exit.exitCode ?? null),
+      ),
+    ]
+
+    // A session outlives the webview in development (an HMR reload restarts the page, not the
+    // backend), so sessions no tab can show are closed once, at startup.
+    if (!reconciled) {
+      reconciled = true
+      void reconcileTerminalSessions().catch(() => undefined)
+    }
+
+    return () => {
+      void Promise.all(listeners).then((unlisten) => {
+        for (const off of unlisten) off()
+      })
+    }
+  }, [])
+
+  return null
+}
+
 /**
  * Providers only.
  *
@@ -73,6 +111,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <MotionConfig reducedMotion="user">
         <TooltipProvider delayDuration={250}>
           <JobEventBridge />
+          <TerminalEventBridge />
           <ScanRefreshProvider>{children}</ScanRefreshProvider>
         </TooltipProvider>
         <Toaster />

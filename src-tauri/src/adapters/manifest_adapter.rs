@@ -123,7 +123,8 @@ impl ManifestAdapter {
             return None;
         }
 
-        let size = std::fs::metadata(&entry).ok().map(|meta| meta.len());
+        let metadata = std::fs::metadata(&entry).ok();
+        let size = metadata.as_ref().map(std::fs::Metadata::len);
         let text = if size.unwrap_or(0) <= PREVIEW_LIMIT_BYTES {
             platform::read_text(&entry).ok()
         } else {
@@ -153,6 +154,8 @@ impl ManifestAdapter {
                 .map(|markdown| markdown.body.clone())
                 .filter(|body| !body.trim().is_empty()),
             size_bytes: size,
+            created_ms: metadata.as_ref().and_then(platform::created_at_ms),
+            modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
             removable: true,
             unverified,
         })
@@ -163,7 +166,8 @@ impl ManifestAdapter {
         if !path.is_file() {
             return None;
         }
-        let size = std::fs::metadata(path).ok().map(|meta| meta.len());
+        let metadata = std::fs::metadata(path).ok();
+        let size = metadata.as_ref().map(std::fs::Metadata::len);
         let text = platform::read_text(path).ok()?;
         let markdown = frontmatter::parse(&text);
         let name = markdown.name.clone().unwrap_or_else(|| {
@@ -182,6 +186,8 @@ impl ManifestAdapter {
             frontmatter: markdown.frontmatter.clone(),
             content: Some(markdown.body.clone()).filter(|body| !body.trim().is_empty()),
             size_bytes: size,
+            created_ms: metadata.as_ref().and_then(platform::created_at_ms),
+            modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
             // A standalone file is a document, not a deletable skill directory.
             removable: false,
             unverified,
@@ -206,6 +212,7 @@ impl ManifestAdapter {
 
     fn read_mcp_file(&self, spec: &McpSpec, path: &Path) -> Result<Vec<McpServer>> {
         let source_config = path.to_string_lossy().to_string();
+        let metadata = std::fs::metadata(path).ok();
         let content = platform::read_text(path)?;
         let document = mcp_parse::document_to_value(spec.format, &content)?;
         let Some(map) = mcp_parse::value_at(&document, &spec.key_path) else {
@@ -253,6 +260,8 @@ impl ManifestAdapter {
                 env: normalized.env,
                 headers: normalized.headers,
                 raw: normalized.raw,
+                created_ms: metadata.as_ref().and_then(platform::created_at_ms),
+                modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
                 has_secrets: normalized.has_secrets,
                 removable: addressable,
                 unverified,
@@ -298,6 +307,8 @@ impl ManifestAdapter {
             description: spec.description.clone(),
             content,
             size_bytes,
+            created_ms: metadata.as_ref().and_then(platform::created_at_ms),
+            modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
             is_directory,
             exists: metadata.is_some(),
             item_count,

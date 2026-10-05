@@ -29,10 +29,12 @@ import { Markdown } from '@/shared/ui/Markdown'
 import { PathRow } from '@/shared/ui/PathRow'
 import { Reveal } from '@/shared/ui/Reveal'
 import { SectionHeader } from '@/shared/ui/SectionHeader'
+import { Timestamp } from '@/shared/ui/Timestamp'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 
-const KIND_ORDER: OtherKind[] = [
+/** Display order of the kinds, shared with the Library toolbar's kind filter. */
+export const OTHER_KIND_ORDER: OtherKind[] = [
   'instructions',
   'memory',
   'rules',
@@ -109,6 +111,11 @@ function ResourceCard({
               {t('configs.edit')}
             </Button>
           ) : null}
+          <Timestamp
+            createdMs={resource.createdMs}
+            modifiedMs={resource.modifiedMs}
+            className="text-faint text-[0.6875rem]"
+          />
           <span className="text-faint text-[0.6875rem]">
             {formatBytes(resource.sizeBytes) ?? ''}
           </span>
@@ -142,7 +149,7 @@ export function OtherTab({
     return <EmptyState title={t('library.empty')} hint={t('library.emptyHint')} />
   }
 
-  const groups = KIND_ORDER.map((kind) => ({
+  const groups = OTHER_KIND_ORDER.map((kind) => ({
     kind,
     items: resources.filter((resource) => resource.kind === kind),
   })).filter((group) => group.items.length > 0)

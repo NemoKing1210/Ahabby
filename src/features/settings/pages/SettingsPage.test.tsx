@@ -37,6 +37,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     versionCacheMinutes: 60,
     proxyMode: 'none',
     proxyUrl: null,
+    terminal: 'builtin',
     hiddenAgents: [],
     favoriteAgents: [],
     ...overrides,

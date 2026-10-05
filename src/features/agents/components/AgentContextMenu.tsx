@@ -9,6 +9,7 @@ import {
   Info,
   RefreshCw,
   Star,
+  Terminal,
   Trash2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -38,6 +39,7 @@ export function AgentContextMenu({
   agent,
   onInstall,
   onRemove,
+  onRun,
   favorite = false,
   onToggleFavorite,
   children,
@@ -45,6 +47,8 @@ export function AgentContextMenu({
   agent: Agent
   onInstall: (agent: Agent, action: 'install' | 'update') => void
   onRemove?: (agent: Agent) => void
+  /** When given, an installed agent can be started in the configured terminal. */
+  onRun?: (agent: Agent) => void
   favorite?: boolean
   onToggleFavorite?: (agent: Agent) => void
   children: ReactNode
@@ -91,6 +95,13 @@ export function AgentContextMenu({
           <ContextMenuItem onSelect={() => onToggleFavorite(agent)}>
             <Star className={favorite ? 'fill-current' : undefined} aria-hidden />
             {favorite ? t('agents.unfavorite') : t('agents.favorite')}
+          </ContextMenuItem>
+        ) : null}
+
+        {onRun && agent.status === 'installed' ? (
+          <ContextMenuItem onSelect={() => onRun(agent)}>
+            <Terminal aria-hidden />
+            {t('agents.runInTerminal')}
           </ContextMenuItem>
         ) : null}
 

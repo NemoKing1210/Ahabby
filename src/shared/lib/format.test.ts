@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { fileName, formatBytes, formatDuration, groupBy, shortenPath } from './format'
+import {
+  fileName,
+  formatBytes,
+  formatDate,
+  formatDateTime,
+  formatDuration,
+  groupBy,
+  shortenPath,
+} from './format'
 
 describe('formatBytes', () => {
   it('scales and rounds', () => {
@@ -18,6 +26,19 @@ describe('formatDuration', () => {
     expect(formatDuration(320)).toBe('320 ms')
     expect(formatDuration(1500)).toBe('1.5 s')
     expect(formatDuration(25_000)).toBe('25 s')
+  })
+})
+
+describe('formatDate', () => {
+  it('renders a day without the time, and nothing for an unknown date', () => {
+    // 2026-10-06T12:00:00Z — a fixed instant, so the expectation cannot drift.
+    const noon = Date.UTC(2026, 9, 6, 12)
+    expect(formatDate(noon, 'en')).toMatch(/2026/)
+    expect(formatDate(noon, 'en')).toMatch(/Oct/)
+    expect(formatDateTime(noon, 'en')).toMatch(/2026/)
+    expect(formatDate(null, 'en')).toBeNull()
+    expect(formatDate(undefined, 'en')).toBeNull()
+    expect(formatDateTime(0, 'en')).toBeNull()
   })
 })
 

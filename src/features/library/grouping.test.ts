@@ -9,11 +9,13 @@ import {
   groupSkillsByAgent,
   groupSkillsByName,
   matchesLibraryQuery,
+  originMatches,
   ownedBy,
 } from './grouping'
 
 const claude: AgentRef = { id: 'claude-code', name: 'Claude Code', icon: 'claude' }
 const opencode: AgentRef = { id: 'opencode', name: 'OpenCode', icon: 'opencode' }
+const shared: AgentRef = { id: 'shared', name: 'Shared' }
 
 function skill(name: string, path: string, agents: AgentRef[]): Skill {
   return {
@@ -106,5 +108,15 @@ describe('ownedBy', () => {
     expect(ownedBy([claude], 'all')).toBe(true)
     expect(ownedBy([claude, opencode], 'opencode')).toBe(true)
     expect(ownedBy([claude], 'codex')).toBe(false)
+  })
+})
+
+describe('originMatches', () => {
+  it('separates the agent-neutral surface from what a real agent owns', () => {
+    expect(originMatches([shared], 'all')).toBe(true)
+    expect(originMatches([shared], 'shared')).toBe(true)
+    expect(originMatches([shared], 'agents')).toBe(false)
+    expect(originMatches([claude, opencode], 'shared')).toBe(false)
+    expect(originMatches([claude, opencode], 'agents')).toBe(true)
   })
 })

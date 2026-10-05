@@ -67,6 +67,14 @@ pub struct McpServer {
     pub headers: Vec<EnvVar>,
     /// Server entry as JSON, **already redacted** server side.
     pub raw: String,
+    /// Creation time of the config file the entry lives in, when the platform reports one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub created_ms: Option<i64>,
+    /// Modification time of that same file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub modified_ms: Option<i64>,
     pub has_secrets: bool,
     pub removable: bool,
     pub unverified: bool,

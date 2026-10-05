@@ -65,6 +65,7 @@ id = "official-script"
 manager = "script"
 command = "curl -fsSL https://example.com/install.sh | sh"
 update_command = "pipeline-demo self-update"
+uninstall_command = "pipeline-demo self-uninstall"
 docs_url = "https://example.com/docs/install"
 priority = 0
 
@@ -73,6 +74,7 @@ id = "npm"
 manager = "npm"
 command = "npm install -g pipeline-demo"
 update_command = "npm install -g pipeline-demo@latest"
+uninstall_command = "npm uninstall -g pipeline-demo"
 priority = 1
 "#;
 
@@ -318,6 +320,39 @@ async fn install_plan_resolves_manifest_commands_only() {
     assert!(!npm.uses_shell);
     assert_eq!(npm.program, "npm");
     assert_eq!(npm.args, vec!["install", "-g", "pipeline-demo"]);
+}
+
+#[tokio::test]
+async fn uninstall_plan_is_resolved_from_a_declared_uninstall_command() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    let catalog = catalog_for(&fixture);
+    let context = fixture.context();
+    let manifest = catalog.get("pipeline-demo").unwrap().clone();
+
+    // With no method id the backend prefers a method that actually declares an uninstall.
+    let plan = ahabby_lib::adapters::manifest_adapter::plan_for(
+        &manifest,
+        &context,
+        InstallAction::Uninstall,
+        Some("official-script"),
+    )
+    .unwrap();
+    assert_eq!(plan.action, InstallAction::Uninstall);
+    assert_eq!(plan.display_command, "pipeline-demo self-uninstall");
+    assert!(plan.uses_shell, "the script method runs through the shell");
+
+    // A method that does not declare an uninstall command is refused instead of guessing one.
+    let mut without = manifest.clone();
+    without.methods[0].uninstall_command = None;
+    let error = ahabby_lib::adapters::manifest_adapter::plan_for(
+        &without,
+        &context,
+        InstallAction::Uninstall,
+        Some("official-script"),
+    )
+    .unwrap_err();
+    assert_eq!(error.code(), "not_supported");
 }
 
 #[tokio::test]

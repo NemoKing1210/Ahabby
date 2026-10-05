@@ -21,11 +21,14 @@ import type { McpRemoval } from '@/shared/bindings/McpRemoval'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { MutationResult } from '@/shared/bindings/MutationResult'
 import type { PackageManagerInfo } from '@/shared/bindings/PackageManagerInfo'
+import type { RemovalMode } from '@/shared/bindings/RemovalMode'
 import type { SaveResult } from '@/shared/bindings/SaveResult'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { Settings } from '@/shared/bindings/Settings'
 import type { Skill } from '@/shared/bindings/Skill'
 import type { SkillRemoval } from '@/shared/bindings/SkillRemoval'
+import type { TerminalCatalog } from '@/shared/bindings/TerminalCatalog'
+import type { TerminalSession } from '@/shared/bindings/TerminalSession'
 import type { Theme } from '@/shared/bindings/Theme'
 
 export const ipc = {
@@ -35,8 +38,8 @@ export const ipc = {
   cachedAgents: () => invoke<ScanReport | null>('cached_agents'),
   rescan: () => invoke<ScanReport>('rescan'),
   getAgent: (agentId: string) => invoke<Agent>('get_agent', { agentId }),
-  removeAgent: (agentId: string, confirm: boolean) =>
-    invoke<MutationResult<AgentRemoval>>('remove_agent', { agentId, confirm }),
+  removeAgent: (agentId: string, mode: RemovalMode, confirm: boolean) =>
+    invoke<MutationResult<AgentRemoval>>('remove_agent', { agentId, mode, confirm }),
   restoreAgent: (agentId: string) =>
     invoke<MutationResult<HiddenAgent>>('restore_agent', { agentId }),
   listPackageManagers: () => invoke<PackageManagerInfo[]>('list_package_managers'),
@@ -87,4 +90,20 @@ export const ipc = {
   saveSettings: (settings: Settings) => invoke<Settings>('save_settings', { settings }),
   setWindowTheme: (theme: Theme, dark: boolean, caption: string, text: string) =>
     invoke<void>('set_window_theme', { theme, dark, caption, text }),
+
+  // --- terminals ----------------------------------------------------------------------
+  /** Built-in terminal first, then every terminal installed on this machine. */
+  listTerminals: () => invoke<TerminalCatalog>('list_terminals'),
+  /** Start an agent in Ahabby's own terminal; output arrives on `terminal://output`. */
+  launchTerminal: (agentId: string, cwd: string | null, cols: number, rows: number) =>
+    invoke<TerminalSession>('launch_terminal', { agentId, cwd, cols, rows }),
+  writeTerminal: (sessionId: string, data: string) =>
+    invoke<void>('write_terminal', { sessionId, data }),
+  resizeTerminal: (sessionId: string, cols: number, rows: number) =>
+    invoke<void>('resize_terminal', { sessionId, cols, rows }),
+  closeTerminal: (sessionId: string) => invoke<boolean>('close_terminal', { sessionId }),
+  listTerminalSessions: () => invoke<TerminalSession[]>('list_terminal_sessions'),
+  /** Start an agent in a terminal installed on this machine. */
+  openInTerminal: (agentId: string, terminalId: string, cwd: string | null) =>
+    invoke<void>('open_in_terminal', { agentId, terminalId, cwd }),
 }

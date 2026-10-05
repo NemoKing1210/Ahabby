@@ -10,7 +10,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.15.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.18.2`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -30,7 +30,8 @@ commands → services → adapters → catalog → domain
   skills must never be deleted.
 - `platform` — OS-specific: path expansion (`${VAR}`), binary lookup, package-manager detection, process
   execution with timeouts, atomic writes + backups, native window chrome (Windows: DWM).
-- `services` — scanner, config editor, installer + job runner, version checker, settings, library.
+- `services` — scanner, config editor, installer + job runner, version checker, settings, library, terminal
+  sessions.
 - `commands` — thin Tauri command surface; validates input, calls a service.
 
 Data flow:
@@ -38,6 +39,8 @@ Data flow:
 ```
 manifests → AdapterRegistry → Scanner → ScanReport → commands → React Query → UI
                                   └→ services::aggregate → Library
+
+agent id ──→ AppState::agent (the scan's binary) ──→ services::terminal (PTY) ──→ terminal://output ──→ xterm
 ```
 
 - One scan, one source of truth; the last report is cached in memory so navigation is instant.
@@ -47,32 +50,36 @@ manifests → AdapterRegistry → Scanner → ScanReport → commands → React 
 Frontend boundaries (enforce them):
 
 - **`src/shared/api/ipc.ts` is the only module that calls Tauri `invoke`.** No component or hook calls it.
-- **`src/shared/api/events.ts` is the only module that calls `listen`** (`job://output`, `job://done`).
+- **`src/shared/api/events.ts` is the only module that calls `listen`** (`job://output`, `job://done`,
+  `terminal://output`, `terminal://exit`).
 - Server state = React Query (per-feature `api/` hooks, keys in `src/shared/api/keys.ts`). Zustand is used in
-  exactly two places: the install-job console store and the toast store.
+  exactly three places: the install-job console store, the toast store and the terminal tab store.
 - Routing is hash-based (`createHashRouter` in `src/app/router.tsx`) because the packaged app has no server SPA
-  fallback. Routes: `/` (agents), `/agents/:agentId`, `/library`, `/settings`.
+  fallback. Routes: `/` (agents), `/agents/:agentId`, `/library`, `/settings`. The terminal has no route — it is
+  a dock of the shell, lazily loaded, that stays open under every screen.
+- **A terminal session is asked for by agent id.** The frontend never sends a program, a command line or an
+  interpreter; the backend starts the executable the scan resolved, inside the user's own shell.
 
 Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to = "../../src/shared/bindings/")]`);
 `src/shared/bindings/*.ts` is **generated, never hand-edited**. 64-bit ints need `#[ts(type = "number")]`.
 
 ## Key Directories
 
-| Path                               | Purpose                                                                                                  |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                   |
-| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, install, settings |
-| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                  |
-| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                      |
-| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                   |
-| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                              |
-| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                         |
-| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                      |
-| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · state.rs · error.rs`               |
-| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                        |
-| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                        |
-| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                             |
-| `.github/workflows/ci.yml`         | The only CI workflow                                                                                     |
+| Path                               | Purpose                                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                             |
+| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, install, settings, terminal |
+| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                            |
+| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                |
+| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                             |
+| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                                        |
+| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                   |
+| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                |
+| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · state.rs · error.rs`                         |
+| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                  |
+| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                  |
+| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                       |
+| `.github/workflows/ci.yml`         | The only CI workflow                                                                                               |
 
 ## Development Commands
 
@@ -189,6 +196,19 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   Unmapped keys get a neutral monogram. Deep-import leaf components
   (`@lobehub/icons/es/<Brand>/components/{Color,Mono,Inner}`), never the per-brand index — that
   index also pulls the library's `Avatar` wrapper, dragging `@lobehub/ui` and `antd` into the bundle.
+- **Terminal**: `src/features/terminal` renders PTY sessions with xterm.js inside `TerminalDock`, a footer the
+  shell owns (`AppShell` lazy-loads it the first time a terminal exists — xterm is the one heavy dependency the
+  other screens should not pay for). The dock's tab strip is always on screen; collapsing it sets the body to
+  zero height instead of unmounting it, so a background agent goes on painting into its own scrollback, and
+  `focusable={false}` is what stops a hidden terminal from keeping the keyboard. The tab store is the source of
+  truth for the backend sessions (anything it does not know is closed on startup), and `app/providers.tsx`
+  routes `terminal://output` into it, buffering the bytes of a tab whose terminal is not mounted yet. The xterm
+  theme is read from the design tokens (`lib/theme.ts`) because a canvas cannot use `var(--…)`; ANSI colours
+  come from the token palette with a light and a dark variant.
+- **Run in terminal**: every entry point (agent page, card, context menu, and the sidebar's favourite rows —
+  a hover action beside the agent, plus a one-item menu on the row itself so the collapsed rail has it too)
+  calls the same `useRunAgentInTerminal` hook, which follows `Settings::terminal`: the built-in terminal opens
+  a tab in the dock (expanding it, without navigating) and an external one is launched as its own window.
 
 ### Backend patterns
 
@@ -210,6 +230,19 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   run as program + args (no shell).
 - Secrets (`env`/`headers` keys that look secret) are masked **in the backend** (`domain::secrets`); the
   frontend mirror `src/shared/lib/mask.ts` must stay in sync with it.
+- **A terminal session is derived, never dictated.** `commands/terminal.rs` resolves the agent id through
+  `AppState::agent` (installed + `binary_path` from the scan) and hands it to `services::terminal`, which
+  starts the user's own shell in a PTY (`native_pty_system`) and _types_ the quoted executable into it — that
+  is what makes npm's `.cmd`/`.ps1` shims work on Windows. Output crosses the boundary base64-encoded (a read
+  can split a UTF-8 sequence) on `terminal://output`; closing a tab drops the master, which closes the console
+  and takes the agent down with the shell. Two consequences worth remembering: ConPTY asks the terminal for its
+  cursor position (`ESC[6n`) and holds output back until it is answered (xterm does; the backend tests answer it
+  themselves), and `ChildKiller::kill()` in portable-pty 0.9 reports failure even on success, so it is
+  best-effort and closing the console is what actually ends the session.
+- **External terminals are a table, not a guess.** `platform/terminals.rs` holds every supported terminal with
+  its per-OS detection candidates and its documented launch contract (`-e`, Windows Terminal's `-w 0 nt -d`,
+  AppleScript `do script`, or Warp's URI, which is why Warp is offered as `opensDirectory` — it cannot be told
+  to run a command). A terminal is only offered after `detect()` found it on this machine.
 - New Tauri command = 4 edits: service fn → thin `#[tauri::command]` → add to the `handlers!()` macro in
   `src-tauri/src/lib.rs` → typed wrapper in `src/shared/api/ipc.ts` (+ a feature hook). Arg names are
   camelCase on the TS side.
@@ -261,12 +294,15 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   the DOM accumulates across `it` blocks in a file: scope queries with `within(container)`, call `unmount()` /
   `cleanup()`, or avoid duplicated accessible text.
 - Tests currently cover: locale key parity + no-empty strings, IPC error normalization, formatting/masking
-  helpers, and `AgentCard` (render, install gating, badges, click-to-navigate). Hooks/stores are not tested.
+  helpers, `AgentCard` (render, install gating, badges, click-to-navigate), and the terminal tab store
+  (buffered output, finishing and closing a tab). Hooks are not tested.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch
   the real environment or network. Manifest fixtures use `catalog::parse_manifest(toml, "test")`.
   `src-tauri/tests/pipeline.rs` exercises the full read path, install-plan resolution, config edit
   backup/stale/restore, MCP removal (JSONC comment preservation), and refusal to write outside declared paths.
+  `services::terminal` tests are the only ones that spawn a real process (a PTY is the product): they run the
+  user's own shell, answer ConPTY's cursor query themselves, and cover output, input, resize and closing.
 - **QA expectations**: prove the _refusal_ of dangerous write paths, not just happy paths; keep cross-boundary
   invariants tested (event-name strings, locale parity, Rust↔TS secret masking); prefer deterministic,
   isolated tests. No coverage thresholds are configured (`npx vitest run --coverage` is available).

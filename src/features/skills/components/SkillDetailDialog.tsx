@@ -2,7 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Pencil, Trash2 } from 'lucide-react'
 
 import type { Skill } from '@/shared/bindings/Skill'
-import { formatBytes } from '@/shared/lib/format'
+import { formatBytes, formatDateTime } from '@/shared/lib/format'
+import { ownerName } from '@/shared/lib/owners'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/Dialog'
@@ -25,7 +26,7 @@ export function SkillDetailDialog({
   onEdit?: (skill: Skill) => void
   onDelete?: (skill: Skill) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   if (!skill) return null
 
   return (
@@ -81,13 +82,32 @@ export function SkillDetailDialog({
             ) : null}
           </div>
 
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[0.75rem]">
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
+                {t('library.created')}
+              </span>
+              <span className="text-muted">
+                {formatDateTime(skill.createdMs, i18n.language) ?? t('common.notAvailable')}
+              </span>
+            </span>
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
+                {t('library.modified')}
+              </span>
+              <span className="text-muted">
+                {formatDateTime(skill.modifiedMs, i18n.language) ?? t('common.notAvailable')}
+              </span>
+            </span>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
               {t('skills.agents')}
             </span>
             {skill.agents.map((agent) => (
               <Badge key={agent.id} tone="outline">
-                {agent.name}
+                {ownerName(agent, t('library.shared'))}
               </Badge>
             ))}
           </div>

@@ -29,3 +29,21 @@ export async function copyText(text: string): Promise<boolean> {
     document.body.removeChild(textarea)
   }
 }
+
+/**
+ * Read the clipboard, or `null` when the webview will not allow it.
+ *
+ * There is no legacy fallback for reading: the browser's own paste into a focused field (what
+ * `Ctrl+V` does in the terminal) is the only reliable path when `navigator.clipboard` is missing,
+ * so a caller that gets `null` should say so instead of pasting nothing.
+ */
+export async function readText(): Promise<string | null> {
+  if (navigator.clipboard?.readText) {
+    try {
+      return await navigator.clipboard.readText()
+    } catch {
+      return null
+    }
+  }
+  return null
+}

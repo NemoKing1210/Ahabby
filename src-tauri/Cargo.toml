@@ -1,6 +1,6 @@
 [package]
 name = "ahabby"
-version = "0.15.0"
+version = "0.18.2"
 description = "Ahabby — a control panel for the AI coding agents installed on your machine"
 authors = ["Ahabby contributors"]
 license = "MIT"
@@ -52,6 +52,14 @@ reqwest = { version = "0.13", default-features = false, features = [
   "json",
 ] }
 ts-rs = { version = "12.0", features = ["no-serde-warnings"] }
+# The built-in terminal needs a real PTY (ConPTY on Windows, `openpty` elsewhere) so that
+# full-screen agents like Claude Code see a console; portable-pty is the cross-platform
+# implementation, used through `services::terminal`.
+portable-pty = "0.9.0"
+# PTY output is arbitrary bytes and may split a UTF-8 sequence across reads, so it crosses
+# the IPC boundary base64-encoded and is decoded in the frontend. Already in the tree
+# through reqwest (0.22), so the version is pinned to share it.
+base64 = "0.22"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

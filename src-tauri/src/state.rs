@@ -12,14 +12,15 @@ use tracing::warn;
 use crate::adapters::AgentAdapter;
 use crate::catalog::{self, Catalog};
 use crate::domain::{
-    Agent, AgentManifest, AgentRemoval, ConfigFormat, HiddenAgent, ManifestSource, McpServer,
-    Proxy, RemovalKind, Skill,
+    Agent, AgentManifest, AgentRemoval, ConfigFile, ConfigFormat, HiddenAgent, ManifestSource,
+    McpServer, OtherResource, Proxy, RemovalKind, RemovalMode, Skill, TerminalExit, TerminalOutput,
+    SHARED_OWNER_ID,
 };
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
 use crate::services::{
     self, JobOutcome, JobOutputEvent, JobRunner, JobSink, ScanCache, ScanReport, ScanSink, Scanner,
-    Settings, SettingsService, VersionChecker,
+    Settings, SettingsService, TerminalManager, TerminalSink, VersionChecker,
 };
 
 /// Event names the frontend listens to. Kept in one place so both sides cannot drift.
@@ -34,6 +35,10 @@ pub mod events {
     pub const SCAN_AGENT: &str = "scan://agent";
     /// The whole report is ready.
     pub const SCAN_DONE: &str = "scan://done";
+    /// A chunk of a terminal session's output (base64-encoded bytes).
+    pub const TERMINAL_OUTPUT: &str = "terminal://output";
+    /// The process inside a terminal session ended.
+    pub const TERMINAL_EXIT: &str = "terminal://exit";
 }
 
 /// Emits job progress to the webview.
@@ -73,6 +78,24 @@ impl ScanSink for TauriScanSink {
     }
 }
 
+/// Streams terminal output to the webview.
+///
+/// Terminal traffic is the highest-volume thing Ahabby emits (a TUI repaints constantly), which
+/// is why the manager batches PTY reads instead of emitting per byte.
+pub struct TauriTerminalSink {
+    app: AppHandle,
+}
+
+impl TerminalSink for TauriTerminalSink {
+    fn output(&self, event: TerminalOutput) {
+        let _ = self.app.emit(events::TERMINAL_OUTPUT, event);
+    }
+
+    fn exited(&self, event: TerminalExit) {
+        let _ = self.app.emit(events::TERMINAL_EXIT, event);
+    }
+}
+
 /// A file the frontend is allowed to read and write.
 ///
 /// The scan is the source of truth: a path is only ever addressable when it belongs to a
@@ -93,7 +116,26 @@ pub struct DocumentTarget {
 /// entry file. Skills are writable exactly when Ahabby would also delete them — a
 /// plugin-managed skill stays read-only, because its owner is the plugin manager.
 pub fn resolve_document(agent: &Agent, path: &str) -> Result<DocumentTarget> {
-    if let Some(config) = agent.configs.iter().find(|config| config.path == path) {
+    resolve_in(
+        &agent.configs,
+        &agent.other,
+        &agent.skills,
+        &agent.name,
+        path,
+    )
+}
+
+/// The same resolution for any owner: the three lists a document can live in, plus the name
+/// used in the refusal. Split out so the shared surface — which has no `Agent` — is resolved
+/// by exactly the rules (and refusals) that guard an agent's documents.
+pub fn resolve_in(
+    configs: &[ConfigFile],
+    other: &[OtherResource],
+    skills: &[Skill],
+    owner: &str,
+    path: &str,
+) -> Result<DocumentTarget> {
+    if let Some(config) = configs.iter().find(|config| config.path == path) {
         return Ok(DocumentTarget {
             path: PathBuf::from(&config.path),
             format: config.format,
@@ -101,8 +143,7 @@ pub fn resolve_document(agent: &Agent, path: &str) -> Result<DocumentTarget> {
         });
     }
 
-    if let Some(resource) = agent
-        .other
+    if let Some(resource) = other
         .iter()
         .find(|resource| resource.path == path && !resource.is_directory)
     {
@@ -113,8 +154,7 @@ pub fn resolve_document(agent: &Agent, path: &str) -> Result<DocumentTarget> {
         });
     }
 
-    if let Some(skill) = agent
-        .skills
+    if let Some(skill) = skills
         .iter()
         .find(|skill| skill.entry_path.as_deref() == Some(path))
     {
@@ -126,8 +166,7 @@ pub fn resolve_document(agent: &Agent, path: &str) -> Result<DocumentTarget> {
     }
 
     Err(AppError::CommandNotAllowed(format!(
-        "{path} is not declared by {}",
-        agent.name
+        "{path} is not declared by {owner}"
     )))
 }
 
@@ -149,6 +188,7 @@ pub struct AppState {
     scan_cache: ScanCache,
     scan_sink: Arc<dyn ScanSink>,
     jobs: Arc<JobRunner>,
+    terminals: Arc<TerminalManager>,
     versions: RwLock<Arc<VersionChecker>>,
 }
 
@@ -180,6 +220,7 @@ impl AppState {
 
         Ok(Self {
             jobs: JobRunner::new(Arc::new(TauriJobSink { app: app.clone() })),
+            terminals: TerminalManager::new(Arc::new(TauriTerminalSink { app: app.clone() })),
             versions: RwLock::new(Arc::new(VersionChecker::new(
                 current.network_version_checks,
                 current.version_cache_minutes,
@@ -285,13 +326,13 @@ impl AppState {
             .collect()
     }
 
-    /// Remove an agent from Ahabby.
+    /// Remove an agent from Ahabby, the way the user chose in the removal dialog.
     ///
-    /// An agent whose manifest lives in Ahabby's own user catalog is deleted: the file is
-    /// moved to the OS trash, never unlinked. An agent whose manifest ships with Ahabby —
-    /// or whose user manifest overrides a shipped one — is only hidden, because deleting the
-    /// file would bring the builtin agent back. Hiding is reversible from Settings.
-    pub fn remove_agent(&self, id: &str) -> Result<AgentRemoval> {
+    /// [`RemovalMode::Hide`] always works and only touches Ahabby's own settings. [`RemovalMode::Delete`]
+    /// trashes the agent's own user-catalog manifest, and is refused for an agent whose
+    /// manifest ships with Ahabby — for those the real deletion is running the manifest's
+    /// uninstall command (see [`Agent::can_uninstall`]).
+    pub fn remove_agent(&self, id: &str, mode: RemovalMode) -> Result<AgentRemoval> {
         let adapter = self.adapter(id)?;
         let manifest = adapter.manifest().clone();
         remove_agent_from(
@@ -299,6 +340,7 @@ impl AppState {
             &self.user_catalog_dir(),
             id,
             &manifest,
+            mode,
             |path| {
                 trash::delete(path).map_err(|error| {
                     AppError::other(format!(
@@ -330,6 +372,11 @@ impl AppState {
     }
 
     pub fn adapter(&self, id: &str) -> Result<Arc<dyn AgentAdapter>> {
+        // The shared surface is not a catalog manifest, but deletion goes through the same
+        // adapter interface, so its path checks stay identical to an agent's.
+        if id == SHARED_OWNER_ID {
+            return Ok(services::shared::adapter());
+        }
         self.scanner
             .registry()
             .all()
@@ -340,12 +387,26 @@ impl AppState {
     }
 
     /// Only documents the scan knows about can be read or written: a config declared by the
-    /// manifest, a resource file the manifest declares, or a skill's entry file.
+    /// manifest, a resource file the manifest declares, or a skill's entry file. A document
+    /// of the shared surface (`~/.agents/...`) is addressable the same way, under its
+    /// reserved id.
     pub fn document_target(&self, agent_id: &str, path: &str) -> Result<DocumentTarget> {
+        if agent_id == SHARED_OWNER_ID {
+            return services::shared::resolve_document(&self.report()?.shared, path);
+        }
         resolve_document(&self.agent(agent_id)?, path)
     }
 
     pub fn skill(&self, agent_id: &str, skill_id: &str) -> Result<Skill> {
+        if agent_id == SHARED_OWNER_ID {
+            return self
+                .report()?
+                .shared
+                .skills
+                .into_iter()
+                .find(|skill| skill.id == skill_id)
+                .ok_or_else(|| AppError::NotFound(format!("shared skill '{skill_id}'")));
+        }
         self.agent(agent_id)?
             .skills
             .into_iter()
@@ -354,6 +415,15 @@ impl AppState {
     }
 
     pub fn mcp_server(&self, agent_id: &str, server_id: &str) -> Result<McpServer> {
+        if agent_id == SHARED_OWNER_ID {
+            return self
+                .report()?
+                .shared
+                .mcp_servers
+                .into_iter()
+                .find(|server| server.id == server_id)
+                .ok_or_else(|| AppError::NotFound(format!("shared MCP server '{server_id}'")));
+        }
         self.agent(agent_id)?
             .mcp_servers
             .into_iter()
@@ -363,6 +433,10 @@ impl AppState {
 
     pub fn jobs(&self) -> Arc<JobRunner> {
         Arc::clone(&self.jobs)
+    }
+
+    pub fn terminals(&self) -> Arc<TerminalManager> {
+        Arc::clone(&self.terminals)
     }
 
     pub fn backup_root(&self) -> PathBuf {
@@ -418,12 +492,15 @@ pub(crate) fn user_manifest_path(catalog_dir: &Path, source: &str) -> Result<Pat
 /// Remove an agent, given the manifest the catalog resolved for it.
 ///
 /// `trash_file` is the only thing that touches the deleted file, which keeps the decision
-/// and the path check testable without moving anything to a real trash.
+/// and the path check testable without moving anything to a real trash. `mode` is what the
+/// user picked: hiding always works, while deleting a file is only legal when the manifest
+/// lives in Ahabby's own user catalog.
 pub(crate) fn remove_agent_from<F>(
     settings: &SettingsService,
     catalog_dir: &Path,
     id: &str,
     manifest: &AgentManifest,
+    mode: RemovalMode,
     trash_file: F,
 ) -> Result<AgentRemoval>
 where
@@ -437,8 +514,21 @@ where
     }
 
     let mut path = None;
-    match RemovalKind::for_manifest(&manifest.source, catalog::is_builtin_id(id)) {
-        RemovalKind::Manifest => {
+    match (
+        mode,
+        RemovalKind::for_manifest(&manifest.source, catalog::is_builtin_id(id)),
+    ) {
+        // Hiding is the universal, reversible choice: nothing on disk is touched.
+        (RemovalMode::Hide, _) => {
+            current.hidden_agents.push(HiddenAgent {
+                id: id.to_string(),
+                name: manifest.name.clone(),
+                icon: manifest.icon.clone(),
+                removed_at_ms: crate::platform::now_ms(),
+            });
+            settings.save(current)?;
+        }
+        (RemovalMode::Delete, RemovalKind::Manifest) => {
             let ManifestSource::User { path: source } = &manifest.source else {
                 return Err(AppError::other(format!(
                     "manifest of '{id}' has no file in the user catalog"
@@ -448,14 +538,11 @@ where
             trash_file(&target)?;
             path = Some(target.to_string_lossy().to_string());
         }
-        RemovalKind::Hidden => {
-            current.hidden_agents.push(HiddenAgent {
-                id: id.to_string(),
-                name: manifest.name.clone(),
-                icon: manifest.icon.clone(),
-                removed_at_ms: crate::platform::now_ms(),
-            });
-            settings.save(current)?;
+        (RemovalMode::Delete, RemovalKind::Hidden) => {
+            return Err(AppError::NotSupported(format!(
+                "the manifest of '{id}' ships with Ahabby and cannot be deleted; only hiding \
+                 it or uninstalling the agent itself is possible"
+            )));
         }
     }
 
@@ -492,6 +579,8 @@ mod tests {
         assert_eq!(events::SCAN_START, "scan://start");
         assert_eq!(events::SCAN_AGENT, "scan://agent");
         assert_eq!(events::SCAN_DONE, "scan://done");
+        assert_eq!(events::TERMINAL_OUTPUT, "terminal://output");
+        assert_eq!(events::TERMINAL_EXIT, "terminal://exit");
     }
 
     fn manifest(id: &str, source: ManifestSource) -> AgentManifest {
@@ -534,7 +623,7 @@ names = ["{id}"]
     }
 
     #[test]
-    fn removing_a_shipped_agent_hides_it_and_can_be_restored() {
+    fn hiding_a_shipped_agent_is_reversible_and_touches_nothing() {
         let dir = tempfile::tempdir().unwrap();
         let settings = settings_service(dir.path());
         let manifest = manifest("demo", ManifestSource::Builtin);
@@ -544,7 +633,8 @@ names = ["{id}"]
             Path::new("/cfg/catalog"),
             "demo",
             &manifest,
-            |_| panic!("a shipped manifest must never be deleted"),
+            RemovalMode::Hide,
+            |_| panic!("hiding must never delete a file"),
         )
         .unwrap();
         assert!(!removal.deleted);
@@ -558,6 +648,7 @@ names = ["{id}"]
             Path::new("/cfg/catalog"),
             "demo",
             &manifest,
+            RemovalMode::Hide,
             |_| panic!("never reached"),
         )
         .unwrap_err();
@@ -573,7 +664,38 @@ names = ["{id}"]
     }
 
     #[test]
-    fn removing_a_user_manifest_trashes_the_file() {
+    fn hiding_a_user_manifest_keeps_its_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = settings_service(dir.path());
+        let catalog = dir.path().join("catalog");
+        std::fs::create_dir_all(&catalog).unwrap();
+        let file = catalog.join("demo.toml");
+        std::fs::write(&file, "id = \"demo\"\n").unwrap();
+        let manifest = manifest(
+            "demo",
+            ManifestSource::User {
+                path: file.to_string_lossy().to_string(),
+            },
+        );
+
+        let removal = remove_agent_from(
+            &settings,
+            &catalog,
+            "demo",
+            &manifest,
+            RemovalMode::Hide,
+            |_| panic!("hiding must never delete the manifest"),
+        )
+        .unwrap();
+
+        assert!(!removal.deleted);
+        assert!(removal.path.is_none());
+        assert_eq!(settings.get().hidden_agents.len(), 1);
+        assert!(file.exists(), "the manifest stays on disk");
+    }
+
+    #[test]
+    fn deleting_a_user_manifest_trashes_the_file() {
         let dir = tempfile::tempdir().unwrap();
         let settings = settings_service(dir.path());
         let catalog = dir.path().join("catalog");
@@ -588,10 +710,17 @@ names = ["{id}"]
         );
 
         let mut trashed: Option<PathBuf> = None;
-        let removal = remove_agent_from(&settings, &catalog, "demo", &manifest, |path| {
-            trashed = Some(path.to_path_buf());
-            Ok(())
-        })
+        let removal = remove_agent_from(
+            &settings,
+            &catalog,
+            "demo",
+            &manifest,
+            RemovalMode::Delete,
+            |path| {
+                trashed = Some(path.to_path_buf());
+                Ok(())
+            },
+        )
         .unwrap();
 
         assert!(removal.deleted);
@@ -607,7 +736,26 @@ names = ["{id}"]
     }
 
     #[test]
-    fn a_user_manifest_overriding_a_builtin_is_only_hidden() {
+    fn deleting_a_shipped_agent_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = settings_service(dir.path());
+        let manifest = manifest("demo", ManifestSource::Builtin);
+
+        let error = remove_agent_from(
+            &settings,
+            Path::new("/cfg/catalog"),
+            "demo",
+            &manifest,
+            RemovalMode::Delete,
+            |_| panic!("a shipped manifest must never be deleted"),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "not_supported");
+        assert!(settings.get().hidden_agents.is_empty());
+    }
+
+    #[test]
+    fn deleting_a_user_override_of_a_builtin_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let settings = settings_service(dir.path());
         let id = catalog::builtin_ids()
@@ -625,11 +773,28 @@ names = ["{id}"]
             },
         );
 
-        let removal = remove_agent_from(&settings, dir.path(), id, &manifest, |_| {
-            panic!("deleting the override would resurrect the builtin manifest")
-        })
-        .unwrap();
+        // Deleting the override would resurrect the builtin, so it is refused.
+        let error = remove_agent_from(
+            &settings,
+            dir.path(),
+            id,
+            &manifest,
+            RemovalMode::Delete,
+            |_| panic!("deleting the override would resurrect the builtin manifest"),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "not_supported");
 
+        // Hiding it, however, stays available.
+        let removal = remove_agent_from(
+            &settings,
+            dir.path(),
+            id,
+            &manifest,
+            RemovalMode::Hide,
+            |_| panic!("never reached"),
+        )
+        .unwrap();
         assert!(!removal.deleted);
         assert_eq!(settings.get().hidden_agents[0].id, id);
     }
@@ -645,9 +810,14 @@ names = ["{id}"]
             },
         );
 
-        let error = remove_agent_from(&settings, dir.path(), "demo", &manifest, |_| {
-            panic!("the path check must run before any deletion")
-        })
+        let error = remove_agent_from(
+            &settings,
+            dir.path(),
+            "demo",
+            &manifest,
+            RemovalMode::Delete,
+            |_| panic!("the path check must run before any deletion"),
+        )
         .unwrap_err();
         assert_eq!(error.code(), "command_not_allowed");
     }

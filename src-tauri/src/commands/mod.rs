@@ -9,6 +9,7 @@ pub mod install;
 pub mod mcp;
 pub mod settings;
 pub mod skills;
+pub mod terminal;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

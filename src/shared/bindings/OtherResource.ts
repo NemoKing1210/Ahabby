@@ -12,7 +12,15 @@ export type OtherResource = { id: string, kind: OtherKind, label: string, path: 
 /**
  * Markdown/text preview for files small enough to show inline.
  */
-content?: string | null, sizeBytes?: number | null, isDirectory: boolean, exists: boolean, 
+content?: string | null, sizeBytes?: number | null, 
+/**
+ * Creation time of the file (or the directory itself), when the platform reports one.
+ */
+createdMs?: number | null, 
+/**
+ * Modification time of the same entry.
+ */
+modifiedMs?: number | null, isDirectory: boolean, exists: boolean, 
 /**
  * Number of entries inside a directory resource.
  */

@@ -27,6 +27,14 @@ pub struct OtherResource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "number | null")]
     pub size_bytes: Option<u64>,
+    /// Creation time of the file (or the directory itself), when the platform reports one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub created_ms: Option<i64>,
+    /// Modification time of the same entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub modified_ms: Option<i64>,
     pub is_directory: bool,
     pub exists: bool,
     /// Number of entries inside a directory resource.

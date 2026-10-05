@@ -54,6 +54,9 @@ pub struct InstallOption {
     pub command: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub update_command: Option<String>,
+    /// Declared uninstall command, when this method can remove the agent again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uninstall_command: Option<String>,
     #[serde(default)]
     pub requires: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -102,6 +105,20 @@ impl RemovalKind {
             _ => RemovalKind::Hidden,
         }
     }
+}
+
+/// What the user picked in the removal dialog.
+///
+/// Hiding is always possible; deleting a user manifest or uninstalling the agent is a
+/// separate, explicit choice the UI only offers when the backend says it is possible.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub enum RemovalMode {
+    /// Keep the agent on the machine and drop it from Ahabby's list. Reversible from Settings.
+    Hide,
+    /// Move the agent's own user-catalog manifest to the OS trash, dropping it from Ahabby.
+    Delete,
 }
 
 /// An agent the user removed from Ahabby that is still on disk (a hidden agent).
@@ -179,6 +196,9 @@ pub struct Agent {
     pub install_docs_url: Option<String>,
     /// `true` when the manifest tells us how to update this agent.
     pub can_update: bool,
+    /// `true` when the manifest declares an uninstall command that can run on this machine,
+    /// so the agent can be really removed from disk instead of only hidden.
+    pub can_uninstall: bool,
     pub configs: Vec<ConfigFile>,
     pub skills: Vec<Skill>,
     pub mcp_servers: Vec<McpServer>,

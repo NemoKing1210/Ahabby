@@ -8,7 +8,11 @@ export type InstallOption = { id: string, manager: Manager,
 /**
  * Exact command line the user will be asked to confirm.
  */
-command: string, updateCommand?: string | null, requires: Array<string>, docsUrl?: string | null, note?: string | null, 
+command: string, updateCommand?: string | null, 
+/**
+ * Declared uninstall command, when this method can remove the agent again.
+ */
+uninstallCommand?: string | null, requires: Array<string>, docsUrl?: string | null, note?: string | null, 
 /**
  * `true` when the required package manager is actually present on this machine.
  */

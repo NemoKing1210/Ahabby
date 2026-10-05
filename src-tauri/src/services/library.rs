@@ -4,6 +4,12 @@
 //! two agents can ship a skill with the same name but different contents, and deleting a
 //! merged row would be ambiguous. Grouping by name happens in the UI, where it is a pure
 //! presentation concern; each row here still points at exactly one thing on disk.
+//!
+//! Agent-neutral resources are appended and owned by the synthetic shared reference. A
+//! resource that an agent manifest also declares inside a shared root is reported through
+//! the shared surface only, so nothing is counted twice.
+
+use std::path::{Path, PathBuf};
 
 use crate::domain::{Library, LibraryStats, Skill};
 
@@ -14,14 +20,49 @@ pub fn aggregate(report: &ScanReport) -> Library {
     let mut mcp_servers = Vec::new();
     let mut other = Vec::new();
 
+    // An agent manifest may declare a shared location as its own (goose declares
+    // `~/.agents/skills`, codebuff `~/.agents/mcp.json`, cline and warp `~/.agents/AGENTS.md`).
+    // Those documents are reported through the shared surface instead, so the Library shows
+    // them once, as what they are.
+    let shared_roots: Vec<PathBuf> = report.shared.roots.iter().map(PathBuf::from).collect();
+    let is_shared = |path: &str| {
+        shared_roots
+            .iter()
+            .any(|root| Path::new(path).starts_with(root))
+    };
+
     for agent in &report.agents {
         if !agent.is_installed() {
             continue;
         }
-        skills.extend(agent.skills.iter().cloned());
-        mcp_servers.extend(agent.mcp_servers.iter().cloned());
-        other.extend(agent.other.iter().cloned());
+        skills.extend(
+            agent
+                .skills
+                .iter()
+                .filter(|skill| !is_shared(&skill.path))
+                .cloned(),
+        );
+        mcp_servers.extend(
+            agent
+                .mcp_servers
+                .iter()
+                .filter(|server| !is_shared(&server.source_config))
+                .cloned(),
+        );
+        other.extend(
+            agent
+                .other
+                .iter()
+                .filter(|resource| !is_shared(&resource.path))
+                .cloned(),
+        );
     }
+
+    // Shared resources are the same documents, only owned by the shared surface rather than
+    // by an agent.
+    skills.extend(report.shared.skills.iter().cloned());
+    mcp_servers.extend(report.shared.mcp_servers.iter().cloned());
+    other.extend(report.shared.other.iter().cloned());
 
     // Identical ids can only come from the same file read twice; keep the first.
     dedupe_by_id(&mut skills);
@@ -104,7 +145,8 @@ mod tests {
     use super::*;
     use crate::domain::{
         Agent, AgentRef, AgentStatus, CatalogProblem, ConfigFormat, EnvVar, McpServer,
-        McpTransport, Os, OtherKind, OtherResource, RemovalKind, Scope, Severity, Version,
+        McpTransport, Os, OtherKind, OtherResource, RemovalKind, Scope, Severity, SharedResources,
+        Version, SHARED_OWNER_ID,
     };
 
     fn agent_ref(id: &str) -> AgentRef {
@@ -127,6 +169,8 @@ mod tests {
             frontmatter: Vec::new(),
             content: Some("# body".to_string()),
             size_bytes: Some(10),
+            created_ms: Some(1_700_000_000_000),
+            modified_ms: Some(1_700_000_100_000),
             removable: true,
             unverified: false,
         }
@@ -152,6 +196,8 @@ mod tests {
             }],
             headers: Vec::new(),
             raw: "{}".to_string(),
+            created_ms: Some(1_700_000_000_000),
+            modified_ms: Some(1_700_000_100_000),
             has_secrets: true,
             removable: true,
             unverified: false,
@@ -181,6 +227,7 @@ mod tests {
             can_install: false,
             install_docs_url: None,
             can_update: false,
+            can_uninstall: false,
             configs: Vec::new(),
             skills: Vec::new(),
             mcp_servers: Vec::new(),
@@ -204,6 +251,7 @@ mod tests {
             duration_ms: 7,
             available_to_install: 0,
             os: Os::Linux,
+            shared: Default::default(),
         }
     }
 
@@ -223,6 +271,8 @@ mod tests {
             description: None,
             content: None,
             size_bytes: None,
+            created_ms: None,
+            modified_ms: None,
             is_directory: false,
             exists: false,
             item_count: None,
@@ -267,5 +317,50 @@ mod tests {
         assert_eq!(library.skills.len(), 2);
         assert!(library.skills.iter().all(|skill| skill.name == "pdf"));
         assert_ne!(library.skills[0].path, library.skills[1].path);
+    }
+
+    #[test]
+    fn a_shared_path_declared_by_an_agent_is_reported_as_shared_only() {
+        let root = "/home/u/.agents/skills";
+
+        // goose declares the shared skills directory as its own *and* one private directory.
+        let mut goose = empty_agent("goose", AgentStatus::Installed);
+        goose.skills = vec![
+            skill("goose", "pdf", "/home/u/.agents/skills/pdf"),
+            skill("goose", "own", "/home/u/.goose/skills/own"),
+        ];
+        goose.mcp_servers = vec![server("goose", "shared", "/home/u/.agents/mcp.json")];
+
+        let mut report = report(vec![goose]);
+        report.shared = SharedResources {
+            skills: vec![skill(SHARED_OWNER_ID, "pdf", "/home/u/.agents/skills/pdf")],
+            mcp_servers: vec![server(
+                SHARED_OWNER_ID,
+                "shared",
+                "/home/u/.agents/mcp.json",
+            )],
+            roots: vec![root.to_string(), "/home/u/.agents/mcp.json".to_string()],
+            ..Default::default()
+        };
+
+        let library = aggregate(&report);
+
+        assert_eq!(library.skills.len(), 2, "pdf appears once, not twice");
+        let pdf = library
+            .skills
+            .iter()
+            .find(|skill| skill.name == "pdf")
+            .unwrap();
+        assert_eq!(pdf.agents[0].id, SHARED_OWNER_ID);
+        let own = library
+            .skills
+            .iter()
+            .find(|skill| skill.name == "own")
+            .unwrap();
+        assert_eq!(own.agents[0].id, "goose");
+        assert_eq!(library.mcp_servers.len(), 1);
+        assert_eq!(library.mcp_servers[0].agent.id, SHARED_OWNER_ID);
+        assert_eq!(library.stats.skills, 2);
+        assert_eq!(library.stats.mcp_servers, 1);
     }
 }

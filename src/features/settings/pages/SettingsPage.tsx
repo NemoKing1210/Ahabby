@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FolderOpen, Plus, Save, Trash2, Undo2 } from 'lucide-react'
+import { FolderOpen, Plus, RefreshCw, Save, Trash2, Undo2 } from 'lucide-react'
 
 import { appearanceApplier, APPEARANCE_DEFAULTS } from '@/app/appearance'
 import { themeApplier } from '@/app/theme'
@@ -24,6 +24,8 @@ import { SwitchField } from '@/shared/ui/Switch'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { useRestoreAgent } from '@/features/agents/api/queries'
+import { useTerminals } from '@/features/terminal/api/hooks'
+import { BUILTIN_TERMINAL_ID } from '@/features/terminal/lib/terminal'
 
 import {
   useBackupRoot,
@@ -221,12 +223,39 @@ export function SettingsPage() {
   const restore = useRestoreAgent()
 
   const [override, setOverride] = useState<Partial<Settings> | null>(null)
+  const terminals = useTerminals()
 
   if (isLoading || !settings) return <SkeletonList rows={4} />
 
   const draft: Settings = { ...settings, ...override }
   const update = (patch: Partial<Settings>) => setOverride({ ...override, ...patch })
   const dirty = override !== null
+
+  const chosenTerminal = terminals.data?.options.find((option) => option.id === draft.terminal)
+  const terminalMissing =
+    draft.terminal !== BUILTIN_TERMINAL_ID && terminals.isSuccess && !chosenTerminal
+  // The built-in terminal is always offered, whatever the backend reported; the installed ones
+  // come after it. A terminal that is not installed any more keeps its place in the setting, so
+  // the select has to be able to show it rather than silently losing the value.
+  const terminalOptions = [
+    { value: BUILTIN_TERMINAL_ID, label: t('settings.terminalBuiltin') },
+    ...(terminals.data?.options ?? [])
+      .filter((option) => option.id !== BUILTIN_TERMINAL_ID)
+      .map((option) => ({ value: option.id, label: option.name })),
+  ]
+  if (!terminalOptions.some((option) => option.value === draft.terminal)) {
+    terminalOptions.push({
+      value: draft.terminal,
+      label: t('settings.terminalUnknown', { terminal: draft.terminal }),
+    })
+  }
+  const terminalHint = terminalMissing
+    ? t('settings.terminalMissing', { terminal: draft.terminal })
+    : chosenTerminal?.capability === 'opensDirectory'
+      ? t('settings.terminalOpensDirectory', { terminal: chosenTerminal.name })
+      : chosenTerminal && chosenTerminal.id !== BUILTIN_TERMINAL_ID
+        ? t('settings.terminalRunsCommand', { terminal: chosenTerminal.name })
+        : t('settings.terminalBuiltinHint')
 
   return (
     <div className="flex flex-col gap-6">
@@ -395,6 +424,41 @@ export function SettingsPage() {
         </Button>
 
         <AppearancePreview />
+      </Section>
+
+      <Section title={t('settings.terminal')} hint={t('settings.terminalHint')}>
+        <Row label={t('settings.terminalDefault')} hint={terminalHint}>
+          <Select
+            ariaLabel={t('settings.terminalDefault')}
+            value={draft.terminal}
+            onValueChange={(value) => update({ terminal: value })}
+            options={terminalOptions}
+            className="min-w-48"
+          />
+        </Row>
+        {chosenTerminal?.path ? (
+          <code className="text-faint truncate pb-2 font-mono text-[0.75rem]">
+            {chosenTerminal.path}
+          </code>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-0"
+            disabled={terminals.isFetching}
+            onClick={() => void terminals.refetch()}
+          >
+            <RefreshCw
+              className={cn('size-3.5', terminals.isFetching && 'animate-spin')}
+              aria-hidden
+            />
+            {t('settings.terminalRefresh')}
+          </Button>
+          {terminalMissing ? (
+            <Badge tone="warning">{t('settings.terminalNotInstalled')}</Badge>
+          ) : null}
+        </div>
       </Section>
 
       <Section title={t('settings.scanning')} hint={t('settings.scanPathsHint')}>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Play, RefreshCw, Star, Trash2 } from 'lucide-react'
+import { ArrowLeft, Play, RefreshCw, Star, Terminal, Trash2 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import type { InstallAction } from '@/shared/bindings/InstallAction'
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 import { toastAppError } from '@/shared/ui/Toast'
 
 import { InstallDialog } from '@/features/install/components/InstallDialog'
+import { useRunAgentInTerminal } from '@/features/terminal/api/hooks'
 import { ConfigsTab } from '@/features/configs/components/ConfigsTab'
 import { McpTab } from '@/features/mcp/components/McpTab'
 import { SkillsTab } from '@/features/skills/components/SkillsTab'
@@ -31,6 +32,7 @@ export function AgentPage() {
   const { agent, isLoading, error, isMissing } = useAgent(agentId)
   const favoriteIds = useFavoriteAgents()
   const toggleFavorite = useToggleFavoriteAgent()
+  const runInTerminal = useRunAgentInTerminal()
   const [installAction, setInstallAction] = useState<InstallAction | null>(null)
   const [removeOpen, setRemoveOpen] = useState(false)
 
@@ -100,6 +102,13 @@ export function AgentPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {installed ? (
+            <Button variant="secondary" onClick={() => runInTerminal(agent)}>
+              <Terminal className="size-3.5" aria-hidden />
+              {t('agents.runInTerminal')}
+            </Button>
+          ) : null}
+
           <Button
             variant="ghost"
             onClick={() =>
@@ -197,6 +206,7 @@ export function AgentPage() {
           agent={agent}
           onRemoved={() => navigate('/')}
           onClose={() => setRemoveOpen(false)}
+          onUninstall={() => setInstallAction('uninstall')}
         />
       ) : null}
     </div>

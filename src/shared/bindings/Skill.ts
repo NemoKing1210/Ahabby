@@ -27,6 +27,14 @@ entryPath?: string | null, scope: Scope, agents: Array<AgentRef>, frontmatter: A
  */
 content?: string | null, sizeBytes?: number | null, 
 /**
+ * Creation time of the entry file (`SKILL.md`), when the platform reports one.
+ */
+createdMs?: number | null, 
+/**
+ * Modification time of that same file.
+ */
+modifiedMs?: number | null, 
+/**
  * `false` for skills Ahabby refuses to delete (e.g. a plugin-managed directory).
  */
 removable: boolean, 

@@ -20,7 +20,7 @@ use crate::adapters::{AdapterRegistry, AgentAdapter};
 use crate::catalog::Catalog;
 use crate::domain::{
     Agent, AgentStatus, CatalogProblem, Detection, InstallOption, Manager, ManifestSource, Os,
-    RemovalKind, UpdateInfo,
+    RemovalKind, SharedResources, UpdateInfo,
 };
 use crate::platform::{self, PlatformContext};
 
@@ -46,6 +46,11 @@ pub struct ScanReport {
     pub installed: usize,
     pub available_to_install: usize,
     pub os: Os,
+    /// Resources that belong to no single agent: global skills, MCP servers and documents
+    /// from the cross-agent locations (`~/.agents/...`). Shown by the Library; never part of
+    /// the agent list or its counts.
+    #[serde(default)]
+    pub shared: SharedResources,
 }
 
 impl ScanReport {
@@ -196,6 +201,10 @@ impl Scanner {
         let installed = agents.iter().filter(|agent| agent.is_installed()).count();
         let available_to_install = agents.iter().filter(|agent| agent.can_install).count();
 
+        // The agent-neutral surface is independent of any agent: one machine-wide read
+        // appended to the report the Library aggregates.
+        let shared = super::shared::scan(ctx).await;
+
         let report = ScanReport {
             agents,
             problems: self
@@ -208,6 +217,7 @@ impl Scanner {
             installed,
             available_to_install,
             os: ctx.os,
+            shared,
         };
 
         if let Ok(mut cache) = self.cache.write() {
@@ -290,6 +300,7 @@ async fn scan_agent(
         .map(|option| option.id.clone());
     agent.can_install = !installed && agent.install_options.iter().any(|option| option.available);
     agent.can_update = installed && agent.install_options.iter().any(|option| option.available);
+    agent.can_uninstall = installed && can_uninstall(&agent.install_options);
 
     if installed {
         if let (Some(checker), Some(current)) = (versions, agent.version.as_ref()) {
@@ -333,6 +344,7 @@ fn skeleton_agent(manifest: &crate::domain::AgentManifest) -> Agent {
         can_install: false,
         install_docs_url: manifest.install_docs_url().map(str::to_string),
         can_update: false,
+        can_uninstall: false,
         configs: Vec::new(),
         skills: Vec::new(),
         mcp_servers: Vec::new(),
@@ -348,6 +360,14 @@ fn skeleton_agent(manifest: &crate::domain::AgentManifest) -> Agent {
         warnings: Vec::new(),
         scan_ms: 0,
     }
+}
+
+/// Real deletion is possible only when the agent is installed and a method that can actually
+/// run on this machine declares an uninstall command; every other agent can only be hidden.
+fn can_uninstall(options: &[crate::domain::InstallOption]) -> bool {
+    options
+        .iter()
+        .any(|option| option.uninstall_command.is_some() && option.available)
 }
 
 fn install_options(
@@ -384,6 +404,7 @@ fn install_options(
                 manager: method.manager,
                 command: method.command.clone(),
                 update_command: method.update_command.clone(),
+                uninstall_command: method.uninstall_command.clone(),
                 requires: method.requires.clone(),
                 docs_url: method.docs_url.clone(),
                 note: method.note.clone(),
@@ -411,6 +432,8 @@ fn other_resources_sorted(
 mod tests {
     use super::*;
     use crate::catalog::parse_manifest;
+    use crate::domain::{InstallMethodSpec, Manager};
+    use std::collections::BTreeSet;
 
     fn manifest() -> crate::domain::AgentManifest {
         parse_manifest(
@@ -482,6 +505,55 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         assert!(report.problems.is_empty());
     }
 
+    #[test]
+    fn uninstall_is_possible_only_for_an_available_method_that_declares_it() {
+        let os = Os::current();
+
+        // The default manifest declares a script method but no uninstall command.
+        let script = manifest();
+        let options = install_options(&script, os, &BTreeSet::new(), &None);
+        assert!(
+            options[0].available,
+            "a script method is always runnable, so the gate is the command"
+        );
+        assert!(options[0].uninstall_command.is_none());
+        assert!(!can_uninstall(&options));
+
+        // The same method with an uninstall command makes real deletion possible.
+        let mut with_uninstall = script.clone();
+        with_uninstall.methods[0].uninstall_command = Some("rm -f unit-agent".to_string());
+        let options = install_options(&with_uninstall, os, &BTreeSet::new(), &None);
+        assert_eq!(
+            options[0].uninstall_command.as_deref(),
+            Some("rm -f unit-agent")
+        );
+        assert!(can_uninstall(&options));
+
+        // A method whose package manager is missing cannot run, so it is not offered even
+        // though it declares an uninstall command.
+        let mut npm_only = script;
+        npm_only.methods = vec![InstallMethodSpec {
+            id: "npm".to_string(),
+            manager: Manager::Npm,
+            os: Vec::new(),
+            command: "npm install -g unit-agent".to_string(),
+            update_command: None,
+            uninstall_command: Some("npm uninstall -g unit-agent".to_string()),
+            docs_url: None,
+            note: None,
+            priority: 0,
+            requires: Vec::new(),
+        }];
+        let missing = install_options(&npm_only, os, &BTreeSet::new(), &None);
+        assert!(!missing[0].available);
+        assert!(!can_uninstall(&missing));
+
+        // …and once npm is present the same method becomes available.
+        let available = install_options(&npm_only, os, &BTreeSet::from([Manager::Npm]), &None);
+        assert!(available[0].available);
+        assert!(can_uninstall(&available));
+    }
+
     #[tokio::test]
     async fn installed_agent_is_scanned_end_to_end() {
         let home = tempfile::tempdir().unwrap();
@@ -522,12 +594,15 @@ command = "curl -fsSL https://example.com/install.sh | sh"
             linux: vec!["${HOME}/bin".to_string()],
         }];
         manifest.binaries.names = vec!["unit-agent".to_string()];
+        // A declared uninstall command on an installed agent makes a real deletion possible.
+        manifest.methods[0].uninstall_command = Some("unit-agent self-uninstall".to_string());
 
         let scanner = Scanner::new(&catalog(manifest));
         let report = scanner.scan(&context(home.path()), None, &[], None).await;
         let agent = report.agent("unit-agent").unwrap();
 
         assert_eq!(agent.status, AgentStatus::Installed);
+        assert!(agent.can_uninstall);
         assert_eq!(
             agent.binary_path.as_deref(),
             Some(binary.to_string_lossy().as_ref())

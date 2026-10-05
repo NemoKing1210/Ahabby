@@ -444,7 +444,7 @@ export function DocumentEditorDialog({
             ) : null}
           </div>
 
-          <DialogBody className="flex flex-col gap-3">
+          <DialogBody className="flex flex-col gap-3 pt-3">
             {staleWarning ? (
               <div className="border-warning/40 bg-surface flex flex-col gap-2 rounded-lg border p-3">
                 <span className="text-foreground text-[0.8125rem]">{t('editor.staleFile')}</span>

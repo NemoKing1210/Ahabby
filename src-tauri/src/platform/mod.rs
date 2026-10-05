@@ -9,6 +9,8 @@ pub mod open;
 pub mod packages;
 pub mod paths;
 pub mod process;
+pub mod shell;
+pub mod terminals;
 pub mod which;
 pub mod window;
 
@@ -35,10 +37,27 @@ pub fn now_ms() -> i64 {
 
 /// Epoch milliseconds of a file's modification time.
 pub fn metadata_ms(metadata: &std::fs::Metadata) -> i64 {
-    metadata
-        .modified()
+    epoch_ms(metadata.modified().ok()).unwrap_or(0)
+}
+
+/// Epoch milliseconds of a file's modification time, when the metadata carries one.
+///
+/// Unlike [`metadata_ms`] this distinguishes "no timestamp" from a real `0`.
+pub fn modified_at_ms(metadata: &std::fs::Metadata) -> Option<i64> {
+    epoch_ms(metadata.modified().ok())
+}
+
+/// Epoch milliseconds of a file's creation time, when the platform reports one.
+///
+/// Windows and macOS always do. Many Linux filesystems (ext4 without a birth time) do not,
+/// so this stays `None` there instead of falling back to a misleading modified time.
+pub fn created_at_ms(metadata: &std::fs::Metadata) -> Option<i64> {
+    epoch_ms(metadata.created().ok())
+}
+
+fn epoch_ms(time: Option<std::time::SystemTime>) -> Option<i64> {
+    time?
+        .duration_since(std::time::UNIX_EPOCH)
         .ok()
-        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|duration| duration.as_millis() as i64)
-        .unwrap_or(0)
 }

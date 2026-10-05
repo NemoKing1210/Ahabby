@@ -43,6 +43,7 @@ function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): Agent {
     canInstall: false,
     installDocsUrl: null,
     canUpdate: false,
+    canUninstall: false,
     configs: [],
     skills: [],
     mcpServers: [],
@@ -80,6 +81,7 @@ const REPORT: ScanReport = {
   installed: 2,
   availableToInstall: 2,
   os: 'windows',
+  shared: { configs: [], skills: [], mcpServers: [], other: [], roots: [] },
 }
 
 const SETTINGS: Settings = {
@@ -97,6 +99,7 @@ const SETTINGS: Settings = {
   versionCacheMinutes: 60,
   proxyMode: 'none',
   proxyUrl: null,
+  terminal: 'builtin',
   hiddenAgents: [],
   favoriteAgents: [],
 }

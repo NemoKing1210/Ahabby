@@ -1,4 +1,7 @@
+import { Layers } from 'lucide-react'
+
 import { cn } from '@/shared/lib/cn'
+import { isSharedOwner } from '@/shared/lib/owners'
 
 import { AGENT_BRANDS } from './agentBrands'
 
@@ -33,16 +36,31 @@ function initials(name: string): string {
 export function AgentIcon({
   name,
   icon,
+  ownerId,
   size = 'md',
   className,
 }: {
   name: string
   /** Manifest `icon` key; selects the brand palette when one is mapped. */
   icon?: string | null
+  /** Owner id; the agent-neutral shared surface gets its own tile instead of a monogram. */
+  ownerId?: string
   size?: keyof typeof SIZES
   className?: string
 }) {
   const { tile, edge } = SIZES[size]
+
+  if (ownerId && isSharedOwner(ownerId)) {
+    return (
+      <span
+        aria-hidden
+        className={cn(TILE, 'border-border bg-surface-2 text-accent-strong', tile, className)}
+      >
+        <Layers size={Math.round(edge * 0.6)} />
+      </span>
+    )
+  }
+
   const brand = icon ? AGENT_BRANDS[icon] : undefined
 
   if (brand) {

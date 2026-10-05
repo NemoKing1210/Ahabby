@@ -68,6 +68,7 @@ function agent(overrides: Partial<Agent> = {}): Agent {
     canInstall: true,
     installDocsUrl: null,
     canUpdate: true,
+    canUninstall: false,
     configs: [],
     skills: [],
     mcpServers: [],

@@ -64,6 +64,13 @@ macro_rules! handlers {
             commands::settings::set_agent_favorite,
             commands::settings::save_settings,
             commands::settings::set_window_theme,
+            commands::terminal::list_terminals,
+            commands::terminal::launch_terminal,
+            commands::terminal::write_terminal,
+            commands::terminal::resize_terminal,
+            commands::terminal::close_terminal,
+            commands::terminal::list_terminal_sessions,
+            commands::terminal::open_in_terminal,
         ]
     };
 }
@@ -80,13 +87,22 @@ fn init_tracing() {
 pub fn run() {
     init_tracing();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .setup(|app| {
             let state = state::AppState::new(app.handle())?;
             app.manage(state);
             Ok(())
         })
         .invoke_handler(handlers!())
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running Ahabby");
+
+    app.run(|handle, event| {
+        // A terminal session's shell is a child Ahabby owns: on Windows it is not in our
+        // process group, so it has to be killed here or the user is left with an orphaned
+        // console behind a window that no longer exists.
+        if let tauri::RunEvent::Exit = event {
+            handle.state::<state::AppState>().terminals().close_all();
+        }
+    });
 }

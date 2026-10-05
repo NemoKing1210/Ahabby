@@ -115,6 +115,10 @@ pub struct Settings {
     /// Agent ids the user pinned as favourites, in the order they were added. The list is
     /// what puts them first in the agents list and in the sidebar.
     pub favorite_agents: Vec<String>,
+    /// Where "run in terminal" sends an agent: `"builtin"` for Ahabby's own terminal, or the
+    /// id of an external terminal from `platform::terminals` (checked against the table here,
+    /// so a hand-edited file cannot smuggle in an unknown program).
+    pub terminal: String,
 }
 
 fn is_hex_color(value: &str) -> bool {
@@ -150,6 +154,7 @@ impl Default for Settings {
             proxy_url: None,
             hidden_agents: Vec::new(),
             favorite_agents: Vec::new(),
+            terminal: crate::platform::terminals::BUILTIN_ID.to_string(),
         }
     }
 }
@@ -174,6 +179,19 @@ impl Settings {
             .map(|id| id.trim().to_string())
             .filter(|id| !id.is_empty() && seen.insert(id.clone()))
             .collect();
+        // The terminal must be one Ahabby knows how to start. A terminal that is merely *not
+        // installed right now* keeps its place in the setting: the UI flags it and the user can
+        // reinstall it, which a silent reset to the built-in terminal would not allow.
+        self.terminal = {
+            let requested = self.terminal.trim();
+            let known = requested == platform::terminals::BUILTIN_ID
+                || platform::terminals::spec(requested).is_some();
+            if known {
+                requested.to_string()
+            } else {
+                platform::terminals::BUILTIN_ID.to_string()
+            }
+        };
         self
     }
 
@@ -302,6 +320,24 @@ mod tests {
         assert_eq!(settings.font_family, FontFamily::Inter);
         assert_eq!(settings.mono_font, MonoFont::Jetbrains);
         assert!(settings.favorite_agents.is_empty());
+        assert_eq!(settings.terminal, "builtin");
+    }
+
+    #[test]
+    fn the_terminal_setting_keeps_known_ids_and_drops_forged_ones() {
+        let mut settings = Settings {
+            // A terminal that is simply not installed on this machine keeps its place: the UI
+            // flags it, and reinstalling the terminal brings it back without a manual reset.
+            terminal: "  ghostty ".to_string(),
+            ..Settings::default()
+        };
+        assert_eq!(settings.clone().sanitized().terminal, "ghostty");
+
+        settings.terminal = "definitely-not-a-terminal".to_string();
+        assert_eq!(settings.clone().sanitized().terminal, "builtin");
+
+        settings.terminal = String::new();
+        assert_eq!(settings.sanitized().terminal, "builtin");
     }
 
     #[test]

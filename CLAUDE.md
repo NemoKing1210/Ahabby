@@ -4,9 +4,9 @@ Instructions for [Claude Code](https://code.claude.com/docs/en/claude-md) workin
 
 ## Project
 
-Ahabby is a **Tauri 2** desktop app that finds the AI coding agents installed on the machine and puts them in one place: versions, config files, global skills, MCP servers, and rules/instructions/sub-agents/hooks. It reads and edits configs with a diff and a backup, and runs install/update commands taken only from a manifest. It is not an agent runtime.
+Ahabby is a **Tauri 2** desktop app that finds the AI coding agents installed on the machine and puts them in one place: versions, config files, global skills, MCP servers, and rules/instructions/sub-agents/hooks. It reads and edits configs with a diff and a backup, and runs install/update commands taken only from a manifest. It can also start an agent in a terminal — its own tabbed one, or one installed on the machine — but it stays a control panel: it never talks to a model and never invents what to execute.
 
-Stack: React 19 + TypeScript + Vite + Tailwind v4 + React Query + two Zustand stores + i18next (`en`/`ru`) + Radix UI + lucide-react. Native: Rust 2021, Tauri 2, `reqwest`, `toml_edit`. Identifier: `io.ahabby.app`. Alias `@/*` → `src/*`. Vite port **1420**.
+Stack: React 19 + TypeScript + Vite + Tailwind v4 + React Query + xterm.js + three Zustand stores (install console, toasts, terminal tabs) + i18next (`en`/`ru`) + Radix UI + lucide-react. Native: Rust 2021, Tauri 2, `reqwest`, `toml_edit`, `portable-pty`. Identifier: `io.ahabby.app`. Alias `@/*` → `src/*`. Vite port **1420**.
 
 `npm run dev` is UI-only (browser, IPC fails). Use `npm run tauri dev` for anything that touches files, processes, or the scanner.
 
@@ -33,8 +33,11 @@ Before finishing a change: `npm run build` and `cargo check --manifest-path src-
 
 Rust dependencies point one way: `commands → services → adapters → catalog → domain`, with `platform` as a leaf. Business logic never lives in `commands/`. The frontend is render-only: `src/shared/api/ipc.ts` is the only module that calls `invoke`.
 
+A terminal session is a real PTY (`services/terminal.rs` over `portable-pty`): the backend runs the user's own shell and types the agent's executable into it, the frontend renders the bytes with xterm and sends the keys back. It is asked for with an **agent id**, never a program or a command line.
+
 ```
-src/app/                   providers (React Query, toasts, job bridge), hash router, theme, shell
+src/app/                   providers (React Query, toasts, job + terminal bridges), hash router, theme, shell
+                           (which owns the terminal dock and loads xterm.js on demand)
 src/features/<feature>/    api/ hooks, components/, pages/
 src/shared/api/            ipc.ts, events.ts, keys.ts, errors.ts
 src/shared/bindings/       ts-rs generated types (do not edit)
@@ -60,7 +63,7 @@ Default to patch when unsure. Keep `package.json`, `package-lock.json`, `src-tau
 
 1. Every disk write goes through `platform::write_atomic`. Do not open a config file for writing anywhere else.
 2. The frontend never calls `invoke` directly — add a wrapper in `src/shared/api/ipc.ts` and a hook in the owning feature.
-3. Commands resolve inputs through `AppState` (agent id + method id); a path must match a declared config exactly. `remove_skill` / `remove_mcp_server` require `confirm: true`.
+3. Commands resolve inputs through `AppState` (agent id + method id); a path must match a declared config exactly, and a terminal session is resolved from the agent id as well. `remove_skill` / `remove_mcp_server` require `confirm: true`.
 4. Secrets (`env`/`headers` values that look secret) are masked **in the backend**; keep `src/shared/lib/mask.ts` in sync.
 5. Every user-facing string goes in **both** `src/shared/i18n/locales/en.json` and `ru.json`.
 6. New Tauri command = service fn → thin `#[tauri::command]` → `handlers!()` in `src-tauri/src/lib.rs` → typed wrapper in `src/shared/api/ipc.ts` (+ feature hook).

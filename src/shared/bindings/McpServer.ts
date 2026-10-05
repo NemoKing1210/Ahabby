@@ -19,4 +19,12 @@ keyPath: Array<string>, env: Array<EnvVar>, headers: Array<EnvVar>,
 /**
  * Server entry as JSON, **already redacted** server side.
  */
-raw: string, hasSecrets: boolean, removable: boolean, unverified: boolean, };
+raw: string, 
+/**
+ * Creation time of the config file the entry lives in, when the platform reports one.
+ */
+createdMs?: number | null, 
+/**
+ * Modification time of that same file.
+ */
+modifiedMs?: number | null, hasSecrets: boolean, removable: boolean, unverified: boolean, };

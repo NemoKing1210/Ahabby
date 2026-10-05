@@ -10,4 +10,5 @@ export const queryKeys = {
   backups: (agentId: string, path: string) => ['backups', agentId, path] as const,
   installPlan: (agentId: string, action: string, methodId?: string | null) =>
     ['install-plan', agentId, action, methodId ?? null] as const,
+  terminals: () => ['terminals'] as const,
 }

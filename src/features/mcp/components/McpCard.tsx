@@ -11,6 +11,7 @@ import { Card } from '@/shared/ui/Card'
 import { CodeViewer } from '@/shared/ui/CodeViewer'
 import { PathRow } from '@/shared/ui/PathRow'
 import { Reveal } from '@/shared/ui/Reveal'
+import { Timestamp } from '@/shared/ui/Timestamp'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import type { EditorDocument } from '@/features/editor/model'
@@ -163,6 +164,11 @@ export function McpCard({
           {t('mcp.sourceConfig')}
         </span>
         <PathRow path={server.sourceConfig} />
+        <Timestamp
+          createdMs={server.createdMs}
+          modifiedMs={server.modifiedMs}
+          className="text-faint text-[0.6875rem]"
+        />
       </div>
 
       <div>

@@ -9,6 +9,7 @@ import { AgentTag } from '@/shared/ui/AgentTag'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
+import { Timestamp } from '@/shared/ui/Timestamp'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 /**
@@ -91,6 +92,7 @@ export function SkillCard({
             <div className="text-faint flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[0.75rem]">
               <code className="font-mono">{shortenPath(skill.path, 4)}</code>
               {size ? <span>{size}</span> : null}
+              <Timestamp createdMs={skill.createdMs} modifiedMs={skill.modifiedMs} />
             </div>
           </div>
         </div>

@@ -630,6 +630,21 @@ impl AgentManifest {
                     }
                 }
             }
+            // Uninstall commands are executed by the same whitelist as install commands:
+            // the UI can now offer a real deletion, so an unchecked line here would be a
+            // way to run arbitrary shell from a manifest.
+            if let Some(uninstall) = &method.uninstall_command {
+                if method.manager != Manager::Manual {
+                    if let Err(message) =
+                        validate_command(method.manager, uninstall, &self.binaries.names)
+                    {
+                        problems.push(ManifestProblem::error(
+                            format!("{field}.uninstall_command"),
+                            message,
+                        ));
+                    }
+                }
+            }
         }
 
         if !self

@@ -49,6 +49,12 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
   a file that changed on disk since you opened it.
 - **Runs installs and updates with a visible command:** streamed output, cancellable, and only commands that
   come from a manifest — never from the interface.
+- **Starts an agent in a terminal:** "Run in terminal" opens a tab in the terminal docked at the bottom of the
+  window — several agents at once, each with its own scrollback, copy/paste, find and clickable links, and the
+  panel collapses or resizes so the rest of the interface keeps its room — or hands the agent to a terminal you
+  already use (Windows Terminal, Ghostty, kitty, Alacritty, WezTerm, Warp, Terminal, iTerm2, GNOME Terminal,
+  Konsole, …), whichever one Settings points at. Every terminal is detected before it is offered, and only the
+  executable the scan found is ever started.
 - **Removes agents you do not use:** a manifest from your own catalog is moved to the trash, an agent that
   ships with Ahabby is hidden instead — both behind a confirmation dialog, and hidden agents can be brought
   back from Settings.

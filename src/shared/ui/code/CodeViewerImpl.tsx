@@ -103,7 +103,13 @@ export default function CodeViewer({
 
   return (
     <div
-      className={cn('border-border bg-surface h-full overflow-hidden rounded-lg border', className)}
+      className={cn(
+        // `@uiw/react-codemirror` renders an intermediate `div` (`.cm-theme-none`) that has no
+        // height of its own. Without a height here, the `height="100%"` we hand CodeMirror
+        // resolves against `auto` and the editor grows to fit every line instead of scrolling.
+        'border-border bg-surface h-full overflow-hidden rounded-lg border [&>*]:h-full',
+        className,
+      )}
     >
       <CodeMirror
         ref={editorRef}

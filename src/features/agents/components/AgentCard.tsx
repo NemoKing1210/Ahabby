@@ -7,6 +7,7 @@ import {
   Server,
   Sparkles,
   Star,
+  Terminal,
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
@@ -37,6 +38,7 @@ export function AgentCard({
   agent,
   onInstall,
   onRemove,
+  onRun,
   favorite = false,
   onToggleFavorite,
   refreshing = false,
@@ -46,6 +48,8 @@ export function AgentCard({
   onInstall: (agent: Agent, action: 'install' | 'update') => void
   /** When given, the card offers to remove the agent from Ahabby. */
   onRemove?: (agent: Agent) => void
+  /** When given, an installed agent can be started in the configured terminal. */
+  onRun?: (agent: Agent) => void
   /** Whether the agent is pinned to the top of the list and into the sidebar. */
   favorite?: boolean
   /** When given, the card offers a star toggle that pins the agent. */
@@ -63,6 +67,7 @@ export function AgentCard({
       agent={agent}
       onInstall={onInstall}
       onRemove={onRemove}
+      onRun={onRun}
       favorite={favorite}
       onToggleFavorite={onToggleFavorite}
     >
@@ -154,6 +159,18 @@ export function AgentCard({
           </Link>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            {onRun && installed ? (
+              <Tooltip content={t('agents.runInTerminal')}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('agents.runInTerminal')}
+                  onClick={() => onRun(agent)}
+                >
+                  <Terminal className="size-3.5" aria-hidden />
+                </Button>
+              </Tooltip>
+            ) : null}
             {onToggleFavorite ? (
               <Tooltip content={favorite ? t('agents.unfavorite') : t('agents.favorite')}>
                 <Button

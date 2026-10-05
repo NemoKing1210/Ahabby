@@ -44,6 +44,7 @@ function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): Agent {
     canInstall: false,
     installDocsUrl: null,
     canUpdate: false,
+    canUninstall: false,
     configs: [],
     skills: [],
     mcpServers: [],
@@ -67,6 +68,7 @@ const REPORT: ScanReport = {
   installed: 2,
   availableToInstall: 0,
   os: 'windows',
+  shared: { configs: [], skills: [], mcpServers: [], other: [], roots: [] },
 }
 
 function emit(event: string, payload: unknown) {

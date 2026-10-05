@@ -14,12 +14,14 @@ pub mod proxy;
 pub mod resource;
 pub mod scope;
 pub mod secrets;
+pub mod shared;
 pub mod skill;
+pub mod terminal;
 pub mod version;
 
 pub use agent::{
     Agent, AgentRef, AgentRemoval, AgentStatus, Detection, HiddenAgent, InstallAction,
-    InstallOption, InstallPlan, RemovalKind, UpdateInfo,
+    InstallOption, InstallPlan, RemovalKind, RemovalMode, UpdateInfo,
 };
 pub use catalog::CatalogProblem;
 pub use config::{BackupEntry, ConfigFile, ConfigFormat, ConfigSnapshot, DiffPreview, SaveResult};
@@ -34,5 +36,10 @@ pub use os::Os;
 pub use proxy::{Proxy, ProxyMode};
 pub use resource::OtherResource;
 pub use scope::Scope;
+pub use shared::{SharedResources, SHARED_OWNER_ID};
 pub use skill::{FrontmatterEntry, Skill};
+pub use terminal::{
+    TerminalCapability, TerminalCatalog, TerminalExit, TerminalKind, TerminalOption,
+    TerminalOutput, TerminalSession,
+};
 pub use version::Version;

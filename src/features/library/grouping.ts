@@ -2,6 +2,7 @@ import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { Skill } from '@/shared/bindings/Skill'
 import { groupBy } from '@/shared/lib/format'
+import { isSharedOwner } from '@/shared/lib/owners'
 
 /** The two ways the library can slice a list: by the thing's own name, or by who owns it. */
 export type LibraryGroupMode = 'name' | 'agent'
@@ -116,4 +117,17 @@ export function matchesLibraryQuery(
 /** `agentId` is `'all'` or a concrete agent id; a resource matches when any owner does. */
 export function ownedBy(agents: AgentRef[], agentId: string): boolean {
   return agentId === 'all' || agents.some((agent) => agent.id === agentId)
+}
+
+/** Which side of the machine a resource belongs to. */
+export type LibraryOrigin = 'all' | 'shared' | 'agents'
+
+/**
+ * `shared` keeps only the agent-neutral surface, `agents` only what a real agent owns.
+ * A resource is one or the other, never both, so this cannot double-count.
+ */
+export function originMatches(agents: AgentRef[], origin: LibraryOrigin): boolean {
+  if (origin === 'all') return true
+  const shared = agents.some((agent) => isSharedOwner(agent.id))
+  return origin === 'shared' ? shared : !shared
 }

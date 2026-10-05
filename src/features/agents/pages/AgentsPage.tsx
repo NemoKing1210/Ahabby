@@ -14,6 +14,7 @@ import { SkeletonList } from '@/shared/ui/Primitives'
 import { toastAppError } from '@/shared/ui/Toast'
 
 import { InstallDialog } from '@/features/install/components/InstallDialog'
+import { useRunAgentInTerminal } from '@/features/terminal/api/hooks'
 
 import { useAgents, useFavoriteAgents, useToggleFavoriteAgent } from '../api/queries'
 import { useScanRefresh } from '../api/scan'
@@ -38,6 +39,7 @@ export function AgentsPage() {
   const { rescan, isScanning, scanning, landed } = useScanRefresh()
   const favoriteIds = useFavoriteAgents()
   const toggleFavorite = useToggleFavoriteAgent()
+  const runInTerminal = useRunAgentInTerminal()
   const [filters, setFilters] = useState<AgentFilterState>(EMPTY_FILTER)
   const [installTarget, setInstallTarget] = useState<{
     agent: Agent
@@ -206,6 +208,7 @@ export function AgentsPage() {
                     }
                     onInstall={(target, action) => setInstallTarget({ agent: target, action })}
                     onRemove={setRemoveTarget}
+                    onRun={runInTerminal}
                   />
                 ))}
               </AnimatedList>
@@ -228,6 +231,10 @@ export function AgentsPage() {
           key={removeTarget.id}
           agent={removeTarget}
           onClose={() => setRemoveTarget(null)}
+          onUninstall={(agent) => {
+            setRemoveTarget(null)
+            setInstallTarget({ agent, action: 'uninstall' })
+          }}
         />
       ) : null}
     </div>

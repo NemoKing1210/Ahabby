@@ -66,4 +66,10 @@ hiddenAgents: Array<HiddenAgent>,
  * Agent ids the user pinned as favourites, in the order they were added. The list is
  * what puts them first in the agents list and in the sidebar.
  */
-favoriteAgents: Array<string>, };
+favoriteAgents: Array<string>, 
+/**
+ * Where "run in terminal" sends an agent: `"builtin"` for Ahabby's own terminal, or the
+ * id of an external terminal from `platform::terminals` (checked against the table here,
+ * so a hand-edited file cannot smuggle in an unknown program).
+ */
+terminal: string, };

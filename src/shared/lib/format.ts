@@ -38,6 +38,22 @@ export function formatDuration(ms: number | null | undefined): string | null {
   return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`
 }
 
+/** `1762000000000` → `1 Nov 2026`, in the active UI language. */
+export function formatDate(ms: number | null | undefined, locale: string): string | null {
+  if (!ms) return null
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(ms)
+}
+
+/** The same instant with the time of day, for a tooltip. */
+export function formatDateTime(ms: number | null | undefined, locale: string): string | null {
+  if (!ms) return null
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(ms)
+}
+
 export function formatCount(value: number, locale: string): string {
   return new Intl.NumberFormat(locale).format(value)
 }

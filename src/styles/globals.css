@@ -55,6 +55,9 @@
   --ah-overlay: rgb(20 20 19 / 0.42);
   --ah-ring: var(--ah-accent);
   --ah-shadow-popover: 0 12px 32px -12px rgb(20 20 19 / 0.22);
+  /* A persistent floating panel (the sidebar): a wide soft drop plus a hairline contact
+     shadow, deliberately weaker than a popover so a dialog still reads as the top layer. */
+  --ah-shadow-panel: 0 20px 44px -30px rgb(20 20 19 / 0.3), 0 2px 6px -3px rgb(20 20 19 / 0.07);
 
   color-scheme: light;
 }
@@ -87,6 +90,7 @@
 
   --ah-overlay: rgb(10 10 10 / 0.6);
   --ah-shadow-popover: 0 12px 32px -12px rgb(0 0 0 / 0.55);
+  --ah-shadow-panel: 0 20px 44px -28px rgb(0 0 0 / 0.62), 0 2px 8px -4px rgb(0 0 0 / 0.45);
 
   color-scheme: dark;
 }
@@ -139,6 +143,7 @@
   --radius-group-inner: var(--radius-sm);
 
   --shadow-popover: var(--ah-shadow-popover);
+  --shadow-panel: var(--ah-shadow-panel);
 
   --ease-warm: cubic-bezier(0.2, 0.8, 0.2, 1);
 }

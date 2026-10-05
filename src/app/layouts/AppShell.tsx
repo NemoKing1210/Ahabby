@@ -1,4 +1,13 @@
-import { useRef, useState, useMemo, type RefObject } from 'react'
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  type RefObject,
+} from 'react'
 
 import {
   Boxes,
@@ -7,6 +16,7 @@ import {
   PanelLeftOpen,
   RefreshCw,
   Settings as SettingsIcon,
+  Terminal as TerminalIcon,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
@@ -18,18 +28,40 @@ import { cn } from '@/shared/lib/cn'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuTrigger,
+} from '@/shared/ui/ContextMenu'
 import { Spinner } from '@/shared/ui/Primitives'
+import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useAgents, useFavoriteAgents } from '@/features/agents/api/queries'
 import { useScanRefresh } from '@/features/agents/api/scan'
 import { useLibrary } from '@/features/library/api/queries'
+import { useRunAgentInTerminal, useTerminals } from '@/features/terminal/api/hooks'
+import { NewTerminalDialog } from '@/features/terminal/components/NewTerminalDialog'
+import { useTerminalStore } from '@/features/terminal/store'
 
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.agents', icon: Boxes, end: true },
   { to: '/library', labelKey: 'nav.library', icon: Library, end: false },
   { to: '/settings', labelKey: 'nav.settings', icon: SettingsIcon, end: false },
 ] as const
+
+/**
+ * The terminal is a dock of the shell, not a screen, and xterm.js is a few hundred kilobytes only
+ * it needs — so the dock is loaded the first time a session exists. React's `lazy` is the one place
+ * a dynamic import is unavoidable; the tab store and the event bridge that keeps PTY output from
+ * being lost are imported eagerly by `app/providers.tsx`.
+ */
+const TerminalDock = lazy(async () => {
+  const module = await import('@/features/terminal/components/TerminalDock')
+  return { default: module.TerminalDock }
+})
 
 /**
  * Screens cross-fade instead of hard-swapping.
@@ -58,6 +90,15 @@ function PageTransition({ scrollRef }: { scrollRef: RefObject<HTMLElement | null
         {outlet}
       </motion.div>
     </AnimatePresence>
+  )
+}
+
+/** Small uppercase label that names a run of sidebar links. */
+function NavSection({ children }: { children: string }) {
+  return (
+    <h2 className="text-faint px-3 pt-1 pb-1.5 text-[0.6875rem] font-medium tracking-wider uppercase">
+      {children}
+    </h2>
   )
 }
 
@@ -99,6 +140,38 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const toggleLabel = collapsed ? t('nav.expand') : t('nav.collapse')
 
+  const tabs = useTerminalStore((state) => state.tabs)
+  const expanded = useTerminalStore((state) => state.expanded)
+  const catalog = useTerminals()
+  const runInTerminal = useRunAgentInTerminal()
+  const [newOpen, setNewOpen] = useState(false)
+
+  const openNew = useCallback(() => {
+    if (!catalog.data) {
+      if (catalog.error) toastAppError(catalog.error)
+      return
+    }
+    setNewOpen(true)
+  }, [catalog.data, catalog.error])
+
+  /** The sidebar's Terminal entry: show the dock, or ask for a first session when there is none. */
+  const openTerminal = useCallback(() => {
+    if (useTerminalStore.getState().tabs.length === 0) openNew()
+    else useTerminalStore.getState().toggleExpanded()
+  }, [openNew])
+
+  // `Ctrl+`` (and `Cmd+`` on macOS) toggles the dock, the way every editor's terminal does.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+      if (event.code !== 'Backquote') return
+      event.preventDefault()
+      openTerminal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [openTerminal])
+
   const { data: report } = useAgents()
   const { data: library } = useLibrary()
   const favoriteIds = useFavoriteAgents()
@@ -118,34 +191,39 @@ export function AppShell() {
       : undefined,
   }
 
+  // The window is one flat background; the sidebar floats over it as an inset panel, so the
+  // rail never fuses with the window edges and reads as its own surface.
   return (
-    <div className="bg-background flex h-full flex-col">
-      <div className="flex min-h-0 flex-1">
-        <aside
-          className={cn(
-            'border-border bg-surface-2/60 ease-warm flex shrink-0 flex-col justify-between border-r py-4 transition-[width,padding] duration-200',
-            collapsed ? 'w-[4.75rem] px-2' : 'w-60 px-3',
-          )}
+    <div className="bg-background flex h-full gap-3 p-3">
+      <aside
+        className={cn(
+          'border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col gap-2 rounded-2xl border p-2.5 transition-[width] duration-200',
+          collapsed ? 'w-[4.5rem]' : 'w-64',
+        )}
+      >
+        <div
+          className={cn('flex shrink-0 items-center', collapsed ? 'justify-center' : 'justify-end')}
         >
-          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-            <div className={cn('flex', collapsed ? 'justify-center' : 'justify-end')}>
-              <Tooltip content={toggleLabel} side="right">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={toggleLabel}
-                  aria-expanded={!collapsed}
-                  onClick={() => setCollapsed((value) => !value)}
-                >
-                  {collapsed ? (
-                    <PanelLeftOpen className="size-4.5" aria-hidden />
-                  ) : (
-                    <PanelLeftClose className="size-4.5" aria-hidden />
-                  )}
-                </Button>
-              </Tooltip>
-            </div>
+          <Tooltip content={toggleLabel} side="right">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={toggleLabel}
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed((value) => !value)}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="size-4.5" aria-hidden />
+              ) : (
+                <PanelLeftClose className="size-4.5" aria-hidden />
+              )}
+            </Button>
+          </Tooltip>
+        </div>
 
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
+          <div className="flex flex-col">
+            {collapsed ? null : <NavSection>{t('nav.sections')}</NavSection>}
             <nav aria-label={t('nav.sections')} className="flex flex-col gap-1">
               {NAV_ITEMS.map((item) => (
                 <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
@@ -155,13 +233,14 @@ export function AppShell() {
                     <NavLink
                       to={item.to}
                       end={item.end}
+                      aria-label={collapsed ? t(item.labelKey) : undefined}
                       className={({ isActive }) =>
                         cn(
-                          'ease-warm relative flex flex-1 items-center rounded-xl text-[15px] transition-colors duration-150',
-                          collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5',
+                          'ease-warm relative flex items-center rounded-xl text-[0.9375rem] font-medium transition-colors duration-150',
+                          collapsed ? 'mx-auto size-11 justify-center' : 'flex-1 gap-3 px-3 py-2.5',
                           isActive
-                            ? 'text-foreground'
-                            : 'text-muted hover:bg-surface-3/50 hover:text-foreground',
+                            ? 'text-accent-strong'
+                            : 'text-muted hover:bg-surface-2 hover:text-foreground',
                         )
                       }
                     >
@@ -172,17 +251,18 @@ export function AppShell() {
                               aria-hidden
                               layoutId="nav-active-pill"
                               transition={glideTransition}
-                              className="bg-surface-3 absolute inset-0 rounded-xl"
+                              className="bg-accent-soft absolute inset-0 rounded-xl"
                             />
                           ) : null}
                           <item.icon className="relative size-5 shrink-0" aria-hidden />
                           {collapsed ? null : (
-                            <span className="relative flex-1 whitespace-nowrap">
-                              {t(item.labelKey)}
-                            </span>
+                            <span className="relative flex-1 truncate">{t(item.labelKey)}</span>
                           )}
                           {!collapsed && navCounts[item.to] ? (
-                            <Badge tone="neutral" className="relative tabular-nums">
+                            <Badge
+                              tone={isActive ? 'accent' : 'neutral'}
+                              className="relative tabular-nums"
+                            >
                               {navCounts[item.to]}
                             </Badge>
                           ) : null}
@@ -193,70 +273,149 @@ export function AppShell() {
                 </Tooltip>
               ))}
             </nav>
+          </div>
 
-            {favoriteAgents.length > 0 ? (
-              <div className="flex flex-col gap-1">
-                {collapsed ? (
-                  <span aria-hidden className="border-border mx-auto my-1 w-6 border-t" />
-                ) : (
-                  <h2 className="text-faint px-3 pt-1 pb-0.5 text-[0.6875rem] font-medium tracking-wide uppercase">
-                    {t('nav.favorites')}
-                  </h2>
-                )}
-                <nav aria-label={t('nav.favorites')} className="flex flex-col gap-1">
-                  {favoriteAgents.map((agent) => (
-                    <Tooltip key={agent.id} content={collapsed ? agent.name : null} side="right">
-                      <div className="flex">
-                        <NavLink
-                          to={`/agents/${agent.id}`}
-                          className={({ isActive }) =>
-                            cn(
-                              'ease-warm relative flex flex-1 items-center rounded-xl text-[13px] transition-colors duration-150',
-                              collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2',
-                              isActive
-                                ? 'bg-surface-3 text-foreground'
-                                : 'text-muted hover:bg-surface-3/50 hover:text-foreground',
-                            )
-                          }
-                        >
-                          <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
-                          {collapsed ? null : (
-                            <span className="relative min-w-0 flex-1 truncate">{agent.name}</span>
-                          )}
-                        </NavLink>
+          {favoriteAgents.length > 0 ? (
+            <div className="flex flex-col">
+              {collapsed ? (
+                <span aria-hidden className="border-border mx-auto my-1.5 w-6 border-t" />
+              ) : (
+                <NavSection>{t('nav.favorites')}</NavSection>
+              )}
+              <nav aria-label={t('nav.favorites')} className="flex flex-col gap-1">
+                {favoriteAgents.map((agent) => (
+                  <ContextMenu key={agent.id}>
+                    <ContextMenuTrigger asChild>
+                      <div className={cn('group flex items-center', !collapsed && 'gap-1')}>
+                        <Tooltip content={collapsed ? agent.name : null} side="right">
+                          <NavLink
+                            to={`/agents/${agent.id}`}
+                            aria-label={collapsed ? agent.name : undefined}
+                            className={({ isActive }) =>
+                              cn(
+                                'ease-warm relative flex items-center rounded-xl text-[0.8125rem] transition-colors duration-150',
+                                collapsed
+                                  ? 'mx-auto size-10 justify-center'
+                                  : 'min-w-0 flex-1 gap-2.5 px-3 py-2',
+                                isActive
+                                  ? 'bg-accent-soft text-accent-strong'
+                                  : 'text-muted hover:bg-surface-2 hover:text-foreground',
+                              )
+                            }
+                          >
+                            <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
+                            {collapsed ? null : (
+                              <span className="relative min-w-0 flex-1 truncate">{agent.name}</span>
+                            )}
+                          </NavLink>
+                        </Tooltip>
+
+                        {/* A favourite is one click away from running: the button keeps its place
+                            (so nothing shifts on hover) and only the installed agents get one, so
+                            the row never offers a command that would be refused. */}
+                        {!collapsed && agent.status === 'installed' ? (
+                          <Tooltip content={t('agents.runInTerminal')} side="left">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="size-7 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
+                              aria-label={`${t('agents.runInTerminal')} — ${agent.name}`}
+                              onClick={() => runInTerminal(agent)}
+                            >
+                              <TerminalIcon className="size-3.5" aria-hidden />
+                            </Button>
+                          </Tooltip>
+                        ) : null}
                       </div>
-                    </Tooltip>
-                  ))}
-                </nav>
-              </div>
-            ) : null}
-          </div>
+                    </ContextMenuTrigger>
 
-          <div className={cn('flex flex-col gap-3', collapsed ? 'px-0' : 'px-1')}>
-            {collapsed ? null : <ScanSummary />}
-            <Tooltip content={t('agents.rescan')} side={collapsed ? 'right' : 'top'}>
-              <Button
-                variant="secondary"
-                size="sm"
-                className={cn('w-full', collapsed ? 'justify-center px-0' : 'justify-start')}
-                disabled={isScanning}
-                onClick={rescan}
-              >
-                {isScanning ? <Spinner /> : <RefreshCw className="size-3.5" aria-hidden />}
-                {collapsed ? null : (
-                  <span>{isScanning ? t('agents.rescanning') : t('agents.rescan')}</span>
-                )}
-              </Button>
-            </Tooltip>
-          </div>
-        </aside>
+                    {/* The collapsed rail has no room for a second button, so the same action is
+                        a right click — the pattern every other surface with actions uses. */}
+                    <ContextMenuContent aria-label={agent.name}>
+                      <ContextMenuLabel>{agent.name}</ContextMenuLabel>
+                      {agent.status === 'installed' ? (
+                        <ContextMenuItem onSelect={() => runInTerminal(agent)}>
+                          <TerminalIcon aria-hidden />
+                          {t('agents.runInTerminal')}
+                        </ContextMenuItem>
+                      ) : null}
+                    </ContextMenuContent>
+                  </ContextMenu>
+                ))}
+              </nav>
+            </div>
+          ) : null}
+        </div>
 
+        <div
+          className={cn(
+            'border-border flex shrink-0 flex-col gap-2 border-t pt-2.5',
+            collapsed && 'items-center',
+          )}
+        >
+          {collapsed ? null : <ScanSummary />}
+          <Tooltip content={t('nav.terminal')} side={collapsed ? 'right' : 'top'}>
+            <Button
+              variant="subtle"
+              size="sm"
+              className={cn('w-full', collapsed && 'justify-center px-0')}
+              aria-label={collapsed ? t('nav.terminal') : undefined}
+              aria-expanded={tabs.length > 0 ? expanded : undefined}
+              onClick={openTerminal}
+            >
+              <TerminalIcon className="size-3.5" aria-hidden />
+              {collapsed ? null : <span>{t('nav.terminal')}</span>}
+              {!collapsed && tabs.length > 0 ? (
+                <Badge tone="neutral" className="ml-auto tabular-nums">
+                  {tabs.length}
+                </Badge>
+              ) : null}
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('agents.rescan')} side={collapsed ? 'right' : 'top'}>
+            <Button
+              variant="subtle"
+              size="sm"
+              className={cn('w-full', collapsed && 'justify-center px-0')}
+              aria-label={collapsed ? t('agents.rescan') : undefined}
+              disabled={isScanning}
+              onClick={rescan}
+            >
+              {isScanning ? <Spinner /> : <RefreshCw className="size-3.5" aria-hidden />}
+              {collapsed ? null : (
+                <span>{isScanning ? t('agents.rescanning') : t('agents.rescan')}</span>
+              )}
+            </Button>
+          </Tooltip>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
         <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex max-w-5xl flex-col gap-6 px-8 py-8">
             <PageTransition scrollRef={scrollRef} />
           </div>
         </main>
+
+        {/* The terminal sits under every screen, in the content column: the tab strip stays
+            visible while the pages above keep working, and the sidebar keeps its full height. */}
+        {tabs.length > 0 ? (
+          <Suspense
+            fallback={
+              <div
+                aria-hidden
+                className="border-border bg-surface h-11 shrink-0 animate-pulse rounded-2xl border"
+              />
+            }
+          >
+            <TerminalDock onNew={openNew} />
+          </Suspense>
+        ) : null}
       </div>
+
+      {newOpen && catalog.data ? (
+        <NewTerminalDialog catalog={catalog.data} onOpenChange={() => setNewOpen(false)} />
+      ) : null}
     </div>
   )
 }

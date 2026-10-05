@@ -9,6 +9,7 @@ import type { Library } from '@/shared/bindings/Library'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { OtherResource } from '@/shared/bindings/OtherResource'
 import type { Skill } from '@/shared/bindings/Skill'
+import { SHARED_OWNER_ID } from '@/shared/lib/owners'
 import { renderWithProviders } from '@/test/render'
 
 import { LibraryPage } from './LibraryPage'
@@ -29,8 +30,10 @@ vi.mock('@/features/agents/api/scan', () => ({
 
 const claude: AgentRef = { id: 'claude-code', name: 'Claude Code', icon: 'claude' }
 const opencode: AgentRef = { id: 'opencode', name: 'OpenCode', icon: 'opencode' }
+/** The agent-neutral surface: a resource that belongs to no single agent. */
+const shared: AgentRef = { id: SHARED_OWNER_ID, name: 'Shared' }
 
-function skill(name: string, path: string, agents: AgentRef[]): Skill {
+function skill(name: string, path: string, agents: AgentRef[], extra: Partial<Skill> = {}): Skill {
   return {
     id: `${name}#${path}`,
     name,
@@ -44,6 +47,7 @@ function skill(name: string, path: string, agents: AgentRef[]): Skill {
     sizeBytes: 10,
     removable: true,
     unverified: false,
+    ...extra,
   }
 }
 
@@ -58,9 +62,20 @@ const SERVER: McpServer = {
   env: [],
   headers: [],
   raw: '{}',
+  createdMs: Date.UTC(2024, 0, 2),
+  modifiedMs: Date.UTC(2024, 5, 3),
   hasSecrets: false,
   removable: true,
   unverified: false,
+}
+
+const SERVER_HTTP: McpServer = {
+  ...SERVER,
+  id: 'remote#/b/.mcp.json',
+  name: 'remote',
+  transport: { type: 'http', url: 'https://mcp.example.com', protocol: 'http' },
+  sourceConfig: '/b/.mcp.json',
+  keyPath: ['mcpServers', 'remote'],
 }
 
 const RESOURCE: OtherResource = {
@@ -81,10 +96,21 @@ const RESOURCE: OtherResource = {
 }
 
 const LIBRARY: Library = {
-  skills: [skill('pdf', '/a/pdf', [claude, opencode]), skill('review', '/a/review', [claude])],
-  mcpServers: [SERVER],
+  skills: [
+    skill('pdf', '/a/pdf', [claude, opencode], {
+      createdMs: Date.UTC(2025, 9, 1),
+      modifiedMs: Date.UTC(2025, 9, 2),
+    }),
+    skill('review', '/a/review', [claude]),
+    // Agent-neutral, and the filesystem reported a modification time only.
+    skill('global', '/agents/skills/global', [shared], {
+      createdMs: null,
+      modifiedMs: Date.UTC(2025, 8, 3),
+    }),
+  ],
+  mcpServers: [SERVER, SERVER_HTTP],
   other: [RESOURCE],
-  stats: { agents: 2, installedAgents: 2, skills: 2, mcpServers: 1, other: 1 },
+  stats: { agents: 2, installedAgents: 2, skills: 3, mcpServers: 2, other: 1 },
   scannedAtMs: Date.now() - 60_000,
   problems: [],
 }
@@ -176,5 +202,52 @@ describe('LibraryPage', () => {
     if (clear) await user.click(clear)
 
     expect(within(container).getByRole('heading', { name: 'pdf' })).toBeTruthy()
+  })
+
+  it('labels the agent-neutral surface and files it under its own group', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    // Grouped by name, the global skill carries the shared tag (translated, not the
+    // backend's "Shared" display name).
+    const global = within(container).getByRole('button', { name: 'global' })
+    expect(within(global).getAllByText('Shared', TEXT).length).toBeGreaterThan(0)
+
+    await user.click(within(container).getByRole('button', { name: 'Agent' }))
+
+    // Grouped by owner, the shared resources get their own section.
+    expect(within(container).getByRole('heading', { name: 'Shared' })).toBeTruthy()
+    expect(within(container).getByRole('heading', { name: 'Claude Code' })).toBeTruthy()
+  })
+
+  it('narrows a tab with its own facet chips', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    await user.click(within(container).getByRole('tab', { name: /^MCP/ }))
+    expect(within(container).getByText('npx')).toBeTruthy()
+    expect(within(container).getByText('https://mcp.example.com')).toBeTruthy()
+
+    // The chip carries the number of matching servers, so its name is unambiguous.
+    await user.click(within(container).getByRole('button', { name: 'http 1' }))
+
+    expect(within(container).getByText('https://mcp.example.com')).toBeTruthy()
+    expect(within(container).queryByText('npx')).toBeNull()
+  })
+
+  it('shows the file date each resource carries, and labels it honestly', async () => {
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    const pdf = within(container).getByRole('button', { name: 'pdf' })
+    expect(within(pdf).getByText(/^Created /)).toBeTruthy()
+
+    // The shared skill has no creation time, so its card falls back to the modification
+    // time rather than calling it "created".
+    const global = within(container).getByRole('button', { name: 'global' })
+    expect(within(global).getByText(/^Modified /)).toBeTruthy()
+    expect(within(global).queryByText(/^Created /)).toBeNull()
   })
 })

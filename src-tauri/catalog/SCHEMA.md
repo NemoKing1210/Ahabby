@@ -3,6 +3,14 @@
 A manifest is a TOML file in `src-tauri/catalog/builtin/` (shipped with Ahabby) or in
 `<app config dir>/catalog/` (user overrides, same id wins).
 
+A second, non-agent manifest lives in `src-tauri/catalog/shared.toml`: it describes the
+**shared surface** — skills, MCP servers and documents in agent-neutral locations
+(`~/.agents/skills`, `~/.agents/mcp.json`, `~/.agents/AGENTS.md`) that belong to no single
+agent. It uses the schema below, but lives outside `builtin/` so it is never scanned as an
+agent, and its id (`shared`) is reserved: a user manifest claiming it is reported as a
+catalog error. Shared resources are shown in the Library under the "Shared" owner and can be
+opened, edited and deleted through the same path checks as an agent's own files.
+
 **Adding support for a new agent means adding one file here — no Rust, no TypeScript.**
 
 Field names may be written in `snake_case` (idiomatic TOML, recommended) or `camelCase`;
@@ -128,7 +136,7 @@ Install / update / uninstall recipes. **The UI can only ever run a command that 
 | `os`                | [`windows`,`macos`,`linux`]                                                                                                                 | empty/omitted = every OS                                                                                                                                    |
 | `command`           | string, required                                                                                                                            | must start with the manager's own binary; `script` methods must start with an allow-listed installer (`curl`, `wget`, `sh`, `powershell`, `irm`, `brew`, …) |
 | `update_command`    | string                                                                                                                                      | defaults to `command`                                                                                                                                       |
-| `uninstall_command` | string                                                                                                                                      | optional; without it Ahabby refuses to offer "uninstall"                                                                                                    |
+| `uninstall_command` | string                                                                                                                                      | optional; must pass the same manager whitelist as `command`. Without one Ahabby refuses to offer "uninstall", and the agent can only be hidden              |
 | `docs_url`          | string                                                                                                                                      | shown when nothing can be automated                                                                                                                         |
 | `note`              | string                                                                                                                                      | displayed next to the command                                                                                                                               |
 | `priority`          | integer, default 0                                                                                                                          | lower runs first                                                                                                                                            |

@@ -37,7 +37,12 @@ canInstall: boolean, installDocsUrl?: string | null,
 /**
  * `true` when the manifest tells us how to update this agent.
  */
-canUpdate: boolean, configs: Array<ConfigFile>, skills: Array<Skill>, mcpServers: Array<McpServer>, other: Array<OtherResource>, update?: UpdateInfo | null, 
+canUpdate: boolean, 
+/**
+ * `true` when the manifest declares an uninstall command that can run on this machine,
+ * so the agent can be really removed from disk instead of only hidden.
+ */
+canUninstall: boolean, configs: Array<ConfigFile>, skills: Array<Skill>, mcpServers: Array<McpServer>, other: Array<OtherResource>, update?: UpdateInfo | null, 
 /**
  * Dotted manifest paths that still need a docs check (see `ARCHITECTURE.md`).
  */

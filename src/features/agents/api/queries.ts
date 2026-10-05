@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
+import type { RemovalMode } from '@/shared/bindings/RemovalMode'
 
 /**
  * The agent list is the app's single source of truth: the sidebar, the agent page and the
@@ -33,14 +34,17 @@ export function useAgent(agentId: string | undefined) {
 }
 
 /**
- * Removes an agent from Ahabby and refreshes everything that lists agents. The backend
- * decides whether that means deleting a user manifest or hiding a shipped agent; the
- * returned `data` says which happened.
+ * Removes an agent from Ahabby and refreshes everything that lists agents.
+ *
+ * The backend does exactly what `mode` says: hiding always works, deleting moves the
+ * agent's user-catalog manifest to the OS trash (and is refused for a shipped manifest).
+ * Real removal from the machine is a separate uninstall job (`useRunInstall`).
  */
 export function useRemoveAgent() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (agentId: string) => ipc.removeAgent(agentId, true),
+    mutationFn: ({ agentId, mode }: { agentId: string; mode: RemovalMode }) =>
+      ipc.removeAgent(agentId, mode, true),
     onSuccess: (result) => {
       queryClient.setQueryData(queryKeys.agents(), result.report)
       void queryClient.invalidateQueries({ queryKey: queryKeys.library() })

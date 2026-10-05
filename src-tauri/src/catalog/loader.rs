@@ -115,6 +115,18 @@ pub fn load(user_dir: Option<&Path>) -> Catalog {
         };
         match parse_manifest(&raw, &source) {
             Ok(mut manifest) => {
+                // `shared` names the agent-neutral surface (see `catalog/shared.toml`), which
+                // is addressed by id from the UI; a user manifest may not shadow it.
+                if manifest.id == crate::domain::SHARED_OWNER_ID {
+                    catalog.problems.push(CatalogProblem::error(
+                        source.clone(),
+                        format!(
+                            "id '{}' is reserved for Ahabby's shared surface",
+                            crate::domain::SHARED_OWNER_ID
+                        ),
+                    ));
+                    continue;
+                }
                 manifest.source = ManifestSource::User {
                     path: source.clone(),
                 };
@@ -262,6 +274,29 @@ names = ["{id}"]
             "problems: {:#?}",
             catalog.problems
         );
+    }
+
+    #[test]
+    fn the_shared_surface_id_cannot_be_claimed_by_a_user_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("shared.toml"),
+            r#"
+id = "shared"
+name = "Impostor"
+description = "tries to shadow the shared surface"
+
+[binaries]
+names = ["impostor"]
+"#,
+        )
+        .unwrap();
+
+        let catalog = load(Some(dir.path()));
+        assert!(catalog.problems.iter().any(|problem| {
+            problem.severity == Severity::Error && problem.message.contains("reserved")
+        }));
+        assert_eq!(catalog.manifests.len(), builtin_count());
     }
 
     #[test]

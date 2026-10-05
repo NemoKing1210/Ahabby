@@ -6,6 +6,7 @@ import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { Skill } from '@/shared/bindings/Skill'
 import { formatRelative } from '@/shared/lib/format'
+import { isSharedOwner, ownerName } from '@/shared/lib/owners'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
@@ -20,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { useScanRefresh } from '@/features/agents/api/scan'
-import { OtherTab } from '@/features/agents/components/OtherTab'
+import { OTHER_KIND_ORDER, OtherTab } from '@/features/agents/components/OtherTab'
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { useDeleteMcpServer } from '@/features/mcp/api/hooks'
 import { McpCard } from '@/features/mcp/components/McpCard'
@@ -34,12 +35,25 @@ import {
   groupServers,
   groupSkills,
   matchesLibraryQuery,
+  originMatches,
   ownedBy,
   type LibraryGroup,
   type LibraryGroupMode,
+  type LibraryOrigin,
 } from '../grouping'
+import {
+  resourceFields,
+  serverFields,
+  skillFields,
+  sortGroups,
+  sortItems,
+  type LibrarySort,
+} from '../sorting'
 
 type LibraryTab = 'skills' | 'mcp' | 'other'
+
+/** Transport kinds the MCP facet offers, in display order. */
+const MCP_TRANSPORTS = ['stdio', 'http', 'unknown'] as const
 
 /** Anything the frontend asks the backend to remove, addressed the same way. */
 interface McpTarget {
@@ -72,6 +86,7 @@ function LibrarySections<T extends { id: string }>({
   icon: LucideIcon
   renderItem: (item: T) => ReactNode
 }) {
+  const { t } = useTranslation()
   const named =
     mode === 'name'
       ? groups.filter((group) => group.items.length > 1 || group.agents.length > 1)
@@ -87,14 +102,19 @@ function LibrarySections<T extends { id: string }>({
     <div className="flex flex-col gap-6">
       {named.map((group) => {
         const owner = mode === 'agent' ? group.agents[0] : undefined
+        const shared = owner !== undefined && isSharedOwner(owner.id)
         return (
           <section key={group.key} className="flex flex-col gap-3">
             <SectionHeader
               leading={
-                owner ? <AgentIcon name={owner.name} icon={owner.icon} size="sm" /> : undefined
+                owner ? (
+                  <AgentIcon name={owner.name} icon={owner.icon} ownerId={owner.id} size="sm" />
+                ) : undefined
               }
               icon={icon}
-              title={group.title}
+              // The agent-neutral surface is not an agent: its header is named in the UI's
+              // language, while a real agent keeps the manifest's name.
+              title={shared ? t('library.shared') : group.title}
               // A name held by a single entry does not need a count — its owners say it all.
               count={mode === 'agent' || group.items.length > 1 ? group.items.length : undefined}
             >
@@ -122,11 +142,13 @@ function LibrarySections<T extends { id: string }>({
 }
 
 /**
- * Aggregated view of every installed agent's skills, MCP servers and other resources.
+ * Aggregated view of every installed agent's skills, MCP servers and other resources, plus
+ * the agent-neutral ("shared") ones from `~/.agents` that belong to no single agent.
  *
  * The list is filtered in one place (search + owning agent) and then grouped twice over: by
  * name, which gathers the same skill or server across agents under one heading, or by agent,
- * where a shared resource appears under each owner. Nothing here is per-agent hardcoded.
+ * where a shared resource appears under each owner — the shared surface under its own,
+ * translated heading. Nothing here is per-agent hardcoded.
  */
 export function LibraryPage() {
   const { t, i18n } = useTranslation()
@@ -137,6 +159,9 @@ export function LibraryPage() {
 
   const [query, setQuery] = useState('')
   const [agentFilter, setAgentFilter] = useState('all')
+  const [origin, setOrigin] = useState<LibraryOrigin>('all')
+  const [sort, setSort] = useState<LibrarySort>('name')
+  const [facet, setFacet] = useState('all')
   const [groupMode, setGroupMode] = useState<LibraryGroupMode>('name')
   const [tab, setTab] = useState<LibraryTab>('skills')
   const [detail, setDetail] = useState<Skill | null>(null)
@@ -144,44 +169,101 @@ export function LibraryPage() {
   const [deleteSkillTarget, setDeleteSkillTarget] = useState<Skill | null>(null)
   const [deleteServerTarget, setDeleteServerTarget] = useState<McpTarget | null>(null)
 
+  // Every tab has its own facets, so a refinement never survives a switch to another tab.
+  const switchTab = (value: string) => {
+    setTab(value as LibraryTab)
+    setFacet('all')
+  }
+
   if (isLoading && !data) return <SkeletonList rows={5} />
   if (error && !data) return <ErrorState error={error} onRetry={() => void refetch()} />
   if (!data) return null
 
   const trimmed = query.trim()
   const needle = trimmed.toLowerCase()
+  const sharedLabel = t('library.shared')
 
-  const skills = data.skills.filter(
+  // Everything except the tab's own facet: the facet chips show how many items each choice
+  // would leave, so the counts must not depend on the current facet.
+  const skillBase = data.skills.filter(
     (skill) =>
       ownedBy(skill.agents, agentFilter) &&
+      originMatches(skill.agents, origin) &&
       matchesLibraryQuery(needle, [
         skill.name,
         skill.description,
         skill.path,
-        ...skill.agents.map((agent) => agent.name),
+        ...skill.agents.map((agent) => ownerName(agent, sharedLabel)),
       ]),
   )
-  const servers = data.mcpServers.filter(
+  const serverBase = data.mcpServers.filter(
     (server) =>
       ownedBy([server.agent], agentFilter) &&
+      originMatches([server.agent], origin) &&
       matchesLibraryQuery(needle, [
         server.name,
         server.sourceConfig,
-        server.agent.name,
+        ownerName(server.agent, sharedLabel),
         server.transport.type,
         transportText(server),
       ]),
   )
-  const others = data.other.filter(
+  const otherBase = data.other.filter(
     (resource) =>
       ownedBy([resource.agent], agentFilter) &&
+      originMatches([resource.agent], origin) &&
       matchesLibraryQuery(needle, [
         resource.label,
         resource.path,
         resource.description,
-        resource.agent.name,
+        ownerName(resource.agent, sharedLabel),
       ]),
   )
+
+  const skills = skillBase.filter(
+    (skill) => facet === 'all' || (facet === 'unverified' && skill.unverified),
+  )
+  const servers = serverBase.filter((server) => facet === 'all' || server.transport.type === facet)
+  const others = sortItems(
+    otherBase.filter((resource) => facet === 'all' || resource.kind === facet),
+    sort,
+    resourceFields,
+  )
+
+  /**
+   * Facet chips for the active tab. A choice with nothing behind it is noise, but the
+   * *selected* one always stays — otherwise narrowing the search could hide the very filter
+   * that made the list empty.
+   */
+  const visibleFacets = <T extends { value: string; count?: number }>(options: T[]): T[] =>
+    options.filter(
+      (option) => option.value === 'all' || option.value === facet || (option.count ?? 0) > 0,
+    )
+
+  const skillFacets = visibleFacets([
+    { value: 'all', label: t('common.all'), count: skillBase.length },
+    {
+      value: 'unverified',
+      label: t('library.facetUnverified'),
+      count: skillBase.filter((skill) => skill.unverified).length,
+    },
+  ])
+  const serverFacets = visibleFacets([
+    { value: 'all', label: t('common.all'), count: serverBase.length },
+    ...MCP_TRANSPORTS.map((type) => ({
+      value: type,
+      label: type === 'unknown' ? t('common.unknown') : type,
+      count: serverBase.filter((server) => server.transport.type === type).length,
+    })),
+  ])
+  const otherFacets = visibleFacets([
+    { value: 'all', label: t('common.all'), count: otherBase.length },
+    ...OTHER_KIND_ORDER.map((kind) => ({
+      value: kind,
+      label: t(`library.kind.${kind}`),
+      count: otherBase.filter((resource) => resource.kind === kind).length,
+    })),
+  ])
 
   // The agent filter lists what the *unfiltered* library holds, with the number of resources
   // each agent contributes, so the options never shift while the user is narrowing the list.
@@ -197,17 +279,19 @@ export function LibraryPage() {
   const agentOptions = [
     { value: 'all', label: t('common.all') },
     ...[...agentRefs.values()]
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => ownerName(a, sharedLabel).localeCompare(ownerName(b, sharedLabel)))
       .map((agent) => ({
         value: agent.id,
-        label: `${agent.name} (${agentCounts.get(agent.id) ?? 0})`,
+        label: `${ownerName(agent, sharedLabel)} (${agentCounts.get(agent.id) ?? 0})`,
       })),
   ]
 
-  const dirty = trimmed.length > 0 || agentFilter !== 'all'
+  const dirty = trimmed.length > 0 || agentFilter !== 'all' || origin !== 'all' || facet !== 'all'
   const clear = () => {
     setQuery('')
     setAgentFilter('all')
+    setOrigin('all')
+    setFacet('all')
   }
   const clearAction = dirty ? (
     <Button variant="secondary" size="sm" onClick={clear}>
@@ -299,9 +383,23 @@ export function LibraryPage() {
       <LibraryToolbar
         query={query}
         onQueryChange={setQuery}
-        agent={agentFilter}
-        onAgentChange={setAgentFilter}
-        agentOptions={agentOptions}
+        owner={agentFilter}
+        onOwnerChange={setAgentFilter}
+        ownerOptions={agentOptions}
+        origin={origin}
+        onOriginChange={setOrigin}
+        originOptions={[
+          { value: 'all', label: t('library.sourceAll') },
+          { value: 'shared', label: t('library.sourceShared') },
+          { value: 'agents', label: t('library.sourceAgents') },
+        ]}
+        sort={sort}
+        onSortChange={setSort}
+        facet={{
+          value: facet,
+          onChange: setFacet,
+          options: tab === 'skills' ? skillFacets : tab === 'mcp' ? serverFacets : otherFacets,
+        }}
         groupMode={groupMode}
         onGroupModeChange={setGroupMode}
         showGrouping={tab !== 'other'}
@@ -309,11 +407,7 @@ export function LibraryPage() {
         onClear={clear}
       />
 
-      <Tabs
-        value={tab}
-        onValueChange={(value) => setTab(value as LibraryTab)}
-        className="flex flex-col"
-      >
+      <Tabs value={tab} onValueChange={switchTab} className="flex flex-col">
         <TabsList>
           <TabsTrigger value="skills">
             {t('library.tabs.skills')}
@@ -334,13 +428,15 @@ export function LibraryPage() {
         <TabsContent value="skills">
           {skills.length === 0
             ? emptyTab(t('library.empty'), t('library.emptyHint'), Sparkles)
-            : renderSkillSections(groupSkills(skills, groupMode))}
+            : renderSkillSections(sortGroups(groupSkills(skills, groupMode), sort, skillFields))}
         </TabsContent>
 
         <TabsContent value="mcp">
           {servers.length === 0
             ? emptyTab(t('mcp.none'), t('mcp.noneHint'), Plug)
-            : renderServerSections(groupServers(servers, groupMode))}
+            : renderServerSections(
+                sortGroups(groupServers(servers, groupMode), sort, serverFields),
+              )}
         </TabsContent>
 
         <TabsContent value="other">

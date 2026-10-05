@@ -41,6 +41,14 @@ pub struct Skill {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "number | null")]
     pub size_bytes: Option<u64>,
+    /// Creation time of the entry file (`SKILL.md`), when the platform reports one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub created_ms: Option<i64>,
+    /// Modification time of that same file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub modified_ms: Option<i64>,
     /// `false` for skills Ahabby refuses to delete (e.g. a plugin-managed directory).
     pub removable: bool,
     /// `true` when the manifest path for this skill has not been verified against docs.
