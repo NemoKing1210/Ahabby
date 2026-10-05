@@ -20,7 +20,7 @@ use crate::adapters::{AdapterRegistry, AgentAdapter};
 use crate::catalog::Catalog;
 use crate::domain::{
     Agent, AgentStatus, CatalogProblem, Detection, InstallOption, Manager, ManifestSource, Os,
-    UpdateInfo,
+    RemovalKind, UpdateInfo,
 };
 use crate::platform::{self, PlatformContext};
 
@@ -96,11 +96,13 @@ impl Scanner {
     }
 
     /// Scan everything. `versions` is optional: when `None` (or when the user disabled
-    /// network checks) only locally available information is used.
+    /// network checks) only locally available information is used. `hidden` lists the ids of
+    /// agents the user removed from Ahabby; they are left out of the report and its counts.
     pub async fn scan(
         &self,
         ctx: &PlatformContext,
         versions: Option<Arc<VersionChecker>>,
+        hidden: &[String],
     ) -> ScanReport {
         let started = Instant::now();
         let registry = self.registry();
@@ -153,6 +155,11 @@ impl Scanner {
                 agents.push(agent);
             }
         }
+
+        // Agents the user removed are not part of the world Ahabby reports: they are gone
+        // from the list and must not be counted as installed or available.
+        let hidden: BTreeSet<&str> = hidden.iter().map(String::as_str).collect();
+        agents.retain(|agent| !hidden.contains(agent.id.as_str()));
 
         let installed = agents.iter().filter(|agent| agent.is_installed()).count();
         let available_to_install = agents.iter().filter(|agent| agent.can_install).count();
@@ -299,6 +306,10 @@ fn skeleton_agent(manifest: &crate::domain::AgentManifest) -> Agent {
         unverified: manifest.unverified.clone(),
         notes: manifest.notes.clone(),
         manifest_source: ManifestSource::Builtin,
+        removal: RemovalKind::for_manifest(
+            &manifest.source,
+            crate::catalog::is_builtin_id(&manifest.id),
+        ),
         warnings: Vec::new(),
         scan_ms: 0,
     }
@@ -422,7 +433,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let mut manifest = manifest();
         manifest.binaries.names = vec!["definitely-not-installed-unit-agent".to_string()];
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None).await;
+        let report = scanner.scan(&context(home.path()), None, &[]).await;
 
         let agent = report.agent("unit-agent").unwrap();
         assert_eq!(agent.status, AgentStatus::NotInstalled);
@@ -478,7 +489,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         manifest.binaries.names = vec!["unit-agent".to_string()];
 
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None).await;
+        let report = scanner.scan(&context(home.path()), None, &[]).await;
         let agent = report.agent("unit-agent").unwrap();
 
         assert_eq!(agent.status, AgentStatus::Installed);
@@ -525,7 +536,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         }];
 
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None).await;
+        let report = scanner.scan(&context(home.path()), None, &[]).await;
         let agent = report.agent("unit-agent").unwrap();
 
         assert_eq!(agent.status, AgentStatus::Installed);
@@ -542,10 +553,32 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let home = tempfile::tempdir().unwrap();
         let scanner = Scanner::new(&catalog(manifest()));
         assert!(scanner.last_report().is_none());
-        let report = scanner.scan(&context(home.path()), None).await;
+        let report = scanner.scan(&context(home.path()), None, &[]).await;
         let cached = scanner.last_report().expect("cached");
         assert_eq!(cached.scanned_at_ms, report.scanned_at_ms);
         assert_eq!(cached.agents.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn hidden_agents_are_left_out_of_the_report_and_its_counts() {
+        let home = tempfile::tempdir().unwrap();
+        let scanner = Scanner::new(&catalog(manifest()));
+
+        let visible = scanner.scan(&context(home.path()), None, &[]).await;
+        assert!(
+            visible.available_to_install > 0,
+            "the script method makes this agent installable"
+        );
+
+        let hidden = scanner
+            .scan(&context(home.path()), None, &["unit-agent".to_string()])
+            .await;
+        assert!(hidden.agent("unit-agent").is_none());
+        assert!(hidden.agents.is_empty());
+        assert_eq!(hidden.installed, 0);
+        assert_eq!(hidden.available_to_install, 0);
+        // The cache is filtered too, so a later `report()` cannot leak the hidden agent.
+        assert_eq!(scanner.last_report().unwrap().agents.len(), 0);
     }
 
     /// Create a small executable that prints a version, for the current OS.

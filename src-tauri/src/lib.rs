@@ -36,6 +36,8 @@ macro_rules! handlers {
             commands::agents::list_agents,
             commands::agents::rescan,
             commands::agents::get_agent,
+            commands::agents::remove_agent,
+            commands::agents::restore_agent,
             commands::agents::list_package_managers,
             commands::agents::reveal_path,
             commands::agents::open_url,

@@ -49,6 +49,16 @@ pub fn builtin_count() -> usize {
     builtin::BUILTIN_MANIFESTS.len()
 }
 
+/// `true` when a manifest with this id ships with Ahabby.
+///
+/// A user manifest can carry the same id to override it; even then the agent counts as
+/// builtin, because deleting the override would bring the shipped manifest back.
+pub fn is_builtin_id(id: &str) -> bool {
+    builtin::BUILTIN_MANIFESTS
+        .iter()
+        .any(|(origin_id, _)| *origin_id == id)
+}
+
 /// Load the builtin catalog merged with user overrides from `user_dir` (when given).
 pub fn load(user_dir: Option<&Path>) -> Catalog {
     let mut catalog = Catalog::default();
@@ -252,6 +262,16 @@ names = ["{id}"]
             "problems: {:#?}",
             catalog.problems
         );
+    }
+
+    #[test]
+    fn knows_which_ids_ship_with_the_app() {
+        let id = builtin_ids()
+            .first()
+            .copied()
+            .expect("builtin manifests ship with the app");
+        assert!(is_builtin_id(id));
+        assert!(!is_builtin_id("definitely-not-a-shipped-agent"));
     }
 
     #[test]

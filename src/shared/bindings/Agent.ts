@@ -5,6 +5,7 @@ import type { InstallOption } from "./InstallOption";
 import type { ManifestSource } from "./ManifestSource";
 import type { McpServer } from "./McpServer";
 import type { OtherResource } from "./OtherResource";
+import type { RemovalKind } from "./RemovalKind";
 import type { Skill } from "./Skill";
 import type { UpdateInfo } from "./UpdateInfo";
 import type { Version } from "./Version";
@@ -41,6 +42,10 @@ canUpdate: boolean, configs: Array<ConfigFile>, skills: Array<Skill>, mcpServers
  * Dotted manifest paths that still need a docs check (see `ARCHITECTURE.md`).
  */
 unverified: Array<string>, notes?: string | null, manifestSource: ManifestSource, 
+/**
+ * What removing this agent from Ahabby would do (delete its manifest or hide it).
+ */
+removal: RemovalKind, 
 /**
  * Non-fatal problems collected while reading this agent (bad config, missing dir, ...).
  */

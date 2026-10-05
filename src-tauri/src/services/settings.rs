@@ -9,7 +9,7 @@ use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::domain::{Proxy, ProxyMode};
+use crate::domain::{HiddenAgent, Proxy, ProxyMode};
 use crate::error::{AppError, Result};
 use crate::platform::{self, PlatformContext};
 
@@ -53,6 +53,9 @@ pub struct Settings {
     pub proxy_mode: ProxyMode,
     /// Manual proxy URL (`http://host:port`); only read when `proxy_mode` is `manual`.
     pub proxy_url: Option<String>,
+    /// Agents the user removed from Ahabby that are still on disk. A shipped agent (or a
+    /// user manifest that overrides one) can only be hidden, never deleted.
+    pub hidden_agents: Vec<HiddenAgent>,
 }
 
 impl Default for Settings {
@@ -66,6 +69,7 @@ impl Default for Settings {
             version_cache_minutes: 60,
             proxy_mode: ProxyMode::None,
             proxy_url: None,
+            hidden_agents: Vec::new(),
         }
     }
 }

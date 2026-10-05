@@ -4,10 +4,12 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use ts_rs::TS;
 
-use crate::domain::{Agent, Manager};
+use crate::domain::{Agent, AgentRemoval, HiddenAgent, Manager};
 use crate::error::{AppError, Result};
 use crate::services::ScanReport;
 use crate::state::AppState;
+
+use super::MutationResult;
 
 /// A package manager available on this machine (Settings page).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -39,6 +41,34 @@ pub async fn rescan(state: State<'_, AppState>) -> Result<ScanReport> {
 #[tauri::command]
 pub async fn get_agent(state: State<'_, AppState>, agent_id: String) -> Result<Agent> {
     state.agent(&agent_id)
+}
+
+/// Remove an agent from Ahabby.
+///
+/// An agent that has its own manifest in the user catalog is deleted (the file is moved to
+/// the OS trash); a shipped agent is only hidden and can be restored from Settings. Requires
+/// `confirm: true`, like every other destructive command — the frontend shows a dialog first.
+#[tauri::command]
+pub async fn remove_agent(
+    state: State<'_, AppState>,
+    agent_id: String,
+    confirm: bool,
+) -> Result<MutationResult<AgentRemoval>> {
+    crate::commands::require_confirmation(confirm, "removing an agent")?;
+    let removal = state.remove_agent(&agent_id)?;
+    let report = state.scan().await;
+    Ok(MutationResult::new(removal, report))
+}
+
+/// Bring a hidden agent back into the list.
+#[tauri::command]
+pub async fn restore_agent(
+    state: State<'_, AppState>,
+    agent_id: String,
+) -> Result<MutationResult<HiddenAgent>> {
+    let restored = state.restore_agent(&agent_id)?;
+    let report = state.scan().await;
+    Ok(MutationResult::new(restored, report))
 }
 
 /// Package managers found on this machine, for the Settings page.

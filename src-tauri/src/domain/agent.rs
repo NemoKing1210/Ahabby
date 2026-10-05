@@ -80,6 +80,60 @@ pub struct UpdateInfo {
     pub checked_at_ms: i64,
 }
 
+/// What happens to an agent when the user removes it from Ahabby.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub enum RemovalKind {
+    /// The agent has its own manifest in Ahabby's user catalog: removing it moves that file
+    /// to the OS trash.
+    Manifest,
+    /// The manifest ships with Ahabby (or overrides a shipped one), so removing the agent
+    /// can only hide it — there is no file of its own to delete.
+    Hidden,
+}
+
+impl RemovalKind {
+    /// A user manifest that replaces a builtin one must not be deleted: doing so would
+    /// resurrect the builtin, so such an agent is hidden instead.
+    pub fn for_manifest(source: &ManifestSource, is_builtin: bool) -> Self {
+        match source {
+            ManifestSource::User { .. } if !is_builtin => RemovalKind::Manifest,
+            _ => RemovalKind::Hidden,
+        }
+    }
+}
+
+/// An agent the user removed from Ahabby that is still on disk (a hidden agent).
+///
+/// Stored in the settings file so the Settings screen can list and restore it without a scan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct HiddenAgent {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[ts(type = "number")]
+    pub removed_at_ms: i64,
+}
+
+/// What `remove_agent` did.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct AgentRemoval {
+    pub agent_id: String,
+    pub name: String,
+    /// `true` when the agent's own manifest was moved to the OS trash, `false` when the
+    /// agent was only hidden (and can be restored from Settings).
+    pub deleted: bool,
+    /// The deleted manifest, when `deleted` is `true`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
 /// The fully scanned agent — the main entity of the UI.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -137,6 +191,8 @@ pub struct Agent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
     pub manifest_source: ManifestSource,
+    /// What removing this agent from Ahabby would do (delete its manifest or hide it).
+    pub removal: RemovalKind,
     /// Non-fatal problems collected while reading this agent (bad config, missing dir, ...).
     #[serde(default)]
     pub warnings: Vec<String>,

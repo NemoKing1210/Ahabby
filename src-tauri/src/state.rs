@@ -11,7 +11,10 @@ use tracing::warn;
 
 use crate::adapters::AgentAdapter;
 use crate::catalog::{self, Catalog};
-use crate::domain::{Agent, ConfigFormat, McpServer, Proxy, Skill};
+use crate::domain::{
+    Agent, AgentManifest, AgentRemoval, ConfigFormat, HiddenAgent, ManifestSource, McpServer,
+    Proxy, RemovalKind, Skill,
+};
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
 use crate::services::{
@@ -156,7 +159,48 @@ impl AppState {
         let catalog = Self::load_catalog(&self.app_config);
         self.scanner.reload(&catalog);
         let context = self.platform_context();
-        self.scanner.scan(&context, self.version_checker()).await
+        self.scanner
+            .scan(&context, self.version_checker(), &self.hidden_agent_ids())
+            .await
+    }
+
+    /// Ids of the agents the user removed (and that are therefore hidden from the scan).
+    fn hidden_agent_ids(&self) -> Vec<String> {
+        self.settings()
+            .hidden_agents
+            .into_iter()
+            .map(|hidden| hidden.id)
+            .collect()
+    }
+
+    /// Remove an agent from Ahabby.
+    ///
+    /// An agent whose manifest lives in Ahabby's own user catalog is deleted: the file is
+    /// moved to the OS trash, never unlinked. An agent whose manifest ships with Ahabby —
+    /// or whose user manifest overrides a shipped one — is only hidden, because deleting the
+    /// file would bring the builtin agent back. Hiding is reversible from Settings.
+    pub fn remove_agent(&self, id: &str) -> Result<AgentRemoval> {
+        let adapter = self.adapter(id)?;
+        let manifest = adapter.manifest().clone();
+        remove_agent_from(
+            &self.settings,
+            &self.user_catalog_dir(),
+            id,
+            &manifest,
+            |path| {
+                trash::delete(path).map_err(|error| {
+                    AppError::other(format!(
+                        "could not move {} to the trash: {error}",
+                        path.display()
+                    ))
+                })
+            },
+        )
+    }
+
+    /// Bring a hidden agent back into the list.
+    pub fn restore_agent(&self, id: &str) -> Result<HiddenAgent> {
+        restore_hidden_agent(&self.settings, id)
     }
 
     /// Last scan result, or an error when nothing has been scanned yet.
@@ -255,6 +299,86 @@ impl AppState {
     }
 }
 
+/// The file behind a user manifest, checked to be a direct `*.toml` child of Ahabby's own
+/// catalog directory. The scan only ever reads that directory, so this can only ever delete
+/// a manifest Ahabby itself loaded — never an arbitrary path a manifest might claim.
+pub(crate) fn user_manifest_path(catalog_dir: &Path, source: &str) -> Result<PathBuf> {
+    let path = PathBuf::from(source);
+    let is_child = path.parent() == Some(catalog_dir)
+        && path.extension().and_then(|extension| extension.to_str()) == Some("toml");
+    if !is_child {
+        return Err(AppError::CommandNotAllowed(format!(
+            "{source} is not a manifest in Ahabby's catalog directory"
+        )));
+    }
+    Ok(path)
+}
+
+/// Remove an agent, given the manifest the catalog resolved for it.
+///
+/// `trash_file` is the only thing that touches the deleted file, which keeps the decision
+/// and the path check testable without moving anything to a real trash.
+pub(crate) fn remove_agent_from<F>(
+    settings: &SettingsService,
+    catalog_dir: &Path,
+    id: &str,
+    manifest: &AgentManifest,
+    trash_file: F,
+) -> Result<AgentRemoval>
+where
+    F: FnOnce(&Path) -> Result<()>,
+{
+    let mut current = settings.get();
+    if current.hidden_agents.iter().any(|hidden| hidden.id == id) {
+        return Err(AppError::NotFound(format!(
+            "agent '{id}' has already been removed"
+        )));
+    }
+
+    let mut path = None;
+    match RemovalKind::for_manifest(&manifest.source, catalog::is_builtin_id(id)) {
+        RemovalKind::Manifest => {
+            let ManifestSource::User { path: source } = &manifest.source else {
+                return Err(AppError::other(format!(
+                    "manifest of '{id}' has no file in the user catalog"
+                )));
+            };
+            let target = user_manifest_path(catalog_dir, source)?;
+            trash_file(&target)?;
+            path = Some(target.to_string_lossy().to_string());
+        }
+        RemovalKind::Hidden => {
+            current.hidden_agents.push(HiddenAgent {
+                id: id.to_string(),
+                name: manifest.name.clone(),
+                icon: manifest.icon.clone(),
+                removed_at_ms: crate::platform::now_ms(),
+            });
+            settings.save(current)?;
+        }
+    }
+
+    Ok(AgentRemoval {
+        agent_id: id.to_string(),
+        name: manifest.name.clone(),
+        deleted: path.is_some(),
+        path,
+    })
+}
+
+/// Bring a hidden agent back; refuses an id that is not hidden.
+pub(crate) fn restore_hidden_agent(settings: &SettingsService, id: &str) -> Result<HiddenAgent> {
+    let mut current = settings.get();
+    let index = current
+        .hidden_agents
+        .iter()
+        .position(|hidden| hidden.id == id)
+        .ok_or_else(|| AppError::NotFound(format!("agent '{id}' is not hidden")))?;
+    let hidden = current.hidden_agents.remove(index);
+    settings.save(current)?;
+    Ok(hidden)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,5 +388,163 @@ mod tests {
         // The frontend listens on these exact strings (src/shared/api/events.ts).
         assert_eq!(events::JOB_OUTPUT, "job://output");
         assert_eq!(events::JOB_DONE, "job://done");
+    }
+
+    fn manifest(id: &str, source: ManifestSource) -> AgentManifest {
+        let raw = format!(
+            r#"
+id = "{id}"
+name = "Test {id}"
+description = "used by tests"
+
+[binaries]
+names = ["{id}"]
+"#
+        );
+        let mut manifest = crate::catalog::parse_manifest(&raw, "test").unwrap();
+        manifest.source = source;
+        manifest
+    }
+
+    fn settings_service(dir: &Path) -> SettingsService {
+        SettingsService::load(dir)
+    }
+
+    #[test]
+    fn user_manifest_path_stays_inside_the_catalog_directory() {
+        let catalog = Path::new("/cfg/catalog");
+        assert_eq!(
+            user_manifest_path(catalog, "/cfg/catalog/demo.toml").unwrap(),
+            PathBuf::from("/cfg/catalog/demo.toml")
+        );
+
+        for refused in [
+            "/etc/demo.toml",
+            "/cfg/catalog/nested/demo.toml",
+            "/cfg/catalog/demo.json",
+            "/cfg/other/../catalog/demo.toml",
+        ] {
+            let error = user_manifest_path(catalog, refused).unwrap_err();
+            assert_eq!(error.code(), "command_not_allowed", "for {refused}");
+        }
+    }
+
+    #[test]
+    fn removing_a_shipped_agent_hides_it_and_can_be_restored() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = settings_service(dir.path());
+        let manifest = manifest("demo", ManifestSource::Builtin);
+
+        let removal = remove_agent_from(
+            &settings,
+            Path::new("/cfg/catalog"),
+            "demo",
+            &manifest,
+            |_| panic!("a shipped manifest must never be deleted"),
+        )
+        .unwrap();
+        assert!(!removal.deleted);
+        assert!(removal.path.is_none());
+        assert_eq!(settings.get().hidden_agents.len(), 1);
+        assert_eq!(settings.get().hidden_agents[0].name, "Test demo");
+
+        // Removing twice is refused instead of piling up duplicates.
+        let error = remove_agent_from(
+            &settings,
+            Path::new("/cfg/catalog"),
+            "demo",
+            &manifest,
+            |_| panic!("never reached"),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "not_found");
+
+        let restored = restore_hidden_agent(&settings, "demo").unwrap();
+        assert_eq!(restored.id, "demo");
+        assert!(settings.get().hidden_agents.is_empty());
+        assert_eq!(
+            restore_hidden_agent(&settings, "demo").unwrap_err().code(),
+            "not_found"
+        );
+    }
+
+    #[test]
+    fn removing_a_user_manifest_trashes_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = settings_service(dir.path());
+        let catalog = dir.path().join("catalog");
+        std::fs::create_dir_all(&catalog).unwrap();
+        let file = catalog.join("demo.toml");
+        std::fs::write(&file, "id = \"demo\"\n").unwrap();
+        let manifest = manifest(
+            "demo",
+            ManifestSource::User {
+                path: file.to_string_lossy().to_string(),
+            },
+        );
+
+        let mut trashed: Option<PathBuf> = None;
+        let removal = remove_agent_from(&settings, &catalog, "demo", &manifest, |path| {
+            trashed = Some(path.to_path_buf());
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(removal.deleted);
+        assert_eq!(
+            removal.path.as_deref(),
+            Some(file.to_string_lossy().as_ref())
+        );
+        assert_eq!(trashed.as_deref(), Some(file.as_path()));
+        assert!(
+            settings.get().hidden_agents.is_empty(),
+            "a deleted manifest needs no hidden entry"
+        );
+    }
+
+    #[test]
+    fn a_user_manifest_overriding_a_builtin_is_only_hidden() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = settings_service(dir.path());
+        let id = catalog::builtin_ids()
+            .first()
+            .copied()
+            .expect("builtin manifests ship with the app");
+        let manifest = manifest(
+            id,
+            ManifestSource::User {
+                path: dir
+                    .path()
+                    .join(format!("{id}.toml"))
+                    .to_string_lossy()
+                    .to_string(),
+            },
+        );
+
+        let removal = remove_agent_from(&settings, dir.path(), id, &manifest, |_| {
+            panic!("deleting the override would resurrect the builtin manifest")
+        })
+        .unwrap();
+
+        assert!(!removal.deleted);
+        assert_eq!(settings.get().hidden_agents[0].id, id);
+    }
+
+    #[test]
+    fn a_manifest_outside_the_catalog_directory_is_never_trashed() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = settings_service(dir.path());
+        let manifest = manifest(
+            "demo",
+            ManifestSource::User {
+                path: "/somewhere/else/demo.toml".to_string(),
+            },
+        );
+
+        let error = remove_agent_from(&settings, dir.path(), "demo", &manifest, |_| {
+            panic!("the path check must run before any deletion")
+        })
+        .unwrap_err();
+        assert_eq!(error.code(), "command_not_allowed");
     }
 }

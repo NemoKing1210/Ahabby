@@ -104,7 +104,7 @@ mod tests {
     use super::*;
     use crate::domain::{
         Agent, AgentRef, AgentStatus, CatalogProblem, ConfigFormat, EnvVar, McpServer,
-        McpTransport, Os, OtherKind, OtherResource, Scope, Severity, Version,
+        McpTransport, Os, OtherKind, OtherResource, RemovalKind, Scope, Severity, Version,
     };
 
     fn agent_ref(id: &str) -> AgentRef {
@@ -189,6 +189,7 @@ mod tests {
             unverified: Vec::new(),
             notes: None,
             manifest_source: Default::default(),
+            removal: RemovalKind::Hidden,
             warnings: Vec::new(),
             scan_ms: 1,
         }

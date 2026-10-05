@@ -18,7 +18,8 @@ pub mod skill;
 pub mod version;
 
 pub use agent::{
-    Agent, AgentRef, AgentStatus, Detection, InstallAction, InstallOption, InstallPlan, UpdateInfo,
+    Agent, AgentRef, AgentRemoval, AgentStatus, Detection, HiddenAgent, InstallAction,
+    InstallOption, InstallPlan, RemovalKind, UpdateInfo,
 };
 pub use catalog::CatalogProblem;
 pub use config::{BackupEntry, ConfigFile, ConfigFormat, ConfigSnapshot, DiffPreview, SaveResult};

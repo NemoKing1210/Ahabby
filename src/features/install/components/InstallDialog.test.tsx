@@ -76,6 +76,7 @@ function agent(overrides: Partial<Agent> = {}): Agent {
     unverified: [],
     notes: null,
     manifestSource: { kind: 'builtin' },
+    removal: 'hidden',
     warnings: [],
     scanMs: 12,
     ...overrides,

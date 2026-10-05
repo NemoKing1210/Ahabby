@@ -196,7 +196,7 @@ async fn full_read_pipeline_from_a_user_manifest() {
     ));
 
     let scanner = Scanner::new(&catalog);
-    let report = scanner.scan(&fixture.context(), None).await;
+    let report = scanner.scan(&fixture.context(), None, &[]).await;
 
     let agent = report.agent("pipeline-demo").expect("agent scanned");
     assert_eq!(agent.status, AgentStatus::Installed);
