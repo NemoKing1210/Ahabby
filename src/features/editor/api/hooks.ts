@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
 
-/** Raw snapshot of a config file: content plus the hash the editor must send back. */
-export function useConfigSnapshot(agentId: string, path: string, enabled: boolean) {
+/** Raw snapshot of one addressable document: content plus the hash the editor must send back. */
+export function useDocumentSnapshot(agentId: string, path: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.config(agentId, path),
     queryFn: () => ipc.readConfig(agentId, path),
@@ -13,7 +13,7 @@ export function useConfigSnapshot(agentId: string, path: string, enabled: boolea
   })
 }
 
-export interface SaveConfigVars {
+export interface SaveDocumentVars {
   agentId: string
   path: string
   content: string
@@ -24,18 +24,18 @@ export interface SaveConfigVars {
  * Validates and diffs the edit without writing anything. The result also tells the editor
  * whether the file is still the one it started from.
  */
-export function usePreviewConfigSave() {
+export function usePreviewDocumentSave() {
   return useMutation({
-    mutationFn: (vars: SaveConfigVars) =>
+    mutationFn: (vars: SaveDocumentVars) =>
       ipc.previewConfigSave(vars.agentId, vars.path, vars.content, vars.baseSha256),
   })
 }
 
 /** Writes the file: validation, timestamped backup and atomic replace happen in Rust. */
-export function useSaveConfig() {
+export function useSaveDocument() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (vars: SaveConfigVars) =>
+    mutationFn: (vars: SaveDocumentVars) =>
       ipc.saveConfig(vars.agentId, vars.path, vars.content, vars.baseSha256),
     onSuccess: (result, vars) => {
       client.setQueryData(queryKeys.agents(), result.report)
@@ -46,7 +46,7 @@ export function useSaveConfig() {
   })
 }
 
-export function useBackups(agentId: string, path: string, enabled: boolean) {
+export function useDocumentBackups(agentId: string, path: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.backups(agentId, path),
     queryFn: () => ipc.listBackups(agentId, path),
@@ -54,7 +54,7 @@ export function useBackups(agentId: string, path: string, enabled: boolean) {
   })
 }
 
-export function useRestoreBackup() {
+export function useRestoreDocumentBackup() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (vars: { agentId: string; path: string; backupPath: string }) =>

@@ -24,10 +24,10 @@ export function DiffView({ unified, className }: { unified: string; className?: 
 
   return (
     <div className={cn('border-border bg-surface overflow-hidden rounded-lg border', className)}>
-      <div className="border-border text-faint border-b px-3 py-1.5 text-[11px] tracking-wide uppercase">
+      <div className="border-border text-faint border-b px-3 py-1.5 text-[0.6875rem] tracking-wide uppercase">
         {t('editor.diff')}
       </div>
-      <div className="max-h-[45vh] overflow-auto font-mono text-[12px] leading-relaxed">
+      <div className="max-h-[45vh] overflow-auto font-mono text-[0.75rem] leading-relaxed">
         {lines.length === 0 ? (
           <p className="text-muted px-3 py-3">{t('editor.noChanges')}</p>
         ) : (

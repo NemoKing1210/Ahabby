@@ -1,5 +1,7 @@
 import { Suspense, lazy } from 'react'
 
+import { cn } from '@/shared/lib/cn'
+
 import type { CodeViewerProps } from './code/CodeViewerImpl'
 
 const LazyCodeViewer = lazy(() => import('./code/CodeViewerImpl'))
@@ -17,7 +19,11 @@ export function CodeViewer(props: CodeViewerProps) {
       fallback={
         <div
           aria-busy="true"
-          className="border-border bg-surface-2 h-[50vh] animate-pulse rounded-lg border"
+          style={{ height: props.height ?? '50vh' }}
+          className={cn(
+            'border-border bg-surface-2 animate-pulse rounded-lg border',
+            props.className,
+          )}
         />
       }
     >

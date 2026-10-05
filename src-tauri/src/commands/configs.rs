@@ -1,4 +1,8 @@
-//! Config reading / editing / backup commands.
+//! Document reading / editing / backup commands.
+//!
+//! "Document" is anything the scan declared addressable for an agent: a config file, another
+//! resource file (instructions, commands, hooks, rules) or a skill's entry file. Which paths
+//! qualify — and which are writable — is decided by `AppState::document_target`.
 
 use std::path::PathBuf;
 
@@ -29,11 +33,9 @@ pub async fn preview_config_save(
     content: String,
     base_sha256: String,
 ) -> Result<DiffPreview> {
-    let target = state.config_target(&agent_id, &path)?;
+    let target = state.document_target(&agent_id, &path)?;
     if !target.editable {
-        return Err(AppError::NotSupported(format!(
-            "{path} is declared read-only by the manifest of {agent_id}"
-        )));
+        return Err(AppError::NotSupported(format!("{path} is read-only")));
     }
     services::preview(&target.path, target.format, &content, &base_sha256)
 }
@@ -47,11 +49,9 @@ pub async fn save_config(
     content: String,
     base_sha256: String,
 ) -> Result<MutationResult<SaveResult>> {
-    let target = state.config_target(&agent_id, &path)?;
+    let target = state.document_target(&agent_id, &path)?;
     if !target.editable {
-        return Err(AppError::NotSupported(format!(
-            "{path} is declared read-only by the manifest of {agent_id}"
-        )));
+        return Err(AppError::NotSupported(format!("{path} is read-only")));
     }
     let backup_root = state.backup_root();
     let result = services::save(
@@ -71,7 +71,7 @@ pub async fn list_backups(
     agent_id: String,
     path: String,
 ) -> Result<Vec<BackupEntry>> {
-    let target = state.config_target(&agent_id, &path)?;
+    let target = state.document_target(&agent_id, &path)?;
     services::list_backups(&state.backup_root(), &target.path)
 }
 
@@ -83,11 +83,9 @@ pub async fn restore_backup(
     path: String,
     backup_path: String,
 ) -> Result<MutationResult<SaveResult>> {
-    let target = state.config_target(&agent_id, &path)?;
+    let target = state.document_target(&agent_id, &path)?;
     if !target.editable {
-        return Err(AppError::NotSupported(format!(
-            "{path} is declared read-only by the manifest of {agent_id}"
-        )));
+        return Err(AppError::NotSupported(format!("{path} is read-only")));
     }
 
     // The backup must belong to this exact file: the frontend only ever gets paths that

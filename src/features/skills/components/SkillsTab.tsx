@@ -12,6 +12,8 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
+import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
+
 import { useDeleteSkill } from '../api/hooks'
 import { SkillDetailDialog } from './SkillDetailDialog'
 
@@ -20,6 +22,7 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
   const { t } = useTranslation()
   const remove = useDeleteSkill()
   const [detail, setDetail] = useState<Skill | null>(null)
+  const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null)
 
   if (skills.length === 0) {
@@ -28,7 +31,7 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
 
   return (
     <>
-      <AnimatedList className="flex flex-col gap-3">
+      <AnimatedList>
         {skills.map((skill) => (
           <Card key={skill.id} className="flex items-start gap-3 p-4">
             <Package className="text-faint mt-0.5 size-4 shrink-0" aria-hidden />
@@ -47,9 +50,11 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
                 {skill.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
               </div>
               {skill.description ? (
-                <p className="text-muted max-w-prose text-[12px]">{skill.description}</p>
+                <p className="text-muted max-w-prose text-[0.75rem]">{skill.description}</p>
               ) : null}
-              <code className="text-faint font-mono text-[11px]">{shortenPath(skill.path, 4)}</code>
+              <code className="text-faint font-mono text-[0.6875rem]">
+                {shortenPath(skill.path, 4)}
+              </code>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setDetail(skill)}>
               {t('common.open')}
@@ -63,6 +68,10 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
         open={detail !== null}
         onOpenChange={(open) => {
           if (!open) setDetail(null)
+        }}
+        onEdit={(skill) => {
+          setDetail(null)
+          setEditTarget(skill)
         }}
         onDelete={(skill) => {
           setDetail(null)
@@ -97,6 +106,20 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
           )
         }}
       />
+      {editTarget?.entryPath ? (
+        <DocumentEditorDialog
+          key={editTarget.entryPath}
+          agentId={agentId}
+          document={{
+            path: editTarget.entryPath,
+            label: editTarget.name,
+            format: 'markdown',
+            editable: editTarget.removable,
+            description: editTarget.description,
+          }}
+          onOpenChange={() => setEditTarget(null)}
+        />
+      ) : null}
     </>
   )
 }

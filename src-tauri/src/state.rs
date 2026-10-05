@@ -45,11 +45,62 @@ impl JobSink for TauriJobSink {
     }
 }
 
-/// A config file the frontend is allowed to read and write.
-pub struct ConfigTarget {
+/// A file the frontend is allowed to read and write.
+///
+/// The scan is the source of truth: a path is only ever addressable when it belongs to a
+/// document that some manifest declared (a config file) or that the scan discovered from a
+/// declared location (another resource file, a skill entry file). Anything else is refused,
+/// so a forged path from a compromised webview cannot reach the disk.
+#[derive(Debug)]
+pub struct DocumentTarget {
     pub path: PathBuf,
     pub format: ConfigFormat,
     pub editable: bool,
+}
+
+/// Resolve an addressable document of one scanned agent.
+///
+/// Order matters: a declared config wins (manifests describe their formats precisely), then
+/// a non-directory `other` resource (instructions, commands, hooks, rules), then a skill's
+/// entry file. Skills are writable exactly when Ahabby would also delete them — a
+/// plugin-managed skill stays read-only, because its owner is the plugin manager.
+pub fn resolve_document(agent: &Agent, path: &str) -> Result<DocumentTarget> {
+    if let Some(config) = agent.configs.iter().find(|config| config.path == path) {
+        return Ok(DocumentTarget {
+            path: PathBuf::from(&config.path),
+            format: config.format,
+            editable: config.editable,
+        });
+    }
+
+    if let Some(resource) = agent
+        .other
+        .iter()
+        .find(|resource| resource.path == path && !resource.is_directory)
+    {
+        return Ok(DocumentTarget {
+            path: PathBuf::from(&resource.path),
+            format: resource.format,
+            editable: true,
+        });
+    }
+
+    if let Some(skill) = agent
+        .skills
+        .iter()
+        .find(|skill| skill.entry_path.as_deref() == Some(path))
+    {
+        return Ok(DocumentTarget {
+            path: PathBuf::from(path),
+            format: ConfigFormat::Markdown,
+            editable: skill.removable,
+        });
+    }
+
+    Err(AppError::CommandNotAllowed(format!(
+        "{path} is not declared by {}",
+        agent.name
+    )))
 }
 
 /// A settings file edited by hand can carry an unusable proxy URL; fall back to a direct
@@ -227,21 +278,10 @@ impl AppState {
             .ok_or_else(|| AppError::NotFound(format!("agent '{id}'")))
     }
 
-    /// Only config files that the catalog knows about can be read or written.
-    pub fn config_target(&self, agent_id: &str, path: &str) -> Result<ConfigTarget> {
-        let agent = self.agent(agent_id)?;
-        let config = agent
-            .configs
-            .iter()
-            .find(|config| config.path == path)
-            .ok_or_else(|| {
-                AppError::CommandNotAllowed(format!("{path} is not declared by {}", agent.name))
-            })?;
-        Ok(ConfigTarget {
-            path: PathBuf::from(&config.path),
-            format: config.format,
-            editable: config.editable,
-        })
+    /// Only documents the scan knows about can be read or written: a config declared by the
+    /// manifest, a resource file the manifest declares, or a skill's entry file.
+    pub fn document_target(&self, agent_id: &str, path: &str) -> Result<DocumentTarget> {
+        resolve_document(&self.agent(agent_id)?, path)
     }
 
     pub fn skill(&self, agent_id: &str, skill_id: &str) -> Result<Skill> {
@@ -292,9 +332,9 @@ impl AppState {
         }
     }
 
-    /// Read a config file through the safe path (validation of ownership included).
+    /// Read one addressable document through the safe path (ownership validation included).
     pub fn read_config(&self, agent_id: &str, path: &str) -> Result<crate::domain::ConfigSnapshot> {
-        let target = self.config_target(agent_id, path)?;
+        let target = self.document_target(agent_id, path)?;
         services::read_snapshot(&target.path, target.format, target.editable)
     }
 }

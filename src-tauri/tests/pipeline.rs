@@ -13,6 +13,7 @@ use ahabby_lib::catalog;
 use ahabby_lib::domain::{AgentStatus, ConfigFormat, InstallAction, Manager, Os, Severity};
 use ahabby_lib::platform::PlatformContext;
 use ahabby_lib::services::{self, aggregate, Scanner};
+use ahabby_lib::state::resolve_document;
 
 const MANIFEST: &str = r#"
 id = "pipeline-demo"
@@ -506,6 +507,79 @@ async fn writes_are_refused_outside_declared_paths() {
         .await
         .unwrap_err();
     assert_eq!(error.code(), "command_not_allowed");
+}
+
+#[tokio::test]
+async fn only_scanned_documents_are_addressable() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let scanner = Scanner::new(&catalog);
+    let report = scanner.scan(&fixture.context(), None, &[]).await;
+    let agent = report.agent("pipeline-demo").expect("agent scanned");
+
+    // A declared config, with the format and writability the manifest gave it.
+    let settings = fixture.settings_json().to_string_lossy().to_string();
+    let target = resolve_document(agent, &settings).unwrap();
+    assert_eq!(target.format, ConfigFormat::Json);
+    assert!(target.editable);
+
+    // A resource file: markdown, writable.
+    let instructions = agent.other[0].path.clone();
+    assert!(instructions.ends_with("AGENTS.md"));
+    let target = resolve_document(agent, &instructions).unwrap();
+    assert_eq!(target.format, ConfigFormat::Markdown);
+    assert!(target.editable);
+
+    // A skill entry file: markdown, writable while the skill itself is removable.
+    let entry = agent.skills[0].entry_path.clone().expect("entry file");
+    assert!(entry.ends_with("SKILL.md"));
+    let target = resolve_document(agent, &entry).unwrap();
+    assert_eq!(target.format, ConfigFormat::Markdown);
+    assert!(target.editable);
+
+    // The same skill marked plugin-managed is listed but never written.
+    let mut plugin_skill = agent.skills[0].clone();
+    plugin_skill.removable = false;
+    let mut plugin_agent = agent.clone();
+    plugin_agent.skills = vec![plugin_skill];
+    let target = resolve_document(&plugin_agent, &entry).unwrap();
+    assert!(!target.editable);
+
+    // A directory resource is not a document.
+    let mut directory_agent = agent.clone();
+    directory_agent.other[0].is_directory = true;
+    let error = resolve_document(&directory_agent, &instructions).unwrap_err();
+    assert_eq!(error.code(), "command_not_allowed");
+
+    // Nothing outside the scan is addressable, however plausible it looks.
+    for forged in [
+        fixture.home.join(".pipeline/notes.md"),
+        fixture.home.join(".pipeline/skills/pdf/OTHER.md"),
+        fixture.home.join("settings.json"),
+    ] {
+        let error = resolve_document(agent, &forged.to_string_lossy()).unwrap_err();
+        assert_eq!(error.code(), "command_not_allowed", "{}", forged.display());
+    }
+
+    // The resolved skill file goes through the ordinary, backup-taking write path.
+    let backup_root = fixture.context().backup_root;
+    let path = PathBuf::from(&entry);
+    let snapshot = services::read_snapshot(&path, ConfigFormat::Markdown, true).unwrap();
+    let edited = format!("{}Extra line.\n", snapshot.content);
+    let saved = services::save(
+        &path,
+        ConfigFormat::Markdown,
+        &edited,
+        &snapshot.sha256,
+        &backup_root,
+    )
+    .unwrap();
+    assert!(saved.backup_path.is_some());
+    assert_eq!(fs::read_to_string(&path).unwrap(), edited);
 }
 
 #[test]

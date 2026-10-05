@@ -59,7 +59,9 @@ pub async fn reveal_mcp_secret(
         )));
     }
 
-    let path = state.config_target(&agent_id, &server.source_config)?.path;
+    let path = state
+        .document_target(&agent_id, &server.source_config)?
+        .path;
     let adapter = state.adapter(&agent_id)?;
     let format = adapter
         .manifest()
