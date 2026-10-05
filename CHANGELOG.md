@@ -5,6 +5,43 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-10-06
+
+### Added
+
+- Agents can be pinned as favourites: the star on a card (or in its right-click menu) keeps the agent first
+  in its list section and adds a shortcut to the sidebar, and the agent page offers the same toggle
+
+## [0.14.0] - 2026-10-06
+
+### Changed
+
+- The Library page is rebuilt around the same cards the agents list uses: every skill, MCP server and other
+  resource shows its name, description, path, size and the brand-marked agents it belongs to, with the file
+  actions in their own column
+- Library groupings are now predictable: by name, where one heading gathers a skill or server shared by
+  several agents, or by agent, where each shared resource is listed under every agent that owns it — and the
+  group header carries the agent's icon
+- Filters moved into one row above the tabs: search, an agent picker that shows how many resources each agent
+  contributes, a grouping toggle, and a reset button; the tab counters follow the filters
+
+### Added
+
+- The Library explains itself: a summary of the scanned agents and when the last scan ran, a rescan button
+  and the catalog-problem banner the agents list shows, plus per-tab empty states that offer to clear the
+  filters
+- Skills can be opened in the editor straight from the Library card, like they already could inside an agent
+
+## [0.13.0] - 2026-10-06
+
+### Added
+
+- Ahabby remembers the result of the last scan, so a restart opens straight into the real agent list instead
+  of skeletons
+- That remembered list is refreshed in the background right away, and every card reports its own progress: a
+  light band crosses the top edge of each agent that is still being inspected and fades into a soft highlight
+  the moment its fresh data arrives, while the sidebar shows how many agents are left
+
 ## [0.12.0] - 2026-10-05
 
 ### Changed

@@ -11,6 +11,16 @@ pub async fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
     Ok(state.settings())
 }
 
+/// Pin an agent to the top of the list (and to the sidebar), or unpin it.
+#[tauri::command]
+pub async fn set_agent_favorite(
+    state: State<'_, AppState>,
+    agent_id: String,
+    favorite: bool,
+) -> Result<Settings> {
+    state.set_agent_favorite(&agent_id, favorite)
+}
+
 #[tauri::command]
 pub async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<Settings> {
     for path in &settings.extra_scan_paths {

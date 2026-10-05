@@ -303,6 +303,26 @@
     }
   }
 
+  /* Background refresh: a light band crosses the top edge of every card that is still being
+     inspected, and a soft wash fades out on the one that just received fresh data. */
+  @keyframes ah-scan-sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes ah-scan-land {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
   @keyframes ah-fade-out {
     from {
       opacity: 1;
@@ -401,6 +421,13 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The frozen band would read as a stuck progress bar; the sidebar already says that a
+     scan is running, so the card stays calm instead. The landing wash needs no special case:
+     its animation ends at opacity 0. */
+  .ah-scan-line {
+    display: none;
   }
 }
 
@@ -564,4 +591,30 @@
 :is(.ah-card-group > *:last-child > *, .ah-card-stack > *:last-child) {
   border-bottom-left-radius: var(--radius-group);
   border-bottom-right-radius: var(--radius-group);
+}
+
+/* A card whose agent is being re-inspected: an indeterminate band crosses its top edge. The
+   band is per card on purpose — the backend reports each agent as it finishes, so the cards
+   settle one by one instead of all at once.
+   These use the `--ah-*` tokens directly: the `--color-*` aliases are declared on `:root`,
+   so their `var()` is substituted once there and would freeze a subtree to one theme. */
+.ah-scan-line {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ah-accent), transparent);
+  animation: ah-scan-sweep 1.2s var(--ease-warm) infinite;
+}
+
+/* A card whose fresh data just arrived: one soft accent wash that fades away, so the update
+   registers without the card moving. */
+.ah-scan-landed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--ah-accent-soft);
+  animation: ah-scan-land 1100ms var(--ease-warm) both;
 }

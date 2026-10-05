@@ -6,6 +6,7 @@ import {
   FileText,
   Server,
   Sparkles,
+  Star,
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
@@ -13,6 +14,7 @@ import { Link } from 'react-router-dom'
 
 import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
+import { cn } from '@/shared/lib/cn'
 import { shortenPath } from '@/shared/lib/format'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
@@ -35,18 +37,42 @@ export function AgentCard({
   agent,
   onInstall,
   onRemove,
+  favorite = false,
+  onToggleFavorite,
+  refreshing = false,
+  landed = false,
 }: {
   agent: Agent
   onInstall: (agent: Agent, action: 'install' | 'update') => void
   /** When given, the card offers to remove the agent from Ahabby. */
   onRemove?: (agent: Agent) => void
+  /** Whether the agent is pinned to the top of the list and into the sidebar. */
+  favorite?: boolean
+  /** When given, the card offers a star toggle that pins the agent. */
+  onToggleFavorite?: (agent: Agent) => void
+  /** This agent is being re-inspected right now (the scan sweep). */
+  refreshing?: boolean
+  /** Fresh data just arrived for this agent (the landing highlight). */
+  landed?: boolean
 }) {
   const { t } = useTranslation()
   const installed = agent.status === 'installed'
 
   return (
-    <AgentContextMenu agent={agent} onInstall={onInstall} onRemove={onRemove}>
-      <Card className="group ease-warm hover:border-border-strong relative transition-[border-color,translate] duration-150 hover:-translate-y-px">
+    <AgentContextMenu
+      agent={agent}
+      onInstall={onInstall}
+      onRemove={onRemove}
+      favorite={favorite}
+      onToggleFavorite={onToggleFavorite}
+    >
+      <Card
+        className={cn(
+          'group ease-warm hover:border-border-strong relative overflow-hidden transition-[border-color,translate] duration-150 hover:-translate-y-px',
+          landed && 'ah-scan-landed',
+        )}
+      >
+        {refreshing ? <span aria-hidden className="ah-scan-line" /> : null}
         <div className="flex items-start gap-4 p-4">
           <Link
             to={`/agents/${agent.id}`}
@@ -128,6 +154,21 @@ export function AgentCard({
           </Link>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            {onToggleFavorite ? (
+              <Tooltip content={favorite ? t('agents.unfavorite') : t('agents.favorite')}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={favorite ? t('agents.unfavorite') : t('agents.favorite')}
+                  onClick={() => onToggleFavorite(agent)}
+                >
+                  <Star
+                    className={cn('size-3.5', favorite && 'text-accent-strong fill-current')}
+                    aria-hidden
+                  />
+                </Button>
+              </Tooltip>
+            ) : null}
             {agent.website ? (
               <Tooltip content={t('agents.website')}>
                 <Button

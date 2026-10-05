@@ -18,8 +18,8 @@ use crate::domain::{
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
 use crate::services::{
-    self, JobOutcome, JobOutputEvent, JobRunner, JobSink, ScanReport, Scanner, Settings,
-    SettingsService, VersionChecker,
+    self, JobOutcome, JobOutputEvent, JobRunner, JobSink, ScanCache, ScanReport, ScanSink, Scanner,
+    Settings, SettingsService, VersionChecker,
 };
 
 /// Event names the frontend listens to. Kept in one place so both sides cannot drift.
@@ -28,6 +28,12 @@ pub mod events {
     pub const JOB_OUTPUT: &str = "job://output";
     /// Job finished (success, failure or cancellation).
     pub const JOB_DONE: &str = "job://done";
+    /// A scan started; the UI marks every agent it knows about as refreshing.
+    pub const SCAN_START: &str = "scan://start";
+    /// One agent finished scanning and carries its final data.
+    pub const SCAN_AGENT: &str = "scan://agent";
+    /// The whole report is ready.
+    pub const SCAN_DONE: &str = "scan://done";
 }
 
 /// Emits job progress to the webview.
@@ -42,6 +48,28 @@ impl JobSink for TauriJobSink {
 
     fn finished(&self, outcome: JobOutcome) {
         let _ = self.app.emit(events::JOB_DONE, outcome);
+    }
+}
+
+/// Streams scan progress to the webview.
+///
+/// This is what turns a rescan into per-agent feedback: each agent paints the moment its own
+/// version check and config reads are done, instead of the whole list flipping at the end.
+pub struct TauriScanSink {
+    app: AppHandle,
+}
+
+impl ScanSink for TauriScanSink {
+    fn started(&self) {
+        let _ = self.app.emit(events::SCAN_START, ());
+    }
+
+    fn agent_scanned(&self, agent: &Agent) {
+        let _ = self.app.emit(events::SCAN_AGENT, agent);
+    }
+
+    fn finished(&self, report: &ScanReport) {
+        let _ = self.app.emit(events::SCAN_DONE, report);
     }
 }
 
@@ -118,6 +146,8 @@ pub struct AppState {
     app_config: PathBuf,
     settings: SettingsService,
     scanner: Scanner,
+    scan_cache: ScanCache,
+    scan_sink: Arc<dyn ScanSink>,
     jobs: Arc<JobRunner>,
     versions: RwLock<Arc<VersionChecker>>,
 }
@@ -138,6 +168,16 @@ impl AppState {
         let proxy = proxy_or_default(&current);
         let catalog = Self::load_catalog(&app_config);
 
+        // A restart must not show skeletons again: seed the scanner with the previous run's
+        // report from disk (if any) so the first read answers instantly, then let the normal
+        // background scan replace it. The cache is not authoritative — `resolve_document`
+        // still only allows paths of the agents the *current* report describes.
+        let scanner = Scanner::new(&catalog);
+        let scan_cache = ScanCache::new(&app_data);
+        if let Some(previous) = scan_cache.load() {
+            scanner.restore(previous);
+        }
+
         Ok(Self {
             jobs: JobRunner::new(Arc::new(TauriJobSink { app: app.clone() })),
             versions: RwLock::new(Arc::new(VersionChecker::new(
@@ -145,7 +185,9 @@ impl AppState {
                 current.version_cache_minutes,
                 &proxy,
             ))),
-            scanner: Scanner::new(&catalog),
+            scan_sink: Arc::new(TauriScanSink { app: app.clone() }),
+            scanner,
+            scan_cache,
             settings,
             app_data,
             app_config,
@@ -179,6 +221,13 @@ impl AppState {
         Ok(saved)
     }
 
+    /// Pin or unpin an agent. The id must belong to the current report, so a forged id can
+    /// never end up in settings.
+    pub fn set_agent_favorite(&self, id: &str, favorite: bool) -> Result<Settings> {
+        self.agent(id)?;
+        self.settings.set_favorite(id, favorite)
+    }
+
     /// The proxy every version check and install job uses.
     pub fn proxy(&self) -> Proxy {
         proxy_or_default(&self.settings())
@@ -210,9 +259,21 @@ impl AppState {
         let catalog = Self::load_catalog(&self.app_config);
         self.scanner.reload(&catalog);
         let context = self.platform_context();
-        self.scanner
-            .scan(&context, self.version_checker(), &self.hidden_agent_ids())
-            .await
+        let report = self
+            .scanner
+            .scan(
+                &context,
+                self.version_checker(),
+                &self.hidden_agent_ids(),
+                Some(Arc::clone(&self.scan_sink)),
+            )
+            .await;
+        // Best effort: a cache that cannot be written only costs one skeleton on the next
+        // start, so it must never turn a successful scan into a failed command.
+        if let Err(error) = self.scan_cache.save(&report) {
+            warn!("could not persist the scan cache: {error}");
+        }
+        report
     }
 
     /// Ids of the agents the user removed (and that are therefore hidden from the scan).
@@ -428,6 +489,9 @@ mod tests {
         // The frontend listens on these exact strings (src/shared/api/events.ts).
         assert_eq!(events::JOB_OUTPUT, "job://output");
         assert_eq!(events::JOB_DONE, "job://done");
+        assert_eq!(events::SCAN_START, "scan://start");
+        assert_eq!(events::SCAN_AGENT, "scan://agent");
+        assert_eq!(events::SCAN_DONE, "scan://done");
     }
 
     fn manifest(id: &str, source: ManifestSource) -> AgentManifest {

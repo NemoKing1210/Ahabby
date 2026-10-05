@@ -1,17 +1,27 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
+import type { Settings } from '@/shared/bindings/Settings'
 import { renderWithProviders } from '@/test/render'
 
 import { AgentsPage } from './AgentsPage'
+import { ScanRefreshProvider } from '../api/scan'
 
 vi.mock('@/shared/api/ipc', () => ({
-  ipc: { listAgents: vi.fn(), rescan: vi.fn(), openUrl: vi.fn() },
+  ipc: {
+    listAgents: vi.fn(),
+    cachedAgents: vi.fn(),
+    rescan: vi.fn(),
+    openUrl: vi.fn(),
+    getSettings: vi.fn(),
+    setAgentFavorite: vi.fn(),
+    removeAgent: vi.fn(),
+  },
 }))
 
 function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): Agent {
@@ -72,11 +82,32 @@ const REPORT: ScanReport = {
   os: 'windows',
 }
 
+const SETTINGS: Settings = {
+  language: 'en',
+  theme: 'system',
+  accent: 'clay',
+  accentCustom: null,
+  interfaceScale: 100,
+  textScale: 100,
+  fontFamily: 'inter',
+  monoFont: 'jetbrains',
+  extraScanPaths: [],
+  networkVersionChecks: true,
+  backupDir: null,
+  versionCacheMinutes: 60,
+  proxyMode: 'none',
+  proxyUrl: null,
+  hiddenAgents: [],
+  favoriteAgents: [],
+}
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return renderWithProviders(
     <QueryClientProvider client={client}>
-      <AgentsPage />
+      <ScanRefreshProvider>
+        <AgentsPage />
+      </ScanRefreshProvider>
     </QueryClientProvider>,
   )
 }
@@ -84,6 +115,9 @@ function renderPage() {
 describe('AgentsPage filters', () => {
   beforeEach(() => {
     vi.mocked(ipc.listAgents).mockResolvedValue(REPORT)
+    // Nothing persisted yet, so the page falls back to a scan — as on a first launch.
+    vi.mocked(ipc.cachedAgents).mockResolvedValue(null)
+    vi.mocked(ipc.getSettings).mockResolvedValue(SETTINGS)
   })
 
   it('scopes the list to one install state and drops the other section', async () => {
@@ -156,5 +190,37 @@ describe('AgentsPage filters', () => {
     expect(
       await screen.findByRole('heading', { name: 'Remove Claude Code from Ahabby?' }),
     ).toBeInTheDocument()
+  })
+
+  it('pins a favourited agent to the top of its section', async () => {
+    vi.mocked(ipc.getSettings).mockResolvedValue({ ...SETTINGS, favoriteAgents: ['warp'] })
+    const { container } = renderPage()
+    await within(container).findByText('Claude Code')
+
+    const available = within(container)
+      .getByRole('heading', { name: /^Available/ })
+      .closest('section')
+    expect(available).not.toBeNull()
+    const names = within(available as HTMLElement)
+      .getAllByText(/^(Aider|Warp)$/)
+      .map((node) => node.textContent)
+    expect(names).toEqual(['Warp', 'Aider'])
+  })
+
+  it('pins an agent from the card star', async () => {
+    vi.mocked(ipc.setAgentFavorite).mockResolvedValue({
+      ...SETTINGS,
+      favoriteAgents: ['claude-code'],
+    })
+    const { container } = renderPage()
+    await within(container).findByText('Claude Code')
+
+    // `fireEvent`: the list animates its cards in, so the button is briefly pointer-events:none.
+    const star = within(container).getAllByRole('button', { name: 'Add to favorites' })[0]
+    expect(star).toBeDefined()
+    if (star) fireEvent.click(star)
+
+    // `mutate` runs the mutation function asynchronously.
+    await waitFor(() => expect(ipc.setAgentFavorite).toHaveBeenCalledWith('claude-code', true))
   })
 })

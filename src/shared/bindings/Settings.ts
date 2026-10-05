@@ -61,4 +61,9 @@ proxyUrl: string | null,
  * Agents the user removed from Ahabby that are still on disk. A shipped agent (or a
  * user manifest that overrides one) can only be hidden, never deleted.
  */
-hiddenAgents: Array<HiddenAgent>, };
+hiddenAgents: Array<HiddenAgent>, 
+/**
+ * Agent ids the user pinned as favourites, in the order they were added. The list is
+ * what puts them first in the agents list and in the sidebar.
+ */
+favoriteAgents: Array<string>, };

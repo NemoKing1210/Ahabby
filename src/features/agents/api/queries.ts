@@ -10,8 +10,11 @@ import { queryKeys } from '@/shared/api/keys'
 export function useAgents() {
   return useQuery({
     queryKey: queryKeys.agents(),
-    queryFn: () => ipc.listAgents(false),
-    staleTime: 15_000,
+    // A restart paints the previous run's report instantly; only a machine that has never
+    // scanned falls back to a blocking scan. `ScanRefreshProvider` owns every update after
+    // that (per-agent patches, the final report), so this query never re-reads the backend.
+    queryFn: async () => (await ipc.cachedAgents()) ?? ipc.listAgents(false),
+    staleTime: Infinity,
   })
 }
 
@@ -27,17 +30,6 @@ export function useAgent(agentId: string | undefined) {
     isMissing: !query.isLoading && agentId !== undefined && agent === undefined,
     refetch: query.refetch,
   }
-}
-
-export function useRescan() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => ipc.rescan(),
-    onSuccess: (report) => {
-      queryClient.setQueryData(queryKeys.agents(), report)
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
-    },
-  })
 }
 
 /**
@@ -76,4 +68,31 @@ export function useRevealPath() {
 
 export function useOpenUrl() {
   return useMutation({ mutationFn: (url: string) => ipc.openUrl(url) })
+}
+
+/**
+ * Ids the user pinned as favourites, in the order they were added. Favourites live in
+ * settings, so the sidebar, the agents list and the Settings page share one cache entry.
+ *
+ * Falls back to a module-level empty array so the reference stays stable for `useMemo`.
+ */
+const NO_FAVORITES: string[] = []
+
+export function useFavoriteAgents(): string[] {
+  const query = useQuery({
+    queryKey: queryKeys.settings(),
+    queryFn: ipc.getSettings,
+    staleTime: Infinity,
+  })
+  return query.data?.favoriteAgents ?? NO_FAVORITES
+}
+
+/** Pins or unpins one agent; the backend answers with the whole settings document. */
+export function useToggleFavoriteAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ agentId, favorite }: { agentId: string; favorite: boolean }) =>
+      ipc.setAgentFavorite(agentId, favorite),
+    onSuccess: (settings) => queryClient.setQueryData(queryKeys.settings(), settings),
+  })
 }

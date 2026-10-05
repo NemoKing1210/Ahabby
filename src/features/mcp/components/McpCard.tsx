@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, FileCode2, Trash2 } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
+import { AgentTag } from '@/shared/ui/AgentTag'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
@@ -46,13 +47,18 @@ export function McpCard({
   const [showRaw, setShowRaw] = useState(false)
   const agentId = server.agent.id
   const owners = agents ?? [server.agent]
+  // On the agent's own page the owner is implicit; the library passes `agents` explicitly so
+  // every card names the file's agent, even when only one declares it.
+  const showOwners = agents !== undefined || owners.length > 1
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
+    <Card className="group ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color,translate] duration-150 hover:-translate-y-px">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-foreground text-sm">{server.name}</span>
+            <span className="text-foreground group-hover:text-accent-strong font-serif text-[0.9375rem]">
+              {server.name}
+            </span>
             <TransportBadge server={server} />
             {server.hasSecrets ? (
               <Badge tone="warning">
@@ -63,12 +69,10 @@ export function McpCard({
             ) : null}
             {server.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
           </div>
-          {owners.length > 1 ? (
+          {showOwners ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {owners.map((agent) => (
-                <Badge key={agent.id} tone="outline">
-                  {agent.name}
-                </Badge>
+                <AgentTag key={agent.id} agent={agent} />
               ))}
             </div>
           ) : null}

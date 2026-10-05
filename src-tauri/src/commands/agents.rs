@@ -32,6 +32,15 @@ pub async fn list_agents(state: State<'_, AppState>, force: bool) -> Result<Scan
     Ok(state.scan().await)
 }
 
+/// The last scan, without starting a new one — `null` when this machine has never scanned.
+///
+/// The frontend asks for this first: after a restart it is what paints the previous result
+/// immediately, before the background refresh replaces it.
+#[tauri::command]
+pub async fn cached_agents(state: State<'_, AppState>) -> Result<Option<ScanReport>> {
+    Ok(state.report().ok())
+}
+
 /// Rescan everything, ignoring the cache.
 #[tauri::command]
 pub async fn rescan(state: State<'_, AppState>) -> Result<ScanReport> {

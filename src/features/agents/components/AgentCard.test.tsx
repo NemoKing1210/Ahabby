@@ -166,6 +166,32 @@ describe('AgentCard', () => {
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
   })
 
+  it('offers a favourite star only when the page wires a handler', async () => {
+    const onToggleFavorite = vi.fn()
+    const pinned = renderWithProviders(
+      <AgentCard
+        agent={agent()}
+        onInstall={() => undefined}
+        favorite
+        onToggleFavorite={onToggleFavorite}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove from favorites' }))
+    expect(onToggleFavorite).toHaveBeenCalledWith(expect.objectContaining({ id: 'claude-code' }))
+    pinned.unmount()
+
+    const unpinned = renderWithProviders(
+      <AgentCard agent={agent()} onInstall={() => undefined} onToggleFavorite={onToggleFavorite} />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Add to favorites' }))
+    expect(onToggleFavorite).toHaveBeenCalledTimes(2)
+    unpinned.unmount()
+
+    renderWithProviders(<AgentCard agent={agent()} onInstall={() => undefined} />)
+    expect(screen.queryByRole('button', { name: 'Add to favorites' })).not.toBeInTheDocument()
+  })
+
   it('opens the agent page when the info area is clicked', async () => {
     const { container } = renderWithProviders(
       <Routes>

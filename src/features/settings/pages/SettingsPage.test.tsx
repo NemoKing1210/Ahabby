@@ -38,6 +38,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     proxyMode: 'none',
     proxyUrl: null,
     hiddenAgents: [],
+    favoriteAgents: [],
     ...overrides,
   }
 }

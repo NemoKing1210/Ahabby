@@ -5,7 +5,8 @@
     "settings": "Настройки",
     "sections": "Навигация",
     "collapse": "Свернуть меню",
-    "expand": "Развернуть меню"
+    "expand": "Развернуть меню",
+    "favorites": "Избранное"
   },
   "common": {
     "cancel": "Отмена",
@@ -52,6 +53,8 @@
     "rescanning": "Сканирование…",
     "lastScan": "Сканирование {{when}} · {{duration}}",
     "neverScanned": "Ещё не сканировалось",
+    "refreshing": "Обновление…",
+    "refreshingProgress": "Обновление · {{done}}/{{total}}",
     "version": "Версия",
     "noVersion": "версия не сообщается",
     "updateAvailable": "Есть обновление",
@@ -101,6 +104,8 @@
     "removeDelete": "Удалить манифест",
     "removedHidden": "{{name}} удалён из Ahabby",
     "removedDeleted": "{{name}} удалён, а его манифест перемещён в корзину",
+    "favorite": "Добавить в избранное",
+    "unfavorite": "Убрать из избранного",
     "menu": {
       "open": "Открыть подробности"
     }
@@ -265,6 +270,11 @@
     "empty": "Здесь пока пусто",
     "emptyHint": "Установите агента или укажите каталог скиллов в настройках.",
     "noResults": "Ничего не найдено по «{{query}}»",
+    "filteredEmpty": "Ничего не подходит под фильтры",
+    "clearFilters": "Сбросить фильтры",
+    "rescan": "Пересканировать",
+    "rescanning": "Сканирование…",
+    "lastScan": "сканирование {{when}}",
     "agents_one": "{{count}} агент",
     "agents_other": "{{count}} агентов",
     "kind": {

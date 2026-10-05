@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, TriangleAlert } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 
 import type { Agent } from '@/shared/bindings/Agent'
-import type { CatalogProblem } from '@/shared/bindings/CatalogProblem'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/Card'
+import { CatalogProblems } from '@/shared/ui/CatalogProblems'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { SkeletonList } from '@/shared/ui/Primitives'
@@ -16,7 +15,8 @@ import { toastAppError } from '@/shared/ui/Toast'
 
 import { InstallDialog } from '@/features/install/components/InstallDialog'
 
-import { useAgents, useRescan } from '../api/queries'
+import { useAgents, useFavoriteAgents, useToggleFavoriteAgent } from '../api/queries'
+import { useScanRefresh } from '../api/scan'
 import { AgentCard } from '../components/AgentCard'
 import { RemoveAgentDialog } from '../components/RemoveAgentDialog'
 import {
@@ -30,41 +30,14 @@ import {
   type AgentScope,
 } from '../components/AgentFilters'
 
-/** Manifests that failed to load — shown instead of silently hiding an agent. */
-function CatalogProblems({ problems }: { problems: CatalogProblem[] }) {
-  const { t } = useTranslation()
-  const failures = problems.filter((problem) => problem.severity === 'error')
-  if (failures.length === 0) return null
-
-  return (
-    <Card className="border-warning/40">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-[0.9375rem]">
-          <TriangleAlert className="text-warning-fg size-4" aria-hidden />
-          {t('agents.problems')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <p className="text-muted text-[0.8125rem]">{t('agents.problemsHint')}</p>
-        <ul className="text-muted flex flex-col gap-1 font-mono text-[0.75rem]">
-          {failures.map((problem, index) => (
-            <li key={`${problem.source}-${index}`} className="break-all">
-              {problem.manifestId ? `${problem.manifestId}: ` : ''}
-              {problem.message}
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  )
-}
-
 const EMPTY_FILTER: AgentFilterState = { query: '', scope: 'all', facets: new Set() }
 
 export function AgentsPage() {
   const { t } = useTranslation()
   const { data, isLoading, error, refetch } = useAgents()
-  const rescan = useRescan()
+  const { rescan, isScanning, scanning, landed } = useScanRefresh()
+  const favoriteIds = useFavoriteAgents()
+  const toggleFavorite = useToggleFavoriteAgent()
   const [filters, setFilters] = useState<AgentFilterState>(EMPTY_FILTER)
   const [installTarget, setInstallTarget] = useState<{
     agent: Agent
@@ -100,13 +73,28 @@ export function AgentsPage() {
     [searched, filters.facets],
   )
 
+  // Favourites come first in each section, in the order the user pinned them; the rest keep
+  // the scan order.
+  const favoriteIndex = useMemo(
+    () => new Map(favoriteIds.map((id, index) => [id, index])),
+    [favoriteIds],
+  )
+
   const { installed, available } = useMemo(() => {
     const matching = searched.filter((agent) => agentMatchesFacets(agent, filters.facets))
+    const pinnedFirst = (agents: Agent[]) =>
+      [...agents].sort((left, right) => {
+        const leftIndex = favoriteIndex.get(left.id)
+        const rightIndex = favoriteIndex.get(right.id)
+        if (leftIndex === undefined) return rightIndex === undefined ? 0 : 1
+        if (rightIndex === undefined) return -1
+        return leftIndex - rightIndex
+      })
     return {
-      installed: matching.filter((agent) => agent.status === 'installed'),
-      available: matching.filter((agent) => agent.status !== 'installed'),
+      installed: pinnedFirst(matching.filter((agent) => agent.status === 'installed')),
+      available: pinnedFirst(matching.filter((agent) => agent.status !== 'installed')),
     }
-  }, [searched, filters.facets])
+  }, [searched, filters.facets, favoriteIndex])
 
   const query = filters.query.trim()
   const dirty = query.length > 0 || filters.scope !== 'all' || filters.facets.size > 0
@@ -169,16 +157,9 @@ export function AgentsPage() {
             {t('agents.availableCount', { count: data?.availableToInstall ?? 0 })}
           </p>
         </div>
-        <Button
-          variant="secondary"
-          disabled={rescan.isPending}
-          onClick={() => rescan.mutate(undefined, { onError: (error) => toastAppError(error) })}
-        >
-          <RefreshCw
-            className={rescan.isPending ? 'size-3.5 animate-spin' : 'size-3.5'}
-            aria-hidden
-          />
-          {rescan.isPending ? t('agents.rescanning') : t('agents.rescan')}
+        <Button variant="secondary" disabled={isScanning} onClick={rescan}>
+          <RefreshCw className={isScanning ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden />
+          {isScanning ? t('agents.rescanning') : t('agents.rescan')}
         </Button>
       </PageHeader>
 
@@ -214,6 +195,15 @@ export function AgentsPage() {
                   <AgentCard
                     key={agent.id}
                     agent={agent}
+                    refreshing={scanning.has(agent.id)}
+                    landed={landed.has(agent.id)}
+                    favorite={favoriteIndex.has(agent.id)}
+                    onToggleFavorite={(target) =>
+                      toggleFavorite.mutate(
+                        { agentId: target.id, favorite: !favoriteIndex.has(target.id) },
+                        { onError: (mutationError) => toastAppError(mutationError) },
+                      )
+                    }
                     onInstall={(target, action) => setInstallTarget({ agent: target, action })}
                     onRemove={setRemoveTarget}
                   />

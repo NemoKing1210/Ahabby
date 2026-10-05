@@ -3,6 +3,7 @@
 //! Stored as JSON inside the app config directory. Every field has a safe default, so a
 //! missing or corrupted file never prevents the app from starting.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
@@ -111,6 +112,9 @@ pub struct Settings {
     /// Agents the user removed from Ahabby that are still on disk. A shipped agent (or a
     /// user manifest that overrides one) can only be hidden, never deleted.
     pub hidden_agents: Vec<HiddenAgent>,
+    /// Agent ids the user pinned as favourites, in the order they were added. The list is
+    /// what puts them first in the agents list and in the sidebar.
+    pub favorite_agents: Vec<String>,
 }
 
 fn is_hex_color(value: &str) -> bool {
@@ -145,6 +149,7 @@ impl Default for Settings {
             proxy_mode: ProxyMode::None,
             proxy_url: None,
             hidden_agents: Vec::new(),
+            favorite_agents: Vec::new(),
         }
     }
 }
@@ -162,6 +167,13 @@ impl Settings {
         if self.accent == AccentColor::Custom && self.accent_custom.is_none() {
             self.accent = AccentColor::Clay;
         }
+        // A hand-edited favourites list keeps its order but never repeats an id or a blank.
+        let mut seen = HashSet::new();
+        self.favorite_agents = std::mem::take(&mut self.favorite_agents)
+            .into_iter()
+            .map(|id| id.trim().to_string())
+            .filter(|id| !id.is_empty() && seen.insert(id.clone()))
+            .collect();
         self
     }
 
@@ -245,6 +257,29 @@ impl SettingsService {
         }
         Ok(settings)
     }
+
+    /// Pin or unpin an agent. Favourites are ordered, so the list keeps the order the user
+    /// added them in and the agents list puts them first in that same order.
+    pub fn set_favorite(&self, agent_id: &str, favorite: bool) -> Result<Settings> {
+        let id = agent_id.trim();
+        if id.is_empty() {
+            return Err(AppError::InvalidInput("agent id is empty".to_string()));
+        }
+        let mut settings = self.get();
+        if favorite {
+            // Already pinned: keep its place instead of moving it to the end.
+            if !settings
+                .favorite_agents
+                .iter()
+                .any(|existing| existing == id)
+            {
+                settings.favorite_agents.push(id.to_string());
+            }
+        } else {
+            settings.favorite_agents.retain(|existing| existing != id);
+        }
+        self.save(settings)
+    }
 }
 
 #[cfg(test)]
@@ -266,6 +301,7 @@ mod tests {
         assert_eq!(settings.text_scale, DEFAULT_SCALE);
         assert_eq!(settings.font_family, FontFamily::Inter);
         assert_eq!(settings.mono_font, MonoFont::Jetbrains);
+        assert!(settings.favorite_agents.is_empty());
     }
 
     #[test]
@@ -403,5 +439,42 @@ mod tests {
 
         let context = settings.platform_context(Path::new("/data"), Path::new("/cfg"));
         assert_eq!(context.backup_root, PathBuf::from("/custom"));
+    }
+
+    #[test]
+    fn favorites_keep_their_order_and_never_repeat_an_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+
+        service.set_favorite("codex", true).unwrap();
+        let saved = service.set_favorite("claude-code", true).unwrap();
+        assert_eq!(saved.favorite_agents, vec!["codex", "claude-code"]);
+
+        // Pinning twice keeps a single entry instead of moving it to the end.
+        service.set_favorite("codex", true).unwrap();
+        assert_eq!(service.get().favorite_agents, vec!["codex", "claude-code"]);
+
+        // Unpinning removes only that id.
+        let unpinned = service.set_favorite("codex", false).unwrap();
+        assert_eq!(unpinned.favorite_agents, vec!["claude-code"]);
+        assert_eq!(SettingsService::load(dir.path()).get(), unpinned);
+    }
+
+    #[test]
+    fn favorites_reject_blank_ids_and_are_cleaned_up_when_hand_edited() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        assert_eq!(
+            service.set_favorite("   ", true).unwrap_err().code(),
+            "invalid_input"
+        );
+
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"favoriteAgents":["codex"," ","codex","  claude-code  "],"language":"ru"}"#,
+        )
+        .unwrap();
+        let settings = SettingsService::load(dir.path()).get();
+        assert_eq!(settings.favorite_agents, vec!["codex", "claude-code"]);
     }
 }

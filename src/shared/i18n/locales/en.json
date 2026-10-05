@@ -5,7 +5,8 @@
     "settings": "Settings",
     "sections": "Navigation",
     "collapse": "Collapse sidebar",
-    "expand": "Expand sidebar"
+    "expand": "Expand sidebar",
+    "favorites": "Favorites"
   },
   "common": {
     "cancel": "Cancel",
@@ -52,6 +53,8 @@
     "rescanning": "Scanning…",
     "lastScan": "Scanned {{when}} · {{duration}}",
     "neverScanned": "Not scanned yet",
+    "refreshing": "Refreshing…",
+    "refreshingProgress": "Refreshing · {{done}}/{{total}}",
     "version": "Version",
     "noVersion": "no version reported",
     "updateAvailable": "Update available",
@@ -101,6 +104,8 @@
     "removeDelete": "Delete manifest",
     "removedHidden": "{{name}} was removed from Ahabby",
     "removedDeleted": "{{name}} was removed and its manifest was moved to the trash",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove from favorites",
     "menu": {
       "open": "Open details"
     }
@@ -265,6 +270,11 @@
     "empty": "Nothing here yet",
     "emptyHint": "Install an agent, or point Ahabby at your skills directory in Settings.",
     "noResults": "No results for “{{query}}”",
+    "filteredEmpty": "Nothing matches the current filters",
+    "clearFilters": "Clear filters",
+    "rescan": "Rescan",
+    "rescanning": "Scanning…",
+    "lastScan": "last scan {{when}}",
     "agents_one": "{{count}} agent",
     "agents_other": "{{count}} agents",
     "kind": {

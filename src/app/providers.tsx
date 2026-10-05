@@ -8,6 +8,7 @@ import { queryKeys } from '@/shared/api/keys'
 import { Toaster } from '@/shared/ui/Toast'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
+import { ScanRefreshProvider } from '@/features/agents/api/scan'
 import { useJobStore } from '@/features/install/store'
 
 function createQueryClient() {
@@ -72,7 +73,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <MotionConfig reducedMotion="user">
         <TooltipProvider delayDuration={250}>
           <JobEventBridge />
-          {children}
+          <ScanRefreshProvider>{children}</ScanRefreshProvider>
         </TooltipProvider>
         <Toaster />
       </MotionConfig>

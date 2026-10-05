@@ -58,6 +58,22 @@ impl ScanReport {
     }
 }
 
+/// Progress of a running scan.
+///
+/// The scanner knows nothing about Tauri, so the emitter lives in `state::TauriScanSink`
+/// and is injected through this trait. It is what lets the UI paint each agent the moment
+/// its own subprocess and config reads are done instead of waiting for the whole scan.
+pub trait ScanSink: Send + Sync {
+    /// A scan just started; nothing has been inspected yet.
+    fn started(&self) {}
+
+    /// One agent is done — its entry is final for this scan.
+    fn agent_scanned(&self, agent: &Agent);
+
+    /// The whole report is ready and cached.
+    fn finished(&self, _report: &ScanReport) {}
+}
+
 pub struct Scanner {
     registry: RwLock<AdapterRegistry>,
     problems: RwLock<Vec<CatalogProblem>>,
@@ -88,6 +104,14 @@ impl Scanner {
         self.cache.read().ok().and_then(|cache| cache.clone())
     }
 
+    /// Seed the cache with a report read back from disk, so the first `list_agents` after a
+    /// restart answers before a scan has run. The next scan replaces it entirely.
+    pub fn restore(&self, report: ScanReport) {
+        if let Ok(mut cache) = self.cache.write() {
+            *cache = Some(report);
+        }
+    }
+
     pub fn registry(&self) -> AdapterRegistry {
         self.registry
             .read()
@@ -98,13 +122,18 @@ impl Scanner {
     /// Scan everything. `versions` is optional: when `None` (or when the user disabled
     /// network checks) only locally available information is used. `hidden` lists the ids of
     /// agents the user removed from Ahabby; they are left out of the report and its counts.
+    /// `sink` receives progress while the scan runs.
     pub async fn scan(
         &self,
         ctx: &PlatformContext,
         versions: Option<Arc<VersionChecker>>,
         hidden: &[String],
+        sink: Option<Arc<dyn ScanSink>>,
     ) -> ScanReport {
         let started = Instant::now();
+        if let Some(sink) = &sink {
+            sink.started();
+        }
         let registry = self.registry();
         // Owned `Arc`s and `FuturesUnordered` instead of `StreamExt::map`: a closure whose
         // argument is `&Arc<dyn Trait>` cannot satisfy the higher-ranked lifetime bounds
@@ -152,6 +181,9 @@ impl Scanner {
                 });
             }
             while let Some(agent) = pending.next().await {
+                if let Some(sink) = &sink {
+                    sink.agent_scanned(&agent);
+                }
                 agents.push(agent);
             }
         }
@@ -180,6 +212,9 @@ impl Scanner {
 
         if let Ok(mut cache) = self.cache.write() {
             *cache = Some(report.clone());
+        }
+        if let Some(sink) = &sink {
+            sink.finished(&report);
         }
         report
     }
@@ -433,7 +468,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let mut manifest = manifest();
         manifest.binaries.names = vec!["definitely-not-installed-unit-agent".to_string()];
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None, &[]).await;
+        let report = scanner.scan(&context(home.path()), None, &[], None).await;
 
         let agent = report.agent("unit-agent").unwrap();
         assert_eq!(agent.status, AgentStatus::NotInstalled);
@@ -489,7 +524,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         manifest.binaries.names = vec!["unit-agent".to_string()];
 
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None, &[]).await;
+        let report = scanner.scan(&context(home.path()), None, &[], None).await;
         let agent = report.agent("unit-agent").unwrap();
 
         assert_eq!(agent.status, AgentStatus::Installed);
@@ -536,7 +571,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         }];
 
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None, &[]).await;
+        let report = scanner.scan(&context(home.path()), None, &[], None).await;
         let agent = report.agent("unit-agent").unwrap();
 
         assert_eq!(agent.status, AgentStatus::Installed);
@@ -553,7 +588,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let home = tempfile::tempdir().unwrap();
         let scanner = Scanner::new(&catalog(manifest()));
         assert!(scanner.last_report().is_none());
-        let report = scanner.scan(&context(home.path()), None, &[]).await;
+        let report = scanner.scan(&context(home.path()), None, &[], None).await;
         let cached = scanner.last_report().expect("cached");
         assert_eq!(cached.scanned_at_ms, report.scanned_at_ms);
         assert_eq!(cached.agents.len(), 1);
@@ -564,14 +599,19 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let home = tempfile::tempdir().unwrap();
         let scanner = Scanner::new(&catalog(manifest()));
 
-        let visible = scanner.scan(&context(home.path()), None, &[]).await;
+        let visible = scanner.scan(&context(home.path()), None, &[], None).await;
         assert!(
             visible.available_to_install > 0,
             "the script method makes this agent installable"
         );
 
         let hidden = scanner
-            .scan(&context(home.path()), None, &["unit-agent".to_string()])
+            .scan(
+                &context(home.path()),
+                None,
+                &["unit-agent".to_string()],
+                None,
+            )
             .await;
         assert!(hidden.agent("unit-agent").is_none());
         assert!(hidden.agents.is_empty());
@@ -579,6 +619,56 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         assert_eq!(hidden.available_to_install, 0);
         // The cache is filtered too, so a later `report()` cannot leak the hidden agent.
         assert_eq!(scanner.last_report().unwrap().agents.len(), 0);
+    }
+
+    /// Records what the scanner reports while it runs.
+    #[derive(Default)]
+    struct RecordingSink {
+        events: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl RecordingSink {
+        fn record(&self, event: String) {
+            if let Ok(mut events) = self.events.lock() {
+                events.push(event);
+            }
+        }
+
+        fn taken(&self) -> Vec<String> {
+            self.events
+                .lock()
+                .map(|events| events.clone())
+                .unwrap_or_default()
+        }
+    }
+
+    impl ScanSink for RecordingSink {
+        fn started(&self) {
+            self.record("start".to_string());
+        }
+
+        fn agent_scanned(&self, agent: &Agent) {
+            self.record(format!("agent:{}", agent.id));
+        }
+
+        fn finished(&self, report: &ScanReport) {
+            self.record(format!("done:{}", report.agents.len()));
+        }
+    }
+
+    #[tokio::test]
+    async fn the_sink_gets_every_agent_between_start_and_finish() {
+        let home = tempfile::tempdir().unwrap();
+        let scanner = Scanner::new(&catalog(manifest()));
+        let sink = Arc::new(RecordingSink::default());
+
+        let report = scanner
+            .scan(&context(home.path()), None, &[], Some(sink.clone()))
+            .await;
+        assert_eq!(report.agents.len(), 1);
+
+        // The order is the contract the UI relies on: start → each agent → the full report.
+        assert_eq!(sink.taken(), vec!["start", "agent:unit-agent", "done:1"]);
     }
 
     /// Create a small executable that prints a version, for the current OS.

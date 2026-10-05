@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react'
+import { useRef, useState, useMemo, type RefObject } from 'react'
 
 import {
   Boxes,
@@ -15,13 +15,14 @@ import { NavLink, useLocation, useOutlet } from 'react-router-dom'
 import { formatDuration, formatRelative } from '@/shared/lib/format'
 import { glideTransition, softTransition, useSoftSlide } from '@/shared/lib/motion'
 import { cn } from '@/shared/lib/cn'
+import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Spinner } from '@/shared/ui/Primitives'
-import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
-import { useRescan, useAgents } from '@/features/agents/api/queries'
+import { useAgents, useFavoriteAgents } from '@/features/agents/api/queries'
+import { useScanRefresh } from '@/features/agents/api/scan'
 import { useLibrary } from '@/features/library/api/queries'
 
 const NAV_ITEMS = [
@@ -63,6 +64,7 @@ function PageTransition({ scrollRef }: { scrollRef: RefObject<HTMLElement | null
 function ScanSummary() {
   const { t, i18n } = useTranslation()
   const { data } = useAgents()
+  const { isScanning, progress } = useScanRefresh()
 
   if (!data) return null
   const when = formatRelative(data.scannedAtMs, i18n.language)
@@ -70,9 +72,18 @@ function ScanSummary() {
 
   return (
     <div className="text-faint flex flex-col gap-1 text-[0.6875rem] leading-relaxed">
-      <span>
-        {when && duration ? t('agents.lastScan', { when, duration }) : t('agents.neverScanned')}
-      </span>
+      {isScanning ? (
+        <span className="text-accent-strong inline-flex items-center gap-1.5">
+          <Spinner className="size-2.5" />
+          {progress.total > 0
+            ? t('agents.refreshingProgress', { done: progress.done, total: progress.total })
+            : t('agents.refreshing')}
+        </span>
+      ) : (
+        <span>
+          {when && duration ? t('agents.lastScan', { when, duration }) : t('agents.neverScanned')}
+        </span>
+      )}
       <span>
         {t('agents.installedCount', { count: data.installed })} ·{' '}
         {t('agents.availableCount', { count: data.availableToInstall })}
@@ -83,13 +94,23 @@ function ScanSummary() {
 
 export function AppShell() {
   const { t } = useTranslation()
-  const rescan = useRescan()
+  const { rescan, isScanning } = useScanRefresh()
   const scrollRef = useRef<HTMLElement>(null)
   const [collapsed, setCollapsed] = useState(false)
   const toggleLabel = collapsed ? t('nav.expand') : t('nav.collapse')
 
   const { data: report } = useAgents()
   const { data: library } = useLibrary()
+  const favoriteIds = useFavoriteAgents()
+  // Sidebar entries in the order the user pinned them; ids with no agent in the report
+  // (a hidden or removed agent) are dropped rather than rendered as a dead link.
+  const favoriteAgents = useMemo(() => {
+    const byId = new Map((report?.agents ?? []).map((agent) => [agent.id, agent]))
+    return favoriteIds.flatMap((id) => {
+      const agent = byId.get(id)
+      return agent ? [agent] : []
+    })
+  }, [report, favoriteIds])
   const navCounts: Record<string, number | undefined> = {
     '/': report?.installed,
     '/library': library
@@ -106,7 +127,7 @@ export function AppShell() {
             collapsed ? 'w-[4.75rem] px-2' : 'w-60 px-3',
           )}
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
             <div className={cn('flex', collapsed ? 'justify-center' : 'justify-end')}>
               <Tooltip content={toggleLabel} side="right">
                 <Button
@@ -172,6 +193,43 @@ export function AppShell() {
                 </Tooltip>
               ))}
             </nav>
+
+            {favoriteAgents.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                {collapsed ? (
+                  <span aria-hidden className="border-border mx-auto my-1 w-6 border-t" />
+                ) : (
+                  <h2 className="text-faint px-3 pt-1 pb-0.5 text-[0.6875rem] font-medium tracking-wide uppercase">
+                    {t('nav.favorites')}
+                  </h2>
+                )}
+                <nav aria-label={t('nav.favorites')} className="flex flex-col gap-1">
+                  {favoriteAgents.map((agent) => (
+                    <Tooltip key={agent.id} content={collapsed ? agent.name : null} side="right">
+                      <div className="flex">
+                        <NavLink
+                          to={`/agents/${agent.id}`}
+                          className={({ isActive }) =>
+                            cn(
+                              'ease-warm relative flex flex-1 items-center rounded-xl text-[13px] transition-colors duration-150',
+                              collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2',
+                              isActive
+                                ? 'bg-surface-3 text-foreground'
+                                : 'text-muted hover:bg-surface-3/50 hover:text-foreground',
+                            )
+                          }
+                        >
+                          <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
+                          {collapsed ? null : (
+                            <span className="relative min-w-0 flex-1 truncate">{agent.name}</span>
+                          )}
+                        </NavLink>
+                      </div>
+                    </Tooltip>
+                  ))}
+                </nav>
+              </div>
+            ) : null}
           </div>
 
           <div className={cn('flex flex-col gap-3', collapsed ? 'px-0' : 'px-1')}>
@@ -181,16 +239,12 @@ export function AppShell() {
                 variant="secondary"
                 size="sm"
                 className={cn('w-full', collapsed ? 'justify-center px-0' : 'justify-start')}
-                disabled={rescan.isPending}
-                onClick={() =>
-                  rescan.mutate(undefined, {
-                    onError: (error) => toastAppError(error),
-                  })
-                }
+                disabled={isScanning}
+                onClick={rescan}
               >
-                {rescan.isPending ? <Spinner /> : <RefreshCw className="size-3.5" aria-hidden />}
+                {isScanning ? <Spinner /> : <RefreshCw className="size-3.5" aria-hidden />}
                 {collapsed ? null : (
-                  <span>{rescan.isPending ? t('agents.rescanning') : t('agents.rescan')}</span>
+                  <span>{isScanning ? t('agents.rescanning') : t('agents.rescan')}</span>
                 )}
               </Button>
             </Tooltip>

@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Info,
   RefreshCw,
+  Star,
   Trash2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -37,11 +38,15 @@ export function AgentContextMenu({
   agent,
   onInstall,
   onRemove,
+  favorite = false,
+  onToggleFavorite,
   children,
 }: {
   agent: Agent
   onInstall: (agent: Agent, action: 'install' | 'update') => void
   onRemove?: (agent: Agent) => void
+  favorite?: boolean
+  onToggleFavorite?: (agent: Agent) => void
   children: ReactNode
 }) {
   const { t } = useTranslation()
@@ -81,6 +86,13 @@ export function AgentContextMenu({
           <Info aria-hidden />
           {t('agents.menu.open')}
         </ContextMenuItem>
+
+        {onToggleFavorite ? (
+          <ContextMenuItem onSelect={() => onToggleFavorite(agent)}>
+            <Star className={favorite ? 'fill-current' : undefined} aria-hidden />
+            {favorite ? t('agents.unfavorite') : t('agents.favorite')}
+          </ContextMenuItem>
+        ) : null}
 
         {agent.website ? (
           <ContextMenuItem

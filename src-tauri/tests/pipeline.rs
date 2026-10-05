@@ -197,7 +197,7 @@ async fn full_read_pipeline_from_a_user_manifest() {
     ));
 
     let scanner = Scanner::new(&catalog);
-    let report = scanner.scan(&fixture.context(), None, &[]).await;
+    let report = scanner.scan(&fixture.context(), None, &[], None).await;
 
     let agent = report.agent("pipeline-demo").expect("agent scanned");
     assert_eq!(agent.status, AgentStatus::Installed);
@@ -518,7 +518,7 @@ async fn only_scanned_documents_are_addressable() {
 
     let catalog = catalog_for(&fixture);
     let scanner = Scanner::new(&catalog);
-    let report = scanner.scan(&fixture.context(), None, &[]).await;
+    let report = scanner.scan(&fixture.context(), None, &[], None).await;
     let agent = report.agent("pipeline-demo").expect("agent scanned");
 
     // A declared config, with the format and writability the manifest gave it.

@@ -31,6 +31,8 @@ import type { Theme } from '@/shared/bindings/Theme'
 export const ipc = {
   // --- agents -------------------------------------------------------------------------
   listAgents: (force = false) => invoke<ScanReport>('list_agents', { force }),
+  /** The previous run's report, without scanning — `null` when nothing has been scanned yet. */
+  cachedAgents: () => invoke<ScanReport | null>('cached_agents'),
   rescan: () => invoke<ScanReport>('rescan'),
   getAgent: (agentId: string) => invoke<Agent>('get_agent', { agentId }),
   removeAgent: (agentId: string, confirm: boolean) =>
@@ -80,6 +82,8 @@ export const ipc = {
 
   // --- settings -----------------------------------------------------------------------
   getSettings: () => invoke<Settings>('get_settings'),
+  setAgentFavorite: (agentId: string, favorite: boolean) =>
+    invoke<Settings>('set_agent_favorite', { agentId, favorite }),
   saveSettings: (settings: Settings) => invoke<Settings>('save_settings', { settings }),
   setWindowTheme: (theme: Theme, dark: boolean, caption: string, text: string) =>
     invoke<void>('set_window_theme', { theme, dark, caption, text }),

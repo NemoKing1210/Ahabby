@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Play, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Play, RefreshCw, Star, Trash2 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import type { InstallAction } from '@/shared/bindings/InstallAction'
+import { cn } from '@/shared/lib/cn'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -11,13 +12,14 @@ import { ErrorState, EmptyState } from '@/shared/ui/EmptyState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { SkeletonList } from '@/shared/ui/Primitives'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
+import { toastAppError } from '@/shared/ui/Toast'
 
 import { InstallDialog } from '@/features/install/components/InstallDialog'
 import { ConfigsTab } from '@/features/configs/components/ConfigsTab'
 import { McpTab } from '@/features/mcp/components/McpTab'
 import { SkillsTab } from '@/features/skills/components/SkillsTab'
 
-import { useAgent } from '../api/queries'
+import { useAgent, useFavoriteAgents, useToggleFavoriteAgent } from '../api/queries'
 import { OtherTab } from '../components/OtherTab'
 import { OverviewTab } from '../components/OverviewTab'
 import { RemoveAgentDialog } from '../components/RemoveAgentDialog'
@@ -27,6 +29,8 @@ export function AgentPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { agent, isLoading, error, isMissing } = useAgent(agentId)
+  const favoriteIds = useFavoriteAgents()
+  const toggleFavorite = useToggleFavoriteAgent()
   const [installAction, setInstallAction] = useState<InstallAction | null>(null)
   const [removeOpen, setRemoveOpen] = useState(false)
 
@@ -54,6 +58,7 @@ export function AgentPage() {
   }
 
   const installed = agent.status === 'installed'
+  const favorite = favoriteIds.includes(agent.id)
 
   return (
     <div className="flex flex-col gap-6">
@@ -95,6 +100,22 @@ export function AgentPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            onClick={() =>
+              toggleFavorite.mutate(
+                { agentId: agent.id, favorite: !favorite },
+                { onError: (mutationError) => toastAppError(mutationError) },
+              )
+            }
+          >
+            <Star
+              className={cn('size-3.5', favorite && 'text-accent-strong fill-current')}
+              aria-hidden
+            />
+            {favorite ? t('agents.unfavorite') : t('agents.favorite')}
+          </Button>
+
           {installed ? (
             agent.canUpdate ? (
               <Button variant="secondary" onClick={() => setInstallAction('update')}>

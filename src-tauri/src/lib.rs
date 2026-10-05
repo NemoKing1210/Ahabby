@@ -34,6 +34,7 @@ macro_rules! handlers {
     () => {
         tauri::generate_handler![
             commands::agents::list_agents,
+            commands::agents::cached_agents,
             commands::agents::rescan,
             commands::agents::get_agent,
             commands::agents::remove_agent,
@@ -60,6 +61,7 @@ macro_rules! handlers {
             commands::install::running_jobs,
             commands::install::rescan_after_job,
             commands::settings::get_settings,
+            commands::settings::set_agent_favorite,
             commands::settings::save_settings,
             commands::settings::set_window_theme,
         ]
