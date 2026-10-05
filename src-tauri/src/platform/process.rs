@@ -7,7 +7,7 @@
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 
 use crate::domain::Os;
 use crate::error::{AppError, Result};
@@ -90,7 +90,29 @@ pub fn build_command(program: &str) -> Command {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
+    #[cfg(unix)]
+    {
+        // Put the child in its own process group so a cancelled script method can take its
+        // whole tree down with one signal (a login `sh` forks its command instead of exec'ing
+        // it, so killing only the shell would leave the real installer running).
+        command.process_group(0);
+    }
     command
+}
+
+/// Kill a running child and everything it spawned.
+///
+/// On Unix the child leads its own process group (`build_command`), so the negative pid signals
+/// the whole group; elsewhere only the child can be signalled.
+pub fn kill_tree(child: &mut Child) {
+    #[cfg(unix)]
+    if let Some(pid) = child.id() {
+        // SAFETY: `pid` was spawned into its own process group, so `-pid` addresses that group.
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+    }
+    let _ = child.start_kill();
 }
 
 pub async fn run_capture(

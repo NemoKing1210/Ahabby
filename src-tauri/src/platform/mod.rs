@@ -18,7 +18,8 @@ pub use file_io::{
 pub use packages::{detect_managers, PackageManager};
 pub use paths::{expand_template, PlatformContext};
 pub use process::{
-    build_command, run_binary, run_capture, run_shell_capture, shell_invocation, CommandOutput,
+    build_command, kill_tree, run_binary, run_capture, run_shell_capture, shell_invocation,
+    CommandOutput,
 };
 pub use which::{find_binary, find_binary_in_dirs, BinaryLookup};
 

@@ -201,12 +201,12 @@ async fn run_job(
                     Ok(()) if *cancel.borrow() => {
                         cancelled = true;
                         emit(StreamKind::System, "cancelling…".to_string());
-                        let _ = child.start_kill();
+                        platform::kill_tree(&mut child);
                     }
                     Ok(()) => {}
                     Err(_) => {
                         cancelled = true;
-                        let _ = child.start_kill();
+                        platform::kill_tree(&mut child);
                     }
                 }
             }
