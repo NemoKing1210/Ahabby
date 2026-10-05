@@ -51,7 +51,7 @@ export function Select({
                 key={option.value}
                 value={option.value}
                 className={cn(
-                  'text-foreground flex cursor-default items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-sm outline-none',
+                  'text-foreground flex cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-sm outline-none',
                   'data-[highlighted]:bg-surface-2 data-[state=checked]:text-accent-strong',
                 )}
               >

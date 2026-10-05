@@ -8,6 +8,8 @@ import { DEFAULT_LANGUAGE, initI18n, type Language } from '@/shared/i18n'
 
 import { AppProviders } from './app/providers'
 import { AppRouter } from './app/router'
+import { suppressNativeMenu } from './app/nativeMenu'
+import { dismissSplash } from './app/splash'
 import { themeApplier } from './app/theme'
 
 const rootElement = document.getElementById('root')
@@ -22,6 +24,9 @@ const container: HTMLElement = rootElement
  * flash. Any later change is applied by `useSaveSettings`.
  */
 async function boot() {
+  // Before anything renders: the WebView must never answer a right click with Back/Reload.
+  suppressNativeMenu()
+
   let language: Language = DEFAULT_LANGUAGE
   try {
     const settings = await ipc.getSettings()
@@ -42,4 +47,6 @@ async function boot() {
   )
 }
 
-void boot()
+// The splash goes away as soon as the app rendered — and also if boot failed, so a hang never
+// hides behind a spinner that is not actually loading anything.
+void boot().finally(dismissSplash)

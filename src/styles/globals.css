@@ -150,6 +150,45 @@
     height: 100%;
   }
 
+  /* Desktop feel: the chrome is not a document, so a drag across it must not leave a blue
+     smear, and dragging a card must not start a text selection. Text that is actually copied
+     opts back in — form fields, code, rendered markdown, the config editor — as does anything
+     that opts in with `select-text`. */
+  body {
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable],
+  .cm-editor,
+  code,
+  kbd,
+  pre,
+  samp,
+  .ah-prose,
+  .select-text {
+    user-select: text;
+  }
+
+  /* Tailwind v4 preflight leaves `<button>` with the browser's `default` cursor, and Radix
+     renders several controls as non-button elements, so every affordance opts into a pointer
+     here. Utilities still win (the layer order is base < utilities). */
+  button:not(:disabled),
+  [role='button']:not(:disabled):not([aria-disabled='true']),
+  [role='tab']:not(:disabled):not([aria-disabled='true']),
+  [role='option']:not(:disabled):not([aria-disabled='true']),
+  [role='menuitem']:not(:disabled):not([aria-disabled='true']),
+  [role='switch']:not(:disabled):not([aria-disabled='true']),
+  [role='checkbox']:not(:disabled):not([aria-disabled='true']),
+  [role='radio']:not(:disabled):not([aria-disabled='true']),
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
   h1,
   h2,
   h3,

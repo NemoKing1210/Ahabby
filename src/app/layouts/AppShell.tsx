@@ -92,7 +92,7 @@ export function AppShell() {
                     'ease-warm relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors duration-150',
                     isActive
                       ? 'text-foreground'
-                      : 'text-muted hover:bg-surface hover:text-foreground',
+                      : 'text-muted hover:bg-surface-3/50 hover:text-foreground',
                   )
                 }
               >
@@ -103,7 +103,7 @@ export function AppShell() {
                         aria-hidden
                         layoutId="nav-active-pill"
                         transition={glideTransition}
-                        className="bg-surface absolute inset-0 rounded-lg"
+                        className="bg-surface-3 absolute inset-0 rounded-lg"
                       />
                     ) : null}
                     <item.icon className="relative size-4" aria-hidden />
