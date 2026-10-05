@@ -1,6 +1,13 @@
-import { useRef, type RefObject } from 'react'
+import { useRef, useState, type RefObject } from 'react'
 
-import { Boxes, Library, RefreshCw, Settings as SettingsIcon } from 'lucide-react'
+import {
+  Boxes,
+  Library,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RefreshCw,
+  Settings as SettingsIcon,
+} from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation, useOutlet } from 'react-router-dom'
@@ -8,12 +15,14 @@ import { NavLink, useLocation, useOutlet } from 'react-router-dom'
 import { formatDuration, formatRelative } from '@/shared/lib/format'
 import { glideTransition, softTransition, useSoftSlide } from '@/shared/lib/motion'
 import { cn } from '@/shared/lib/cn'
+import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Spinner } from '@/shared/ui/Primitives'
 import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useRescan, useAgents } from '@/features/agents/api/queries'
+import { useLibrary } from '@/features/library/api/queries'
 
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.agents', icon: Boxes, end: true },
@@ -60,7 +69,7 @@ function ScanSummary() {
   const duration = formatDuration(data.durationMs)
 
   return (
-    <div className="text-faint flex flex-col gap-1 text-[11px] leading-relaxed">
+    <div className="text-faint flex flex-col gap-1 text-[0.6875rem] leading-relaxed">
       <span>
         {when && duration ? t('agents.lastScan', { when, duration }) : t('agents.neverScanned')}
       </span>
@@ -76,51 +85,102 @@ export function AppShell() {
   const { t } = useTranslation()
   const rescan = useRescan()
   const scrollRef = useRef<HTMLElement>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const toggleLabel = collapsed ? t('nav.expand') : t('nav.collapse')
+
+  const { data: report } = useAgents()
+  const { data: library } = useLibrary()
+  const navCounts: Record<string, number | undefined> = {
+    '/': report?.installed,
+    '/library': library
+      ? library.stats.skills + library.stats.mcpServers + library.stats.other
+      : undefined,
+  }
 
   return (
     <div className="bg-background flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
-        <aside className="border-border bg-surface-2/60 flex w-60 shrink-0 flex-col justify-between border-r px-3 py-4">
-          <nav aria-label={t('nav.sections')} className="flex flex-col gap-0.5">
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    'ease-warm relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors duration-150',
-                    isActive
-                      ? 'text-foreground'
-                      : 'text-muted hover:bg-surface-3/50 hover:text-foreground',
-                  )
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    {isActive ? (
-                      <motion.span
-                        aria-hidden
-                        layoutId="nav-active-pill"
-                        transition={glideTransition}
-                        className="bg-surface-3 absolute inset-0 rounded-lg"
-                      />
-                    ) : null}
-                    <item.icon className="relative size-4" aria-hidden />
-                    <span className="relative">{t(item.labelKey)}</span>
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </nav>
+        <aside
+          className={cn(
+            'border-border bg-surface-2/60 ease-warm flex shrink-0 flex-col justify-between border-r py-4 transition-[width,padding] duration-200',
+            collapsed ? 'w-[4.75rem] px-2' : 'w-60 px-3',
+          )}
+        >
+          <div className="flex flex-col gap-3">
+            <div className={cn('flex', collapsed ? 'justify-center' : 'justify-end')}>
+              <Tooltip content={toggleLabel} side="right">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={toggleLabel}
+                  aria-expanded={!collapsed}
+                  onClick={() => setCollapsed((value) => !value)}
+                >
+                  {collapsed ? (
+                    <PanelLeftOpen className="size-4.5" aria-hidden />
+                  ) : (
+                    <PanelLeftClose className="size-4.5" aria-hidden />
+                  )}
+                </Button>
+              </Tooltip>
+            </div>
 
-          <div className="flex flex-col gap-3 px-1">
-            <ScanSummary />
-            <Tooltip content={t('agents.rescan')}>
+            <nav aria-label={t('nav.sections')} className="flex flex-col gap-1">
+              {NAV_ITEMS.map((item) => (
+                <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
+                  {/* The Radix trigger must be a plain element: `asChild` merges `className`,
+                      which would stringify NavLink's className function and drop every class. */}
+                  <div className="flex">
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) =>
+                        cn(
+                          'ease-warm relative flex flex-1 items-center rounded-xl text-[15px] transition-colors duration-150',
+                          collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5',
+                          isActive
+                            ? 'text-foreground'
+                            : 'text-muted hover:bg-surface-3/50 hover:text-foreground',
+                        )
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {isActive ? (
+                            <motion.span
+                              aria-hidden
+                              layoutId="nav-active-pill"
+                              transition={glideTransition}
+                              className="bg-surface-3 absolute inset-0 rounded-xl"
+                            />
+                          ) : null}
+                          <item.icon className="relative size-5 shrink-0" aria-hidden />
+                          {collapsed ? null : (
+                            <span className="relative flex-1 whitespace-nowrap">
+                              {t(item.labelKey)}
+                            </span>
+                          )}
+                          {!collapsed && navCounts[item.to] ? (
+                            <Badge tone="neutral" className="relative tabular-nums">
+                              {navCounts[item.to]}
+                            </Badge>
+                          ) : null}
+                        </>
+                      )}
+                    </NavLink>
+                  </div>
+                </Tooltip>
+              ))}
+            </nav>
+          </div>
+
+          <div className={cn('flex flex-col gap-3', collapsed ? 'px-0' : 'px-1')}>
+            {collapsed ? null : <ScanSummary />}
+            <Tooltip content={t('agents.rescan')} side={collapsed ? 'right' : 'top'}>
               <Button
                 variant="secondary"
                 size="sm"
-                className="w-full justify-start"
+                className={cn('w-full', collapsed ? 'justify-center px-0' : 'justify-start')}
                 disabled={rescan.isPending}
                 onClick={() =>
                   rescan.mutate(undefined, {
@@ -129,7 +189,9 @@ export function AppShell() {
                 }
               >
                 {rescan.isPending ? <Spinner /> : <RefreshCw className="size-3.5" aria-hidden />}
-                {rescan.isPending ? t('agents.rescanning') : t('agents.rescan')}
+                {collapsed ? null : (
+                  <span>{rescan.isPending ? t('agents.rescanning') : t('agents.rescan')}</span>
+                )}
               </Button>
             </Tooltip>
           </div>
