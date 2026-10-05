@@ -1,0 +1,86 @@
+id = "amp"
+name = "Amp"
+description = "Sourcegraph's agentic coding tool for the terminal, VS Code and compatible editors."
+tagline = "Agentic coding from Sourcegraph, in the CLI and the editor"
+website = "https://ampcode.com"
+docs = "https://ampcode.com/docs"
+icon = "amp"
+category = "cli"
+popular = true
+vendor = "Sourcegraph"
+features = [
+    "Terminal agent plus VS Code / Cursor / Windsurf integrations",
+    "User settings and MCP servers in ~/.config/amp/settings.json",
+    "Skills in ~/.config/amp/skills, also reads ~/.agents/skills",
+    "Shareable threads and machine-local plugins",
+]
+unverified = []
+notes = """Verified against ampcode.com/docs on 2026-10-05. User settings live at
+`~/.config/amp/settings.json` (`%USERPROFILE%\\.config\\amp\\settings.json` on Windows) and local
+MCP servers sit in the `amp.mcpServers` object of that file. The npm package is `@ampcode/cli`.
+The official docs do not name the source repository, so `github` is left unverified and no
+release check runs."""
+
+[binaries]
+names = ["amp"]
+version_args = ["version"]
+version_extract = "semver"
+
+# SOURCE: https://ampcode.com/docs/markdown/sdk/python (checked 2026-10-05)
+# The installer drops the binary in ~/.amp/bin.
+[[search_paths]]
+windows = ["${USERPROFILE}/.amp/bin", "${APPDATA}/npm"]
+macos = ["${HOME}/.amp/bin", "/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.amp/bin", "${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://ampcode.com/docs/markdown/cli/settings (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "User settings, including the amp.mcpServers object."
+format = "jsonc"
+path = { windows = "${USERPROFILE}/.config/amp/settings.json", macos = "${HOME}/.config/amp/settings.json", linux = "${HOME}/.config/amp/settings.json" }
+
+# SOURCE: https://ampcode.com/docs/markdown/customize/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Machine-local skills; ~/.config/agents/skills and ~/.agents/skills are also loaded."
+path = { windows = "${USERPROFILE}/.config/amp/skills", macos = "${HOME}/.config/amp/skills", linux = "${HOME}/.config/amp/skills" }
+
+# SOURCE: https://ampcode.com/docs/markdown/customize/mcp (checked 2026-10-05)
+[mcp]
+format = "jsonc"
+key_path = ["amp.mcpServers"]
+shared_with_config = true
+description = "Local MCP servers are stored in the `amp.mcpServers` key of settings.json."
+path = { windows = "${USERPROFILE}/.config/amp/settings.json", macos = "${HOME}/.config/amp/settings.json", linux = "${HOME}/.config/amp/settings.json" }
+
+# SOURCE: https://ampcode.com/docs/markdown/customize/agents-md (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Personal AGENTS.md prepended to every task; ~/.config/AGENTS.md is a fallback."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.config/amp/AGENTS.md", macos = "${HOME}/.config/amp/AGENTS.md", linux = "${HOME}/.config/amp/AGENTS.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://ampcode.com/docs/markdown/sdk/python (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @ampcode/cli"
+update_command = "amp update"
+docs_url = "https://ampcode.com/docs/cli"
+note = "npm is the documented cross-platform install; `amp update` upgrades the CLI."
+priority = 0
+
+# SOURCE: https://ampcode.com/docs/markdown/sdk/python (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://ampcode.com/install.sh | bash"
+update_command = "amp update"
+docs_url = "https://ampcode.com/docs/cli"
+priority = 1

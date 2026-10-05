@@ -1,0 +1,94 @@
+id = "openinterpreter"
+name = "Open Interpreter"
+description = "Open-source coding agent that runs code and commands locally from the terminal."
+tagline = "A natural-language interface for your computer"
+website = "https://www.openinterpreter.com"
+docs = "https://www.openinterpreter.com/docs/terminal"
+icon = "openinterpreter"
+category = "cli"
+popular = true
+vendor = "Open Interpreter"
+features = [
+    "Runs code and shell commands locally with approval",
+    "TOML config at ~/.openinterpreter/config.toml",
+    "MCP servers under [mcp_servers]",
+    "Skills in ~/.agents/skills with AGENTS.md instructions",
+]
+github = "openinterpreter/openinterpreter"
+unverified = []
+notes = """Verified against openinterpreter.com/docs/terminal on 2026-10-05. This is the current
+Rust rewrite; the old Python project (`pip install open-interpreter`) is archived and is not
+offered here. Config and session state stay under `~/.openinterpreter`; skills follow the
+cross-tool `~/.agents/skills` convention, with the legacy `~/.openinterpreter/skills` still read."""
+
+[binaries]
+names = ["interpreter", "i"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://www.openinterpreter.com/docs/terminal/install (checked 2026-10-05)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["${HOME}/.local/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://www.openinterpreter.com/docs/terminal/config (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.toml"
+description = "Durable user-level settings, profiles and MCP servers."
+format = "toml"
+path = { windows = "${USERPROFILE}/.openinterpreter/config.toml", macos = "${HOME}/.openinterpreter/config.toml", linux = "${HOME}/.openinterpreter/config.toml" }
+
+# SOURCE: https://www.openinterpreter.com/docs/terminal/install (checked 2026-10-05)
+[[configs]]
+id = "log"
+label = "log"
+description = "TUI logs written by the interactive session."
+format = "text"
+path = { windows = "${USERPROFILE}/.openinterpreter/log", macos = "${HOME}/.openinterpreter/log", linux = "${HOME}/.openinterpreter/log" }
+
+# SOURCE: https://www.openinterpreter.com/docs/terminal/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Personal skills in ~/.agents/skills; ~/.openinterpreter/skills is a legacy fallback."
+path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/skills", linux = "${HOME}/.agents/skills" }
+
+# SOURCE: https://www.openinterpreter.com/docs/terminal/mcp (checked 2026-10-05)
+[mcp]
+format = "toml"
+key_path = ["mcp_servers"]
+shared_with_config = true
+description = "MCP servers are configured under the [mcp_servers] table of config.toml."
+path = { windows = "${USERPROFILE}/.openinterpreter/config.toml", macos = "${HOME}/.openinterpreter/config.toml", linux = "${HOME}/.openinterpreter/config.toml" }
+
+# SOURCE: https://www.openinterpreter.com/docs/terminal/agents_md (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global instructions; AGENTS.override.md replaces them for local testing."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.openinterpreter/AGENTS.md", macos = "${HOME}/.openinterpreter/AGENTS.md", linux = "${HOME}/.openinterpreter/AGENTS.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://www.openinterpreter.com/docs/terminal/install (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://www.openinterpreter.com/install | sh"
+update_command = "interpreter update"
+docs_url = "https://www.openinterpreter.com/docs/terminal/install"
+priority = 0
+
+# SOURCE: https://www.openinterpreter.com/docs/terminal/install (checked 2026-10-05)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://www.openinterpreter.com/install.ps1 | iex"
+update_command = "interpreter update"
+docs_url = "https://www.openinterpreter.com/docs/terminal/install"
+requires = ["PowerShell 5.1+"]
+priority = 0

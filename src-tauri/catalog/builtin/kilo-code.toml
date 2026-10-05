@@ -1,0 +1,117 @@
+id = "kilo-code"
+name = "Kilo Code"
+description = "Open-source coding agent for VS Code, JetBrains IDEs and the terminal."
+tagline = "Plan, build and ship with one agent everywhere"
+website = "https://kilo.ai"
+docs = "https://kilo.ai/docs"
+icon = "kilo"
+category = "extension"
+popular = true
+vendor = "Kilo Org"
+features = [
+    "VS Code, JetBrains and a terminal CLI sharing one config",
+    "Global kilo.jsonc with modes, rules and MCP servers",
+    "Global skills in ~/.kilo/skills",
+    "Custom subagents, plus Claude/agents skill compatibility",
+]
+github = "Kilo-Org/kilocode"
+unverified = []
+notes = """Verified against kilo.ai/docs and the Kilo-Org/kilocode repository on 2026-10-05. The
+global config is `~/.config/kilo/kilo.jsonc` (on Windows
+`C:\\Users\\<user>\\.config\\kilo\\kilo.jsonc`); the legacy IDE-only custom modes live in the VS Code
+globalStorage folder. The CLI is installed from npm and shares the same config."""
+
+[binaries]
+names = ["kilo"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://kilo.ai/docs/code-with-ai/platforms/cli (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://kilo.ai/docs/getting-started/settings (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "kilo.jsonc"
+description = "Global config shared by the extension and the CLI: models, modes, rules and MCP."
+format = "jsonc"
+path = { windows = "${USERPROFILE}/.config/kilo/kilo.jsonc", macos = "${HOME}/.config/kilo/kilo.jsonc", linux = "${HOME}/.config/kilo/kilo.jsonc" }
+
+# SOURCE: https://kilo.ai/docs/customize/custom-modes (checked 2026-10-05)
+[[configs]]
+id = "legacy-modes"
+label = "custom_modes.yaml (VS Code)"
+description = "Legacy VS Code global custom modes, kept for extension versions that predate kilo.jsonc."
+format = "yaml"
+path = { windows = "${APPDATA}/Code/User/globalStorage/kilocode.kilo-code/settings/custom_modes.yaml", macos = "${HOME}/Library/Application Support/Code/User/globalStorage/kilocode.kilo-code/settings/custom_modes.yaml", linux = "${HOME}/.config/Code/User/globalStorage/kilocode.kilo-code/settings/custom_modes.yaml" }
+
+# SOURCE: https://kilo.ai/docs/customize/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills in ~/.kilo/skills; ~/.agents/skills and ~/.claude/skills are also read."
+path = { windows = "${USERPROFILE}/.kilo/skills", macos = "${HOME}/.kilo/skills", linux = "${HOME}/.kilo/skills" }
+
+# SOURCE: https://kilo.ai/docs/automate/mcp/using-in-kilo-code (checked 2026-10-05)
+[mcp]
+format = "jsonc"
+key_path = ["mcp"]
+shared_with_config = true
+description = "MCP servers are configured under the `mcp` key of kilo.jsonc."
+path = { windows = "${USERPROFILE}/.config/kilo/kilo.jsonc", macos = "${HOME}/.config/kilo/kilo.jsonc", linux = "${HOME}/.config/kilo/kilo.jsonc" }
+
+# SOURCE: https://kilo.ai/docs/customize/custom-subagents (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Global agents"
+description = "User-level agent definitions as markdown files."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.config/kilo/agents", macos = "${HOME}/.config/kilo/agents", linux = "${HOME}/.config/kilo/agents" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://github.com/Kilo-Org/kilocode (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @kilocode/cli"
+update_command = "kilo upgrade"
+uninstall_command = "kilo uninstall"
+docs_url = "https://kilo.ai/cli"
+note = "Installs the Kilo Code CLI; the IDE extensions are installed from their marketplaces."
+requires = ["node >= 20"]
+priority = 0
+
+# SOURCE: https://github.com/Kilo-Org/kilocode (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install Kilo-Org/tap/kilo"
+update_command = "kilo upgrade"
+uninstall_command = "kilo uninstall"
+docs_url = "https://kilo.ai/cli"
+priority = 1
+
+# SOURCE: https://github.com/Kilo-Org/kilocode (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://kilo.ai/cli/install | bash"
+update_command = "kilo upgrade"
+uninstall_command = "kilo uninstall"
+docs_url = "https://kilo.ai/cli"
+priority = 2
+
+# SOURCE: https://kilo.ai/docs/getting-started/installing (checked 2026-10-05)
+[[methods]]
+id = "vscode-extension"
+manager = "manual"
+command = "Install the 'Kilo Code' extension (kilocode.kilo-code) from the VS Code Marketplace"
+docs_url = "https://marketplace.visualstudio.com/items?itemName=kilocode.kilo-code"
+note = "Also available for JetBrains IDEs and on Open VSX; shares kilo.jsonc with the CLI."
+priority = 3

@@ -1,0 +1,113 @@
+id = "forge"
+name = "Forge"
+description = "Terminal coding agent with custom agents, commands and MCP integration."
+tagline = "A terminal agent you shape with agents and commands"
+website = "https://forgecode.dev"
+docs = "https://forgecode.dev/docs"
+icon = "forge"
+category = "cli"
+popular = true
+vendor = "Antinomy"
+features = [
+    "Terminal agent with custom agents and slash commands",
+    "Global config at ~/.forge/.forge.toml",
+    "Skills in SKILL.md folders, shared with ~/.agents/skills",
+    "MCP servers from ~/.forge/.mcp.json",
+]
+github = "tailcallhq/forgecode"
+unverified = ["mcp.path"]
+notes = """Verified against forgecode.dev/docs and the tailcallhq/forgecode sources on 2026-10-05. The
+default config directory is `~/.forge`, with `~/forge` kept as a legacy fallback when it exists,
+which is why the MCP path is flagged for verification. Windows is supported through Git Bash or
+WSL. `forge update` upgrades the binary."""
+
+[binaries]
+names = ["forge"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://forgecode.dev/docs/quickstart (checked 2026-10-05)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["${HOME}/.local/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://forgecode.dev/docs/forgecode-config (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = ".forge.toml"
+description = "Global configuration: providers, models, updates and permissions."
+format = "toml"
+path = { windows = "${USERPROFILE}/.forge/.forge.toml", macos = "${HOME}/.forge/.forge.toml", linux = "${HOME}/.forge/.forge.toml" }
+
+# SOURCE: https://forgecode.dev/docs/permissions (checked 2026-10-05)
+[[configs]]
+id = "permissions"
+label = "permissions.yaml"
+description = "Tool policy used in restricted mode."
+format = "yaml"
+path = { windows = "${USERPROFILE}/.forge/permissions.yaml", macos = "${HOME}/.forge/permissions.yaml", linux = "${HOME}/.forge/permissions.yaml" }
+
+# SOURCE: https://forgecode.dev/docs/migrating-from-forge-v1 (checked 2026-10-05)
+[[configs]]
+id = "legacy-json"
+label = ".config.json (legacy)"
+description = "Legacy JSON config read for backwards compatibility."
+format = "jsonc"
+path = { windows = "${USERPROFILE}/.forge/.config.json", macos = "${HOME}/.forge/.config.json", linux = "${HOME}/.forge/.config.json" }
+
+# SOURCE: https://forgecode.dev/docs/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills; ~/.agents/skills is shared with other tools."
+path = { windows = "${USERPROFILE}/.forge/skills", macos = "${HOME}/.forge/skills", linux = "${HOME}/.forge/skills" }
+
+# SOURCE: https://forgecode.dev/docs/mcp-integration (checked 2026-10-05)
+# UNVERIFIED: the docs mix `~/forge` and `~/.forge`; the CLI sources resolve `~/.forge` first and
+# fall back to the legacy `~/forge`.
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+glob = "{mcp.json,.mcp.json}"
+description = "User-scope MCP servers from the global config directory."
+path = { windows = "${USERPROFILE}/.forge", macos = "${HOME}/.forge", linux = "${HOME}/.forge" }
+
+# SOURCE: https://forgecode.dev/docs/custom-rules (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global instructions with the highest priority."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.forge/AGENTS.md", macos = "${HOME}/.forge/AGENTS.md", linux = "${HOME}/.forge/AGENTS.md" }
+
+# SOURCE: https://forgecode.dev/docs/creating-agents (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Custom agents"
+description = "Markdown agent definitions with YAML front matter, available in every project."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.forge/agents", macos = "${HOME}/.forge/agents", linux = "${HOME}/.forge/agents" }
+
+# SOURCE: https://forgecode.dev/docs/commands (checked 2026-10-05)
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom commands"
+description = "Markdown command templates available as slash commands."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.forge/commands", macos = "${HOME}/.forge/commands", linux = "${HOME}/.forge/commands" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://forgecode.dev/docs/quickstart (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://forgecode.dev/cli | sh"
+update_command = "forge update"
+docs_url = "https://forgecode.dev/docs/quickstart"
+priority = 0

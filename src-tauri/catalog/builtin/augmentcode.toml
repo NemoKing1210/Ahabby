@@ -1,0 +1,106 @@
+id = "augmentcode"
+name = "Augment Code"
+description = "Augment's terminal agent (Auggie) with rules, skills, subagents and hooks."
+tagline = "Augment's coding agent, from the terminal to the IDE"
+website = "https://augmentcode.com"
+docs = "https://docs.augmentcode.com"
+icon = "augment"
+category = "cli"
+popular = true
+vendor = "Augment Code"
+features = [
+    "Auggie CLI plus VS Code and JetBrains integrations",
+    "JSONC settings at ~/.augment/settings.json",
+    "User rules, commands, subagents and hooks",
+    "MCP servers in the mcpServers key of settings.json",
+]
+github = "augmentcode/auggie"
+unverified = []
+notes = """Verified against docs.augmentcode.com on 2026-10-05. Auggie reads
+`~/.augment/settings.json` (`C:\\Users\\<user>\\.augment\\settings.json` on Windows) and an optional
+read-only managed file. Skills are SKILL.md folders, and the CLI also reads ~/.claude/skills and
+~/.agents/skills. `auggie upgrade` updates the CLI."""
+
+[binaries]
+names = ["auggie"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.augmentcode.com/cli/overview (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.augmentcode.com/cli/config (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "User settings, MCP servers, hooks and tool permissions (JSONC)."
+format = "jsonc"
+path = { windows = "${USERPROFILE}/.augment/settings.json", macos = "${HOME}/.augment/settings.json", linux = "${HOME}/.augment/settings.json" }
+
+# SOURCE: https://docs.augmentcode.com/cli/config (checked 2026-10-05)
+[[configs]]
+id = "managed-settings"
+label = "managed settings.json"
+description = "Administrator-managed settings; Ahabby lists the file read-only."
+format = "jsonc"
+editable = false
+path = { windows = "${PROGRAMDATA}/augment/settings.json", macos = "/etc/augment/settings.json", linux = "/etc/augment/settings.json" }
+
+# SOURCE: https://docs.augmentcode.com/cli/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "User skills with the highest precedence; ~/.claude/skills and ~/.agents/skills are also read."
+path = { windows = "${USERPROFILE}/.augment/skills", macos = "${HOME}/.augment/skills", linux = "${HOME}/.augment/skills" }
+
+# SOURCE: https://docs.augmentcode.com/cli/integrations (checked 2026-10-05)
+[mcp]
+format = "jsonc"
+key_path = ["mcpServers"]
+shared_with_config = true
+description = "Persisted MCP servers live in the mcpServers object of settings.json."
+path = { windows = "${USERPROFILE}/.augment/settings.json", macos = "${HOME}/.augment/settings.json", linux = "${HOME}/.augment/settings.json" }
+
+# SOURCE: https://docs.augmentcode.com/cli/rules (checked 2026-10-05)
+[[other]]
+id = "rules"
+kind = "rules"
+label = "User rules"
+description = "Rules available in every workspace, read recursively."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.augment/rules", macos = "${HOME}/.augment/rules", linux = "${HOME}/.augment/rules" }
+
+# SOURCE: https://docs.augmentcode.com/cli/custom-commands (checked 2026-10-05)
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom commands"
+description = "User commands available as slash commands."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.augment/commands", macos = "${HOME}/.augment/commands", linux = "${HOME}/.augment/commands" }
+
+# SOURCE: https://docs.augmentcode.com/cli/subagents (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Subagents"
+description = "User-scope subagent definitions available in every workspace."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.augment/agents", macos = "${HOME}/.augment/agents", linux = "${HOME}/.augment/agents" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.augmentcode.com/cli/overview (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @augmentcode/auggie"
+update_command = "auggie upgrade"
+uninstall_command = "npm uninstall -g @augmentcode/auggie"
+docs_url = "https://docs.augmentcode.com/cli/overview"
+requires = ["node >= 20"]
+priority = 0

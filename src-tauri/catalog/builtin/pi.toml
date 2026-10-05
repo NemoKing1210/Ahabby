@@ -1,0 +1,147 @@
+id = "pi"
+name = "Pi"
+description = "Minimal, hackable terminal coding agent (formerly @mariozechner/pi-coding-agent)."
+tagline = "A minimal terminal coding harness you adapt to your workflow"
+website = "https://pi.dev"
+docs = "https://pi.dev/docs/latest"
+icon = "pi"
+category = "cli"
+popular = true
+vendor = "Earendil Works"
+features = [
+    "Minimal terminal coding harness with extensions",
+    "User settings, MCP servers and prompts under ~/.pi/agent",
+    "Skills in SKILL.md folders, also reads ~/.agents/skills",
+    "SYSTEM.md / APPEND_SYSTEM.md customise the system prompt",
+]
+github = "earendil-works/pi"
+unverified = []
+notes = """Verified against pi.dev/docs/latest on 2026-10-05. User-level configuration lives in the
+agent directory, which defaults to `~/.pi/agent` and can be relocated with `PI_CODING_AGENT_DIR`.
+Pi also reads the cross-tool `~/.agents/skills/` skill directory and AGENTS.md. No Homebrew
+formula is documented; npm, the official installer and Nix are."""
+
+[binaries]
+names = ["pi"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://pi.dev/docs/latest/quickstart (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "User-level settings applied to every project."
+format = "json"
+path = { windows = "${USERPROFILE}/.pi/agent/settings.json", macos = "${HOME}/.pi/agent/settings.json", linux = "${HOME}/.pi/agent/settings.json" }
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[configs]]
+id = "mcp"
+label = "mcp.json"
+description = "MCP servers available in every project."
+format = "json"
+path = { windows = "${USERPROFILE}/.pi/agent/mcp.json", macos = "${HOME}/.pi/agent/mcp.json", linux = "${HOME}/.pi/agent/mcp.json" }
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[configs]]
+id = "models"
+label = "models.json"
+description = "Compatible endpoints, models and model overrides."
+format = "json"
+path = { windows = "${USERPROFILE}/.pi/agent/models.json", macos = "${HOME}/.pi/agent/models.json", linux = "${HOME}/.pi/agent/models.json" }
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[configs]]
+id = "auth"
+label = "auth.json"
+description = "Saved API keys and OAuth credentials."
+format = "json"
+path = { windows = "${USERPROFILE}/.pi/agent/auth.json", macos = "${HOME}/.pi/agent/auth.json", linux = "${HOME}/.pi/agent/auth.json" }
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[configs]]
+id = "keybindings"
+label = "keybindings.json"
+description = "Custom keybindings."
+format = "json"
+path = { windows = "${USERPROFILE}/.pi/agent/keybindings.json", macos = "${HOME}/.pi/agent/keybindings.json", linux = "${HOME}/.pi/agent/keybindings.json" }
+
+# SOURCE: https://pi.dev/docs/latest/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "User skills; each skill is a directory containing SKILL.md. ~/.agents/skills is also read."
+path = { windows = "${USERPROFILE}/.pi/agent/skills", macos = "${HOME}/.pi/agent/skills", linux = "${HOME}/.pi/agent/skills" }
+
+# SOURCE: https://pi.dev/docs/latest/mcp (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "User-level servers from ~/.pi/agent/mcp.json; project servers come from .pi/mcp.json."
+path = { windows = "${USERPROFILE}/.pi/agent/mcp.json", macos = "${HOME}/.pi/agent/mcp.json", linux = "${HOME}/.pi/agent/mcp.json" }
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[other]]
+id = "instructions"
+kind = "instructions"
+label = "AGENTS.md"
+description = "User instructions applied across working directories (AGENTS.override.md / CLAUDE.md are alternatives)."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.pi/agent/AGENTS.md", macos = "${HOME}/.pi/agent/AGENTS.md", linux = "${HOME}/.pi/agent/AGENTS.md" }
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[other]]
+id = "system"
+kind = "memory"
+label = "SYSTEM.md"
+description = "Replaces Pi's default system prompt."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.pi/agent/SYSTEM.md", macos = "${HOME}/.pi/agent/SYSTEM.md", linux = "${HOME}/.pi/agent/SYSTEM.md" }
+
+# SOURCE: https://pi.dev/docs/latest/configuration (checked 2026-10-05)
+[[other]]
+id = "append-system"
+kind = "memory"
+label = "APPEND_SYSTEM.md"
+description = "Adds instructions to Pi's system prompt."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.pi/agent/APPEND_SYSTEM.md", macos = "${HOME}/.pi/agent/APPEND_SYSTEM.md", linux = "${HOME}/.pi/agent/APPEND_SYSTEM.md" }
+
+# SOURCE: https://pi.dev/docs/latest/prompt-templates (checked 2026-10-05)
+[[other]]
+id = "prompts"
+kind = "prompts"
+label = "Prompt templates"
+description = "Markdown templates exposed as slash commands; the file name becomes the command."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.pi/agent/prompts", macos = "${HOME}/.pi/agent/prompts", linux = "${HOME}/.pi/agent/prompts" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://pi.dev/docs/latest/quickstart (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://pi.dev/install.sh | sh"
+update_command = "pi update"
+docs_url = "https://pi.dev/docs/latest/quickstart"
+note = "Official installer."
+priority = 0
+
+# SOURCE: https://pi.dev/docs/latest/quickstart (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g --ignore-scripts @earendil-works/pi-coding-agent"
+update_command = "pi update"
+uninstall_command = "npm uninstall -g @earendil-works/pi-coding-agent"
+docs_url = "https://pi.dev/docs/latest/quickstart"
+note = "Package install runs no lifecycle scripts; `pi update` keeps it current."
+requires = ["node >= 22.19"]
+priority = 1

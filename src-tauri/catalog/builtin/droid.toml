@@ -1,0 +1,139 @@
+id = "droid"
+name = "Factory Droid"
+description = "Factory's terminal coding agent with droids, hooks and MCP integration."
+tagline = "Spec-driven engineering agent from Factory"
+website = "https://factory.ai"
+docs = "https://docs.factory.ai"
+icon = "droid"
+category = "cli"
+popular = true
+vendor = "Factory AI"
+features = [
+    "Terminal agent with custom droids (subagents)",
+    "User settings, MCP servers and hooks under ~/.factory",
+    "Personal skills in SKILL.md folders",
+    "Custom slash commands and output styles",
+]
+github = "Factory-AI/factory"
+unverified = []
+notes = """Verified against docs.factory.ai and the Factory-AI/factory repository on 2026-10-05. User
+configuration lives in `~/.factory` (`%USERPROFILE%\\.factory` on Windows): settings.json,
+settings.local.json, mcp.json, hooks.json, droids/, commands/, skills/ and output-styles/. The
+npm package is published as `droid`."""
+
+[binaries]
+names = ["droid"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.factory.ai/welcome (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.factory.ai/droid-cli/settings (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "User-level droid CLI settings, models and tool configuration."
+format = "json"
+path = { windows = "${USERPROFILE}/.factory/settings.json", macos = "${HOME}/.factory/settings.json", linux = "${HOME}/.factory/settings.json" }
+
+# SOURCE: https://docs.factory.ai/droid-cli/settings (checked 2026-10-05)
+[[configs]]
+id = "settings-local"
+label = "settings.local.json"
+description = "Machine-local overrides of settings.json."
+format = "json"
+path = { windows = "${USERPROFILE}/.factory/settings.local.json", macos = "${HOME}/.factory/settings.local.json", linux = "${HOME}/.factory/settings.local.json" }
+
+# SOURCE: https://docs.factory.ai/harness/mcp (checked 2026-10-05)
+[[configs]]
+id = "mcp"
+label = "mcp.json"
+description = "User-scope MCP servers, layered with project .factory/mcp.json."
+format = "json"
+path = { windows = "${USERPROFILE}/.factory/mcp.json", macos = "${HOME}/.factory/mcp.json", linux = "${HOME}/.factory/mcp.json" }
+
+# SOURCE: https://docs.factory.ai/harness/hooks (checked 2026-10-05)
+[[configs]]
+id = "hooks"
+label = "hooks.json"
+description = "User-level lifecycle hooks."
+format = "json"
+path = { windows = "${USERPROFILE}/.factory/hooks.json", macos = "${HOME}/.factory/hooks.json", linux = "${HOME}/.factory/hooks.json" }
+
+# SOURCE: https://docs.factory.ai/harness/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Personal skills; ~/.agents/skills and ~/.agent/skills are also read."
+path = { windows = "${USERPROFILE}/.factory/skills", macos = "${HOME}/.factory/skills", linux = "${HOME}/.factory/skills" }
+
+# SOURCE: https://docs.factory.ai/harness/mcp (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "User-scope servers from ~/.factory/mcp.json; project servers live in .factory/mcp.json."
+path = { windows = "${USERPROFILE}/.factory/mcp.json", macos = "${HOME}/.factory/mcp.json", linux = "${HOME}/.factory/mcp.json" }
+
+# SOURCE: https://docs.factory.ai/harness/subagents (checked 2026-10-05)
+[[other]]
+id = "droids"
+kind = "subagents"
+label = "Personal droids"
+description = "Custom subagent definitions, one markdown file per droid."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.factory/droids", macos = "${HOME}/.factory/droids", linux = "${HOME}/.factory/droids" }
+
+# SOURCE: https://docs.factory.ai/droid-cli/custom-slash-commands (checked 2026-10-05)
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom slash commands"
+description = "Markdown command files available as slash commands."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.factory/commands", macos = "${HOME}/.factory/commands", linux = "${HOME}/.factory/commands" }
+
+# SOURCE: https://docs.factory.ai/harness/agents-md (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Personal instructions; ~/.agents/AGENTS.md and ~/.agent/AGENTS.md are also read."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.factory/AGENTS.md", macos = "${HOME}/.factory/AGENTS.md", linux = "${HOME}/.factory/AGENTS.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.factory.ai/welcome (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://app.factory.ai/cli | sh"
+update_command = "droid update"
+docs_url = "https://docs.factory.ai/welcome"
+priority = 0
+
+# SOURCE: https://docs.factory.ai/welcome (checked 2026-10-05)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://app.factory.ai/cli/windows | iex"
+update_command = "droid update"
+docs_url = "https://docs.factory.ai/welcome"
+requires = ["PowerShell 5.1+"]
+priority = 0
+
+# SOURCE: https://github.com/Factory-AI/factory (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g droid"
+update_command = "droid update"
+docs_url = "https://docs.factory.ai/welcome"
+requires = ["node >= 18"]
+priority = 1

@@ -1,0 +1,108 @@
+id = "windsurf"
+name = "Windsurf"
+description = "The Windsurf editor (now Devin Desktop) with the Cascade agent, rules and MCP."
+tagline = "Cascade, the agentic editor from Codeium"
+website = "https://windsurf.com"
+docs = "https://docs.windsurf.com"
+icon = "windsurf"
+category = "editor"
+popular = true
+vendor = "Cognition (Codeium)"
+features = [
+    "Cascade agent with flows and memories",
+    "MCP servers in mcp_config.json",
+    "Global rules and workflows (slash commands)",
+    "Skills in SKILL.md folders",
+]
+github = "Exafunction/codeium"
+unverified = ["mcp.path"]
+notes = """Verified against docs.windsurf.com on 2026-10-05. The editor has been rebranded to Devin
+Desktop: the current docs name `~/.config/devin/mcp_config.json` (`%APPDATA%\\devin\\mcp_config.json`
+on Windows) for MCP, while skills, rules and workflows still document the legacy
+`~/.codeium/windsurf` layout, which the app keeps reading. Ahabby lists the legacy MCP file, hence
+the verification flag. Install packages are still published as the Codeium/Windsurf cask and
+winget ids."""
+
+[binaries]
+names = ["devin-desktop", "windsurf"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.windsurf.com/windsurf/getting-started (checked 2026-10-05)
+[[search_paths]]
+windows = ["${LOCALAPPDATA}/Programs/Devin/bin"]
+macos = ["/Applications/Windsurf.app/Contents/MacOS", "/Applications/Devin.app/Contents/MacOS"]
+linux = ["/usr/bin", "/opt/Windsurf"]
+
+# SOURCE: https://docs.windsurf.com/windsurf/cascade/memories (checked 2026-10-05)
+[[configs]]
+id = "global-rules"
+label = "global_rules.md"
+description = "Global rules applied across all workspaces (limited to 6000 characters)."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.codeium/windsurf/memories/global_rules.md", macos = "${HOME}/.codeium/windsurf/memories/global_rules.md", linux = "${HOME}/.codeium/windsurf/memories/global_rules.md" }
+
+# SOURCE: https://docs.windsurf.com/windsurf/cascade/mcp (checked 2026-10-05)
+[[configs]]
+id = "mcp-legacy"
+label = "mcp_config.json (Windsurf)"
+description = "MCP servers for the legacy Windsurf layout, still read after the rebrand."
+format = "json"
+path = { windows = "${USERPROFILE}/.codeium/windsurf/mcp_config.json", macos = "${HOME}/.codeium/windsurf/mcp_config.json", linux = "${HOME}/.codeium/windsurf/mcp_config.json" }
+
+# SOURCE: https://docs.windsurf.com/windsurf/cascade/mcp (checked 2026-10-05)
+[[configs]]
+id = "mcp-devin"
+label = "mcp_config.json (Devin Desktop)"
+description = "MCP servers for the current Devin Desktop layout."
+format = "json"
+path = { windows = "${APPDATA}/devin/mcp_config.json", macos = "${HOME}/.config/devin/mcp_config.json", linux = "${HOME}/.config/devin/mcp_config.json" }
+
+# SOURCE: https://docs.windsurf.com/windsurf/cascade/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills; ~/.config/devin/skills is the shared location with the Devin CLI."
+path = { windows = "${USERPROFILE}/.codeium/windsurf/skills", macos = "${HOME}/.codeium/windsurf/skills", linux = "${HOME}/.codeium/windsurf/skills" }
+
+# SOURCE: https://docs.windsurf.com/windsurf/cascade/mcp (checked 2026-10-05)
+# UNVERIFIED: the current docs list the `devin` path; the legacy Windsurf file is what existing
+# installations keep reading.
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "MCP servers live under the mcpServers key of mcp_config.json."
+path = { windows = "${USERPROFILE}/.codeium/windsurf/mcp_config.json", macos = "${HOME}/.codeium/windsurf/mcp_config.json", linux = "${HOME}/.codeium/windsurf/mcp_config.json" }
+
+# SOURCE: https://docs.windsurf.com/windsurf/cascade/workflows (checked 2026-10-05)
+[[other]]
+id = "workflows"
+kind = "commands"
+label = "Global workflows"
+description = "Markdown workflows available as slash commands in every workspace."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.codeium/windsurf/global_workflows", macos = "${HOME}/.codeium/windsurf/global_workflows", linux = "${HOME}/.codeium/windsurf/global_workflows" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://formulae.brew.sh/cask/devin-desktop (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos"]
+command = "brew install --cask devin-desktop"
+update_command = "brew upgrade --cask devin-desktop"
+uninstall_command = "brew uninstall --cask devin-desktop"
+docs_url = "https://docs.windsurf.com/windsurf/getting-started"
+note = "The cask was renamed from `windsurf` to `devin-desktop` after the rebrand."
+priority = 0
+
+# SOURCE: https://github.com/microsoft/winget-pkgs/tree/master/manifests/c/Codeium/Windsurf (checked 2026-10-05)
+[[methods]]
+id = "winget"
+manager = "winget"
+os = ["windows"]
+command = "winget install -e --id Codeium.Windsurf"
+update_command = "winget upgrade Codeium.Windsurf"
+uninstall_command = "winget uninstall Codeium.Windsurf"
+docs_url = "https://docs.windsurf.com/windsurf/getting-started"
+priority = 0

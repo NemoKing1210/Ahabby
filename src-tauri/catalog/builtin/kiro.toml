@@ -1,0 +1,143 @@
+id = "kiro"
+name = "Kiro"
+description = "AWS's spec-driven agentic IDE and CLI, with steering, hooks and skills."
+tagline = "Spec-driven agentic development from AWS"
+website = "https://kiro.dev"
+docs = "https://kiro.dev/docs"
+icon = "kiro"
+category = "cli"
+popular = true
+vendor = "AWS"
+features = [
+    "Spec-driven development: requirements, design and tasks",
+    "Global steering files, custom agents, hooks and prompts under ~/.kiro",
+    "Skills in SKILL.md folders, shared with ~/.agents",
+    "MCP servers from ~/.kiro/settings/mcp.json",
+]
+github = "kirodotdev/Kiro"
+unverified = []
+notes = """Verified against kiro.dev/docs on 2026-10-05. Global scope is everything under `~/.kiro/`
+(override with `KIRO_HOME`); on Windows the same layout maps to `%USERPROFILE%\\.kiro\\`. The Kiro
+CLI autoupdates in the background; `kiro-cli update` forces an update. Homebrew is explicitly
+unsupported by AWS, so only the official installers are offered."""
+
+[binaries]
+names = ["kiro-cli"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://kiro.dev/docs/getting-started/installation (checked 2026-10-05)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["${HOME}/.local/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://kiro.dev/docs/configuration (checked 2026-10-05)
+[[configs]]
+id = "cli-settings"
+label = "cli.json"
+description = "CLI settings shared by the terminal and desktop surfaces."
+format = "json"
+path = { windows = "${USERPROFILE}/.kiro/settings/cli.json", macos = "${HOME}/.kiro/settings/cli.json", linux = "${HOME}/.kiro/settings/cli.json" }
+
+# SOURCE: https://kiro.dev/docs/mcp/configuration (checked 2026-10-05)
+[[configs]]
+id = "mcp"
+label = "mcp.json"
+description = "User-level MCP server definitions."
+format = "json"
+path = { windows = "${USERPROFILE}/.kiro/settings/mcp.json", macos = "${HOME}/.kiro/settings/mcp.json", linux = "${HOME}/.kiro/settings/mcp.json" }
+
+# SOURCE: https://kiro.dev/docs/configuration (checked 2026-10-05)
+[[configs]]
+id = "permissions"
+label = "permissions.yaml"
+description = "Per-tool permission policy."
+format = "yaml"
+path = { windows = "${USERPROFILE}/.kiro/settings/permissions.yaml", macos = "${HOME}/.kiro/settings/permissions.yaml", linux = "${HOME}/.kiro/settings/permissions.yaml" }
+
+# SOURCE: https://kiro.dev/docs/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills, one folder per skill containing a SKILL.md."
+path = { windows = "${USERPROFILE}/.kiro/skills", macos = "${HOME}/.kiro/skills", linux = "${HOME}/.kiro/skills" }
+
+# SOURCE: https://kiro.dev/docs/mcp/configuration (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "MCP configuration files use JSON with an `mcpServers` map."
+path = { windows = "${USERPROFILE}/.kiro/settings/mcp.json", macos = "${HOME}/.kiro/settings/mcp.json", linux = "${HOME}/.kiro/settings/mcp.json" }
+
+# SOURCE: https://kiro.dev/docs/configuration (checked 2026-10-05)
+[[other]]
+id = "steering"
+kind = "rules"
+label = "Global steering"
+description = "Always-on user steering documents applied to every workspace."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.kiro/steering", macos = "${HOME}/.kiro/steering", linux = "${HOME}/.kiro/steering" }
+
+# SOURCE: https://kiro.dev/docs/custom-agents/creating (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Global agents"
+description = "User-defined custom agents (JSON specs and markdown definitions)."
+format = "text"
+glob = "*"
+path = { windows = "${USERPROFILE}/.kiro/agents", macos = "${HOME}/.kiro/agents", linux = "${HOME}/.kiro/agents" }
+
+# SOURCE: https://kiro.dev/docs/cli/chat/manage-prompts (checked 2026-10-05)
+[[other]]
+id = "prompts"
+kind = "prompts"
+label = "Global prompts"
+description = "Prompt templates available as /commands in every workspace."
+format = "markdown"
+glob = "*"
+path = { windows = "${USERPROFILE}/.kiro/prompts", macos = "${HOME}/.kiro/prompts", linux = "${HOME}/.kiro/prompts" }
+
+# SOURCE: https://kiro.dev/docs/hooks (checked 2026-10-05)
+[[other]]
+id = "hooks"
+kind = "hooks"
+label = "Hooks"
+description = "Hook configurations stored as JSON files."
+format = "json"
+glob = "*.json"
+path = { windows = "${USERPROFILE}/.kiro/hooks", macos = "${HOME}/.kiro/hooks", linux = "${HOME}/.kiro/hooks" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://kiro.dev/docs/getting-started/installation (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://cli.kiro.dev/install | bash"
+update_command = "kiro-cli update"
+uninstall_command = "kiro-cli uninstall"
+docs_url = "https://kiro.dev/docs/getting-started/installation"
+priority = 0
+
+# SOURCE: https://kiro.dev/docs/getting-started/installation (checked 2026-10-05)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm 'https://cli.kiro.dev/install.ps1' | iex"
+update_command = "kiro-cli update"
+uninstall_command = "kiro-cli uninstall"
+docs_url = "https://kiro.dev/docs/getting-started/installation"
+requires = ["PowerShell 5.1+"]
+priority = 0
+
+# SOURCE: https://kiro.dev/docs/getting-started/installation (checked 2026-10-05)
+[[methods]]
+id = "ide"
+manager = "manual"
+command = "Download the Kiro IDE from kiro.dev and install it"
+docs_url = "https://kiro.dev/docs/getting-started/installation"
+note = "The desktop IDE is a separate download; it shares ~/.kiro with the CLI."
+priority = 1

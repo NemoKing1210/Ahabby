@@ -1,0 +1,157 @@
+id = "omp"
+name = "omp"
+description = "Terminal coding agent with subagents, plan mode, LSP/DAP and hindsight memory."
+tagline = "A coding agent with the IDE wired in"
+website = "https://omp.sh"
+docs = "https://omp.sh/docs"
+icon = "omp"
+category = "cli"
+popular = true
+vendor = "Stencil Labs"
+features = [
+    "Subagents, plan mode and goal mode built in",
+    "YAML global config plus named profiles under ~/.omp",
+    "Skills, prompt templates and hooks in ~/.omp/agent",
+    "MCP servers from ~/.omp/agent/mcp.json",
+]
+github = "can1357/oh-my-pi"
+unverified = []
+notes = """Verified against omp.sh/docs on 2026-10-05. The agent directory is `~/.omp/agent` for the
+default profile (`~/.omp/profiles/<name>/agent` for a named one); `PI_CODING_AGENT_DIR` and
+`PI_CONFIG_DIR` relocate it. omp is a fork of Pi and is published as
+`@oh-my-pi/pi-coding-agent`. The docs document no self-update or uninstall subcommand, so no
+update/uninstall command is offered here; re-running the installer upgrades."""
+
+[binaries]
+names = ["omp"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://omp.sh/docs/quickstart (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm", "${USERPROFILE}/.bun/bin"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://omp.sh/docs/settings (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.yml"
+description = "Global omp settings for the default profile."
+format = "yaml"
+path = { windows = "${USERPROFILE}/.omp/agent/config.yml", macos = "${HOME}/.omp/agent/config.yml", linux = "${HOME}/.omp/agent/config.yml" }
+
+# SOURCE: https://omp.sh/docs/mcp (checked 2026-10-05)
+[[configs]]
+id = "mcp"
+label = "mcp.json"
+description = "User-level MCP servers for the default profile."
+format = "json"
+path = { windows = "${USERPROFILE}/.omp/agent/mcp.json", macos = "${HOME}/.omp/agent/mcp.json", linux = "${HOME}/.omp/agent/mcp.json" }
+
+# SOURCE: https://omp.sh/docs/settings (checked 2026-10-05)
+[[configs]]
+id = "models"
+label = "models.yml"
+description = "Custom providers and models."
+format = "yaml"
+path = { windows = "${USERPROFILE}/.omp/agent/models.yml", macos = "${HOME}/.omp/agent/models.yml", linux = "${HOME}/.omp/agent/models.yml" }
+
+# SOURCE: https://omp.sh/docs/env (checked 2026-10-05)
+[[configs]]
+id = "env"
+label = ".env"
+description = "Environment values for the active agent directory."
+format = "text"
+path = { windows = "${USERPROFILE}/.omp/agent/.env", macos = "${HOME}/.omp/agent/.env", linux = "${HOME}/.omp/agent/.env" }
+
+# SOURCE: https://omp.sh/docs/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "User skills, one directory per skill containing SKILL.md. ~/.claude, ~/.codex and opencode skills are also read."
+path = { windows = "${USERPROFILE}/.omp/agent/skills", macos = "${HOME}/.omp/agent/skills", linux = "${HOME}/.omp/agent/skills" }
+
+# SOURCE: https://omp.sh/docs/mcp (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "MCP servers live under `mcpServers` in the user-level mcp.json."
+path = { windows = "${USERPROFILE}/.omp/agent/mcp.json", macos = "${HOME}/.omp/agent/mcp.json", linux = "${HOME}/.omp/agent/mcp.json" }
+
+# SOURCE: https://omp.sh/docs/context-files (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "User-scope AGENTS.md applied in every repository."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.omp/agent/AGENTS.md", macos = "${HOME}/.omp/agent/AGENTS.md", linux = "${HOME}/.omp/agent/AGENTS.md" }
+
+# SOURCE: https://omp.sh/docs/context-files (checked 2026-10-05)
+[[other]]
+id = "rules"
+kind = "rules"
+label = "RULES.md"
+description = "Sticky rules that always apply, in every project."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.omp/agent/RULES.md", macos = "${HOME}/.omp/agent/RULES.md", linux = "${HOME}/.omp/agent/RULES.md" }
+
+# SOURCE: https://omp.sh/docs/prompt-templates (checked 2026-10-05)
+[[other]]
+id = "prompts"
+kind = "prompts"
+label = "Prompt templates"
+description = "Markdown prompt templates exposed as slash commands."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.omp/agent/prompts", macos = "${HOME}/.omp/agent/prompts", linux = "${HOME}/.omp/agent/prompts" }
+
+# SOURCE: https://omp.sh/docs/subagents (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Agent definitions"
+description = "Agent definitions unpacked with `omp agents unpack --user`."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.omp/agent/agents", macos = "${HOME}/.omp/agent/agents", linux = "${HOME}/.omp/agent/agents" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://omp.sh/docs/quickstart (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://omp.sh/install | sh"
+docs_url = "https://omp.sh/docs/quickstart"
+note = "Official installer. No self-update subcommand is documented; re-run the installer to upgrade."
+priority = 0
+
+# SOURCE: https://omp.sh/docs/quickstart (checked 2026-10-05)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://omp.sh/install.ps1 | iex"
+docs_url = "https://omp.sh/docs/quickstart"
+note = "Official PowerShell installer."
+requires = ["PowerShell 5.1+"]
+priority = 0
+
+# SOURCE: https://github.com/can1357/oh-my-pi (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install can1357/tap/omp"
+docs_url = "https://github.com/can1357/oh-my-pi"
+priority = 1
+
+# SOURCE: https://github.com/can1357/oh-my-pi (checked 2026-10-05)
+[[methods]]
+id = "bun"
+manager = "bun"
+command = "bun install -g @oh-my-pi/pi-coding-agent"
+docs_url = "https://github.com/can1357/oh-my-pi"
+requires = ["bun >= 1.3.14"]
+priority = 2

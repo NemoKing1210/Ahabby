@@ -1,0 +1,123 @@
+id = "goose"
+name = "Goose"
+description = "Block's open-source agent that runs locally with extensions, recipes and skills."
+tagline = "An open-source, local agent with MCP extensions"
+website = "https://goose-docs.ai"
+docs = "https://goose-docs.ai/docs"
+icon = "goose"
+category = "cli"
+popular = true
+vendor = "Agentic AI Foundation"
+features = [
+    "Local agent with any LLM provider",
+    "Extensions (MCP servers) in config.yaml and permission.yaml",
+    "Skills in ~/.agents/skills/SKILL.md",
+    "Custom prompt templates and global goosehints",
+]
+github = "block/goose"
+unverified = []
+notes = """Verified against goose-docs.ai on 2026-10-05. macOS/Linux keep everything under
+`~/.config/goose/`; Windows uses `%APPDATA%\\Block\\goose\\config\\`. Extensions are the `extensions`
+key of config.yaml. The CLI installs from the official script or Homebrew; `goose update` is
+documented for the script install."""
+
+[binaries]
+names = ["goose"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://goose-docs.ai/docs/getting-started/installation (checked 2026-10-05)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://goose-docs.ai/docs/guides/config-files (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.yaml"
+description = "Provider, model, extensions and general settings."
+format = "yaml"
+path = { windows = "${APPDATA}/Block/goose/config/config.yaml", macos = "${HOME}/.config/goose/config.yaml", linux = "${HOME}/.config/goose/config.yaml" }
+
+# SOURCE: https://goose-docs.ai/docs/guides/config-files (checked 2026-10-05)
+[[configs]]
+id = "secrets"
+label = "secrets.yaml"
+description = "API keys and secrets."
+format = "yaml"
+path = { windows = "${APPDATA}/Block/goose/config/secrets.yaml", macos = "${HOME}/.config/goose/secrets.yaml", linux = "${HOME}/.config/goose/secrets.yaml" }
+
+# SOURCE: https://goose-docs.ai/docs/guides/config-files (checked 2026-10-05)
+[[configs]]
+id = "permission"
+label = "permission.yaml"
+description = "Tool permission levels configured through `goose configure`."
+format = "yaml"
+path = { windows = "${APPDATA}/Block/goose/config/permission.yaml", macos = "${HOME}/.config/goose/permission.yaml", linux = "${HOME}/.config/goose/permission.yaml" }
+
+# SOURCE: https://goose-docs.ai/docs/guides/context-engineering/using-skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills in ~/.agents/skills; .goose/skills and ~/.claude/skills are also discovered."
+path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/skills", linux = "${HOME}/.agents/skills" }
+
+# SOURCE: https://goose-docs.ai/docs/getting-started/using-extensions (checked 2026-10-05)
+[mcp]
+format = "yaml"
+key_path = ["extensions"]
+shared_with_config = true
+description = "MCP servers are the `extensions` list of config.yaml."
+path = { windows = "${APPDATA}/Block/goose/config/config.yaml", macos = "${HOME}/.config/goose/config.yaml", linux = "${HOME}/.config/goose/config.yaml" }
+
+# SOURCE: https://goose-docs.ai/docs/guides/context-engineering/using-goosehints (checked 2026-10-05)
+[[other]]
+id = "goosehints"
+kind = "instructions"
+label = ".goosehints"
+description = "Global hints prepended to every session; AGENTS.md is a default fallback name."
+format = "text"
+path = { windows = "${APPDATA}/Block/goose/config/.goosehints", macos = "${HOME}/.config/goose/.goosehints", linux = "${HOME}/.config/goose/.goosehints" }
+
+# SOURCE: https://goose-docs.ai/docs/guides/config-files (checked 2026-10-05)
+[[other]]
+id = "prompts"
+kind = "prompts"
+label = "Prompt templates"
+description = "Custom prompt templates available as slash commands."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${APPDATA}/Block/goose/config/prompts", macos = "${HOME}/.config/goose/prompts", linux = "${HOME}/.config/goose/prompts" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://goose-docs.ai/docs/getting-started/installation (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash"
+update_command = "goose update"
+docs_url = "https://goose-docs.ai/docs/getting-started/installation"
+priority = 0
+
+# SOURCE: https://goose-docs.ai/docs/getting-started/installation (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install block-goose-cli"
+docs_url = "https://goose-docs.ai/docs/getting-started/installation"
+priority = 1
+
+# SOURCE: https://goose-docs.ai/docs/getting-started/installation (checked 2026-10-05)
+# The docs download download_cli.ps1 and then run it; Ahabby issues that as one PowerShell command.
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "powershell -NoProfile -Command \"iwr https://raw.githubusercontent.com/aaif-goose/goose/main/download_cli.ps1 -OutFile download_cli.ps1; ./download_cli.ps1\""
+update_command = "goose update"
+docs_url = "https://goose-docs.ai/docs/getting-started/installation"
+note = "Official PowerShell installer; it downloads its own bootstrap script into the current directory first."
+requires = ["PowerShell 5.1+"]
+priority = 2

@@ -1,0 +1,70 @@
+id = "plandex"
+name = "Plandex"
+description = "Terminal-based AI coding agent built for large projects and long-running plans."
+tagline = "Plan, then execute, across large multi-file tasks"
+website = "https://plandex.ai"
+docs = "https://docs.plandex.ai"
+icon = "plandex"
+category = "cli"
+popular = true
+vendor = "Plandex AI"
+features = [
+    "Plan-first workflow for large projects",
+    "Sandboxed changes you review before applying",
+    "Multiple accounts and shared plans on the Plandex server",
+    "Self-hosting support",
+]
+github = "plandex-ai/plandex"
+unverified = ["configs.auth.path", "configs.accounts.path"]
+notes = """Verified against docs.plandex.ai and the plandex-ai/plandex sources on 2026-10-05. The
+user-scope state directory `~/.plandex-home-v2` and its auth.json / accounts.json are read from
+the official CLI sources (`app/cli/fs/fs.go`), not from the docs, so they are flagged for
+verification. Plandex has no user-scope skills or MCP configuration. Windows is supported through
+WSL, where `${HOME}` resolves as on Linux."""
+
+[binaries]
+names = ["plandex", "pdx"]
+version_args = ["version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.plandex.ai/install (checked 2026-10-05)
+[[search_paths]]
+windows = ["${HOME}/.local/bin"]
+macos = ["/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://github.com/plandex-ai/plandex/blob/main/app/cli/fs/fs.go (checked 2026-10-05)
+[[configs]]
+id = "auth"
+label = "auth.json"
+description = "Server credentials written by `plandex sign-in`."
+format = "json"
+path = { windows = "${HOME}/.plandex-home-v2/auth.json", macos = "${HOME}/.plandex-home-v2/auth.json", linux = "${HOME}/.plandex-home-v2/auth.json" }
+
+# SOURCE: https://github.com/plandex-ai/plandex/blob/main/app/cli/fs/fs.go (checked 2026-10-05)
+[[configs]]
+id = "accounts"
+label = "accounts.json"
+description = "Known accounts and their tokens."
+format = "json"
+path = { windows = "${HOME}/.plandex-home-v2/accounts.json", macos = "${HOME}/.plandex-home-v2/accounts.json", linux = "${HOME}/.plandex-home-v2/accounts.json" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.plandex.ai/install (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -sL https://plandex.ai/install.sh | bash"
+docs_url = "https://docs.plandex.ai/install"
+note = "Official installer. Plandex checks for upgrades automatically unless PLANDEX_SKIP_UPGRADE=1."
+priority = 0
+
+# SOURCE: https://docs.plandex.ai/install (checked 2026-10-05)
+[[methods]]
+id = "manual"
+manager = "manual"
+command = "Download the binary for your platform from the latest GitHub release and put it on PATH"
+docs_url = "https://docs.plandex.ai/install"
+note = "Documented fallback for platforms without the install script."
+priority = 1

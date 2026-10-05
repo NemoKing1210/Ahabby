@@ -1,0 +1,98 @@
+id = "zed"
+name = "Zed"
+description = "GPU-accelerated editor with a built-in agent panel, MCP context servers and skills."
+tagline = "A high-performance editor with agents built in"
+website = "https://zed.dev"
+docs = "https://zed.dev/docs"
+icon = "zed"
+category = "editor"
+popular = true
+vendor = "Zed Industries"
+features = [
+    "Built-in agent panel and inline assistant",
+    "MCP servers under the context_servers key of settings.json",
+    "Personal instructions in ~/.config/zed/AGENTS.md",
+    "Skills in ~/.agents/skills, shared with other agents",
+]
+github = "zed-industries/zed"
+unverified = []
+notes = """Verified against zed.dev/docs on 2026-10-05. Settings live at
+`~/.config/zed/settings.json` on macOS/Linux and `%APPDATA%\\Zed\\settings.json` on Windows; the
+syntax is JSONC. MCP servers are the `context_servers` object of that same file. The CLI installs
+next to the app (`/usr/local/bin/zed` on macOS)."""
+
+[binaries]
+names = ["zed"]
+version_args = ["--version"]
+version_extract = "line"
+
+# SOURCE: https://zed.dev/docs/reference/cli (checked 2026-10-05)
+[[search_paths]]
+windows = ["${LOCALAPPDATA}/Programs/Zed/bin"]
+macos = ["/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "${HOME}/.local/zed.app/bin"]
+
+# SOURCE: https://zed.dev/docs/configuring-zed (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "Editor and agent settings, including MCP context servers (JSONC)."
+format = "jsonc"
+path = { windows = "${APPDATA}/Zed/settings.json", macos = "${HOME}/.config/zed/settings.json", linux = "${HOME}/.config/zed/settings.json" }
+
+# SOURCE: https://zed.dev/docs/ai/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills in ~/.agents/skills, available in every project."
+path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/skills", linux = "${HOME}/.agents/skills" }
+
+# SOURCE: https://zed.dev/docs/ai/mcp (checked 2026-10-05)
+[mcp]
+format = "jsonc"
+key_path = ["context_servers"]
+shared_with_config = true
+description = "Zed calls them context servers; they live in the context_servers object of settings.json."
+path = { windows = "${APPDATA}/Zed/settings.json", macos = "${HOME}/.config/zed/settings.json", linux = "${HOME}/.config/zed/settings.json" }
+
+# SOURCE: https://zed.dev/docs/ai/instructions (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Personal instructions applied to the agent in every project."
+format = "markdown"
+path = { windows = "${APPDATA}/Zed/AGENTS.md", macos = "${HOME}/.config/zed/AGENTS.md", linux = "${HOME}/.config/zed/AGENTS.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://zed.dev/docs/installation (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos"]
+command = "brew install --cask zed"
+update_command = "brew upgrade --cask zed"
+uninstall_command = "brew uninstall --cask zed"
+docs_url = "https://zed.dev/docs/installation"
+priority = 0
+
+# SOURCE: https://zed.dev/docs/installation (checked 2026-10-05)
+[[methods]]
+id = "winget"
+manager = "winget"
+os = ["windows"]
+command = "winget install -e --id ZedIndustries.Zed"
+update_command = "winget upgrade ZedIndustries.Zed"
+uninstall_command = "winget uninstall ZedIndustries.Zed"
+docs_url = "https://zed.dev/docs/installation"
+priority = 0
+
+# SOURCE: https://zed.dev/docs/installation (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["linux"]
+command = "curl -f https://zed.dev/install.sh | sh"
+uninstall_command = "zed --uninstall"
+docs_url = "https://zed.dev/docs/installation"
+note = "Zed keeps itself up to date automatically."
+priority = 0

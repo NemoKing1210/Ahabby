@@ -1,0 +1,78 @@
+id = "amazon-q"
+name = "Amazon Q Developer CLI"
+description = "AWS's terminal coding agent with agents, MCP servers and knowledge bases."
+tagline = "AWS's AI assistant in the terminal"
+website = "https://aws.amazon.com/q/developer/"
+docs = "https://aws.github.io/amazon-q-developer-cli"
+icon = "amazonq"
+category = "cli"
+popular = false
+vendor = "AWS"
+features = [
+    "Terminal chat agent with file and shell context",
+    "Custom agents as JSON under ~/.aws/amazonq/cli-agents",
+    "MCP servers, knowledge bases and hooks",
+    "Deprecated in favour of Kiro CLI",
+]
+github = "aws/amazon-q-developer-cli"
+unverified = []
+notes = """Verified against the aws/amazon-q-developer-cli repository and AWS docs on 2026-10-05. The
+CLI ships as the `q` binary (with a `qchat` alias). AWS has deprecated the CLI in favour of Kiro
+CLI, and the current install path is the Amazon Q desktop app (Homebrew cask), which bundles the
+CLI on macOS; other platforms are a manual download or WSL."""
+
+[binaries]
+names = ["q", "qchat"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://github.com/aws/amazon-q-developer-cli (checked 2026-10-05)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://github.com/aws/amazon-q-developer-cli/blob/main/docs/agent-file-locations.md (checked 2026-10-05)
+[[configs]]
+id = "cli-agents"
+label = "cli-agents"
+description = "Global agent definitions; every *.json file is a custom agent."
+format = "json"
+glob = "*.json"
+path = { windows = "${USERPROFILE}/.aws/amazonq/cli-agents", macos = "${HOME}/.aws/amazonq/cli-agents", linux = "${HOME}/.aws/amazonq/cli-agents" }
+
+# SOURCE: https://github.com/aws/amazon-q-developer-cli/blob/main/docs/agent-format.md (checked 2026-10-05)
+[[configs]]
+id = "mcp-legacy"
+label = "mcp.json (legacy)"
+description = "Legacy global MCP servers, honoured only when an agent sets useLegacyMcpJson."
+format = "json"
+path = { windows = "${USERPROFILE}/.aws/amazonq/mcp.json", macos = "${HOME}/.aws/amazonq/mcp.json", linux = "${HOME}/.aws/amazonq/mcp.json" }
+
+# SOURCE: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/qdev-mcp.html (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+glob = "*.json"
+shared_with_config = true
+description = "MCP servers are declared per agent inside ~/.aws/amazonq/cli-agents/*.json."
+path = { windows = "${USERPROFILE}/.aws/amazonq/cli-agents", macos = "${HOME}/.aws/amazonq/cli-agents", linux = "${HOME}/.aws/amazonq/cli-agents" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://github.com/aws/amazon-q-developer-cli (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos"]
+command = "brew install --cask amazon-q"
+docs_url = "https://github.com/aws/amazon-q-developer-cli"
+note = "Installs the Amazon Q desktop app, which bundles the `q` CLI on macOS."
+priority = 0
+
+# SOURCE: https://aws.github.io/amazon-q-developer-cli/ (checked 2026-10-05)
+[[methods]]
+id = "download"
+manager = "manual"
+command = "Download the Amazon Q installer for your platform, or use WSL on Windows"
+docs_url = "https://aws.github.io/amazon-q-developer-cli/"
+priority = 1

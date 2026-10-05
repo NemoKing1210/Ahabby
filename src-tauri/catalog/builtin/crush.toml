@@ -1,0 +1,127 @@
+id = "crush"
+name = "Crush"
+description = "Charm's glamorous terminal coding agent with MCP, LSP and skills."
+tagline = "A glamorous terminal agent from Charm"
+website = "https://github.com/charmbracelet/crush"
+docs = "https://github.com/charmbracelet/crush/blob/main/docs/config/README.md"
+icon = "crush"
+category = "cli"
+popular = true
+vendor = "Charm"
+features = [
+    "Terminal agent with a polished TUI",
+    "Global config in ~/.config/crush (crushrc, plus legacy crush.json)",
+    "MCP servers, hooks and user themes",
+    "Skills in SKILL.md folders, shared with ~/.agents/skills",
+]
+github = "charmbracelet/crush"
+unverified = ["mcp.path"]
+notes = """Verified against the charmbracelet/crush repository and its config docs on 2026-10-05.
+The global config file is now `crushrc` (`%USERPROFILE%\\.config\\crush\\crushrc` on Windows), with
+`crush.json` kept as the legacy JSON form; MCP servers are added with `crush mcp add` and read
+from the `mcp` key of the JSON config, which is why that path is flagged for verification. The
+docs document no self-update or uninstall command."""
+
+[binaries]
+names = ["crush"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm", "${LOCALAPPDATA}/Microsoft/WinGet/Links"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/go/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin", "${HOME}/go/bin"]
+
+# SOURCE: https://github.com/charmbracelet/crush/blob/main/docs/config/README.md (checked 2026-10-05)
+[[configs]]
+id = "crushrc"
+label = "crushrc"
+description = "Global config file (crushrc) for providers, models and hooks."
+format = "text"
+path = { windows = "${USERPROFILE}/.config/crush/crushrc", macos = "${HOME}/.config/crush/crushrc", linux = "${HOME}/.config/crush/crushrc" }
+
+# SOURCE: https://github.com/charmbracelet/crush/blob/main/docs/config/README.md (checked 2026-10-05)
+[[configs]]
+id = "legacy-json"
+label = "crush.json (legacy)"
+description = "Legacy JSON config, still read; holds the mcp map used by Ahabby."
+format = "json"
+path = { windows = "${USERPROFILE}/.config/crush/crush.json", macos = "${HOME}/.config/crush/crush.json", linux = "${HOME}/.config/crush/crush.json" }
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills; ~/.config/agents/skills, ~/.agents/skills and ~/.claude/skills are also read (Windows: %LOCALAPPDATA%\\crush\\skills)."
+path = { windows = "${LOCALAPPDATA}/crush/skills", macos = "${HOME}/.config/crush/skills", linux = "${HOME}/.config/crush/skills" }
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+# UNVERIFIED: the docs show the `mcp` JSON object but the current default config file is `crushrc`.
+[mcp]
+format = "jsonc"
+key_path = ["mcp"]
+description = "MCP servers live under the `mcp` key of the JSON config."
+path = { windows = "${USERPROFILE}/.config/crush/crush.json", macos = "${HOME}/.config/crush/crush.json", linux = "${HOME}/.config/crush/crush.json" }
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[other]]
+id = "crush-md"
+kind = "instructions"
+label = "CRUSH.md"
+description = "Global project instructions."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.config/crush/CRUSH.md", macos = "${HOME}/.config/crush/CRUSH.md", linux = "${HOME}/.config/crush/CRUSH.md" }
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Cross-tool global instructions in ~/.config/AGENTS.md."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.config/AGENTS.md", macos = "${HOME}/.config/AGENTS.md", linux = "${HOME}/.config/AGENTS.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install charmbracelet/tap/crush"
+docs_url = "https://github.com/charmbracelet/crush"
+priority = 0
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @charmland/crush"
+docs_url = "https://github.com/charmbracelet/crush"
+priority = 1
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[methods]]
+id = "winget"
+manager = "winget"
+os = ["windows"]
+command = "winget install charmbracelet.crush"
+docs_url = "https://github.com/charmbracelet/crush"
+priority = 2
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[methods]]
+id = "scoop"
+manager = "scoop"
+os = ["windows"]
+command = "scoop install crush"
+docs_url = "https://github.com/charmbracelet/crush"
+note = "Requires the charm bucket: scoop bucket add charm https://github.com/charmbracelet/scoop-bucket.git"
+priority = 3
+
+# SOURCE: https://github.com/charmbracelet/crush (checked 2026-10-05)
+[[methods]]
+id = "go"
+manager = "go"
+command = "go install github.com/charmbracelet/crush@latest"
+docs_url = "https://github.com/charmbracelet/crush"
+priority = 4

@@ -1,0 +1,114 @@
+id = "warp"
+name = "Warp"
+description = "Agentic terminal and standalone Agent CLI with MCP servers and skills."
+tagline = "The agentic development environment"
+website = "https://www.warp.dev"
+docs = "https://docs.warp.dev"
+icon = "warp"
+category = "cli"
+popular = true
+vendor = "Warp"
+features = [
+    "Agentic terminal with a standalone Agent CLI",
+    "App and CLI settings as TOML under the platform config dir",
+    "MCP servers from ~/.warp/.mcp.json",
+    "Global rules and skills shared through ~/.agents",
+]
+github = "warpdotdev/warp"
+unverified = []
+notes = """Verified against docs.warp.dev on 2026-10-05. The terminal app and the `warp` Agent CLI keep
+separate settings files; the CLI's user-scope MCP file is documented for macOS
+(`~/.warp_cli/.mcp.json`), so Ahabby points the MCP tab at the app's cross-platform
+`~/.warp/.mcp.json` instead. Versions are date-based, so the version is taken verbatim."""
+
+[binaries]
+names = ["warp", "warp-terminal"]
+version_args = ["--version"]
+version_extract = "line"
+
+# SOURCE: https://docs.warp.dev/agents/cli/quickstart (checked 2026-10-05)
+[[search_paths]]
+windows = ["${LOCALAPPDATA}/Programs/Warp/bin"]
+macos = ["/Applications/Warp.app/Contents/MacOS", "${HOME}/.local/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.warp.dev/terminal/settings/file-locations (checked 2026-10-05)
+[[configs]]
+id = "app-settings"
+label = "settings.toml (Warp app)"
+description = "Terminal, appearance and agent settings for the Warp app."
+format = "toml"
+path = { windows = "${LOCALAPPDATA}/warp/Warp/config/settings.toml", macos = "${HOME}/.warp/settings.toml", linux = "${HOME}/.config/warp-terminal/settings.toml" }
+
+# SOURCE: https://docs.warp.dev/agents/cli/configuration (checked 2026-10-05)
+[[configs]]
+id = "cli-settings"
+label = "settings.toml (Agent CLI)"
+description = "Settings for the standalone `warp` Agent CLI."
+format = "toml"
+path = { windows = "${LOCALAPPDATA}/warp/Warp/config/cli/settings.toml", macos = "${HOME}/.warp_cli/settings.toml", linux = "${HOME}/.config/warp-terminal/cli/settings.toml" }
+
+# SOURCE: https://docs.warp.dev/agents/capabilities/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills in ~/.agents/skills; ~/.warp/skills holds the bundled ones."
+path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/skills", linux = "${HOME}/.agents/skills" }
+
+# SOURCE: https://docs.warp.dev/agents/capabilities/mcp (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "Global MCP servers from ~/.warp/.mcp.json; project servers come from .warp/.mcp.json."
+path = { windows = "${USERPROFILE}/.warp/.mcp.json", macos = "${HOME}/.warp/.mcp.json", linux = "${HOME}/.warp/.mcp.json" }
+
+# SOURCE: https://docs.warp.dev/agents/cli/configuration (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global rules applied across all projects."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.agents/AGENTS.md", macos = "${HOME}/.agents/AGENTS.md", linux = "${HOME}/.agents/AGENTS.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.warp.dev/getting-started/quickstart/installation-and-setup (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos"]
+command = "brew install --cask warp"
+uninstall_command = "brew uninstall --cask warp"
+docs_url = "https://docs.warp.dev/getting-started/quickstart/installation-and-setup"
+note = "Installs the Warp app, which updates itself."
+priority = 0
+
+# SOURCE: https://docs.warp.dev/getting-started/quickstart/installation-and-setup (checked 2026-10-05)
+[[methods]]
+id = "winget"
+manager = "winget"
+os = ["windows"]
+command = "winget install Warp.Warp"
+uninstall_command = "winget uninstall Warp.Warp"
+docs_url = "https://docs.warp.dev/getting-started/quickstart/installation-and-setup"
+priority = 0
+
+# SOURCE: https://docs.warp.dev/agents/cli/quickstart (checked 2026-10-05)
+[[methods]]
+id = "agent-cli"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://app.warp.dev/download/agent-cli | bash"
+docs_url = "https://docs.warp.dev/agents/cli/quickstart"
+note = "Official Agent CLI installer; the CLI updates itself in the background."
+priority = 1
+
+# SOURCE: https://docs.warp.dev/agents/cli/quickstart (checked 2026-10-05)
+[[methods]]
+id = "agent-cli-brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install --cask warp-agent-cli"
+update_command = "brew upgrade --cask warp-agent-cli"
+uninstall_command = "brew uninstall --cask warp-agent-cli"
+docs_url = "https://docs.warp.dev/agents/cli/quickstart"
+priority = 2

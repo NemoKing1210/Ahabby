@@ -1,0 +1,121 @@
+id = "openclaw"
+name = "OpenClaw"
+description = "Open-source personal AI agent (formerly Clawdbot) with a JSON5 config and skill system."
+tagline = "A self-hosted personal agent with skills, MCP and messaging channels"
+website = "https://openclaw.ai"
+docs = "https://docs.openclaw.ai"
+icon = "openclaw"
+category = "cli"
+popular = true
+vendor = "OpenClaw"
+features = [
+    "Self-hosted personal agent with a gateway and CLI",
+    "JSON5 config at ~/.openclaw/openclaw.json",
+    "Skills in SKILL.md folders, shared with the ~/.agents/skills convention",
+    "MCP servers under the mcp.servers key",
+]
+github = "openclaw/openclaw"
+unverified = []
+notes = """Verified against docs.openclaw.ai on 2026-10-05. The state directory is `~/.openclaw/`
+(config, credentials, sessions) and the agent workspace defaults to `~/.openclaw/workspace` — they
+are different directories. Skills are discovered from `<workspace>/skills`, `~/.agents/skills`
+(personal) and `~/.openclaw/skills` (managed); Ahabby lists the personal directory. Requires
+Node 24.16+ or 26.1+ when installed through npm."""
+
+[binaries]
+names = ["openclaw"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.openclaw.ai/install (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.openclaw.ai/gateway/configuration (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "openclaw.json"
+description = "JSON5 config: gateway, models, channels, commands and MCP servers. Watched while it runs."
+format = "jsonc"
+path = { windows = "${USERPROFILE}/.openclaw/openclaw.json", macos = "${HOME}/.openclaw/openclaw.json", linux = "${HOME}/.openclaw/openclaw.json" }
+
+# SOURCE: https://docs.openclaw.ai/tools/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Personal agent skills at ~/.agents/skills; managed skills live in ~/.openclaw/skills."
+path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/skills", linux = "${HOME}/.agents/skills" }
+
+# SOURCE: https://docs.openclaw.ai/tools/mcp (checked 2026-10-05)
+[mcp]
+format = "jsonc"
+key_path = ["mcp", "servers"]
+shared_with_config = true
+description = "Server definitions live under the `mcp.servers` key of openclaw.json."
+path = { windows = "${USERPROFILE}/.openclaw/openclaw.json", macos = "${HOME}/.openclaw/openclaw.json", linux = "${HOME}/.openclaw/openclaw.json" }
+
+# SOURCE: https://docs.openclaw.ai/concepts/agent-workspace (checked 2026-10-05)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md (workspace)"
+description = "Operating instructions loaded at the start of every session, from the default workspace."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.openclaw/workspace/AGENTS.md", macos = "${HOME}/.openclaw/workspace/AGENTS.md", linux = "${HOME}/.openclaw/workspace/AGENTS.md" }
+
+# SOURCE: https://docs.openclaw.ai/concepts/agent-workspace (checked 2026-10-05)
+[[other]]
+id = "soul"
+kind = "memory"
+label = "SOUL.md (workspace)"
+description = "Persona and tone of the agent."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.openclaw/workspace/SOUL.md", macos = "${HOME}/.openclaw/workspace/SOUL.md", linux = "${HOME}/.openclaw/workspace/SOUL.md" }
+
+# SOURCE: https://docs.openclaw.ai/concepts/agent-workspace (checked 2026-10-05)
+[[other]]
+id = "memory"
+kind = "memory"
+label = "MEMORY.md (workspace)"
+description = "Curated long-term memory, alongside the per-day files in memory/."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.openclaw/workspace/MEMORY.md", macos = "${HOME}/.openclaw/workspace/MEMORY.md", linux = "${HOME}/.openclaw/workspace/MEMORY.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.openclaw.ai/install (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://openclaw.ai/install.sh | bash"
+update_command = "openclaw update"
+uninstall_command = "openclaw uninstall"
+docs_url = "https://docs.openclaw.ai/install"
+note = "Official installer; provisions the Node runtime it needs."
+priority = 0
+
+# SOURCE: https://docs.openclaw.ai/install (checked 2026-10-05)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "iwr -useb https://openclaw.ai/install.ps1 | iex"
+update_command = "openclaw update"
+uninstall_command = "openclaw uninstall"
+docs_url = "https://docs.openclaw.ai/install"
+note = "Official PowerShell installer."
+requires = ["PowerShell 5.1+"]
+priority = 0
+
+# SOURCE: https://docs.openclaw.ai/install (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g openclaw@latest --allow-scripts=openclaw"
+update_command = "openclaw update"
+uninstall_command = "npm rm -g openclaw"
+docs_url = "https://docs.openclaw.ai/install"
+note = "--allow-scripts=openclaw lets the package run its own install hooks, as the official docs require."
+requires = ["node >= 24.16", "npm >= 11.16"]
+priority = 1

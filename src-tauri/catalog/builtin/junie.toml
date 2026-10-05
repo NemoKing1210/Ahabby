@@ -1,0 +1,139 @@
+id = "junie"
+name = "JetBrains Junie"
+description = "JetBrains' coding agent that runs in the IDE and as a standalone CLI."
+tagline = "JetBrains' coding agent, in the IDE and the terminal"
+website = "https://www.jetbrains.com/junie"
+docs = "https://junie.jetbrains.com/docs/"
+icon = "junie"
+category = "cli"
+popular = true
+vendor = "JetBrains"
+features = [
+    "Same agent in JetBrains IDEs and as a CLI",
+    "User config, settings, allowlist and sandbox policy under ~/.junie",
+    "MCP servers shared with the IDE plugin via ~/.junie/mcp/mcp.json",
+    "Skills, custom commands and subagents",
+]
+github = "JetBrains/junie"
+unverified = []
+notes = """Verified against junie.jetbrains.com/docs and the JetBrains/junie repository on 2026-10-05.
+Everything user-scoped lives in `~/.junie` (`JUNIE_HOME` overrides it), including the MCP file
+that the IDE plugin writes too. Build versions are JetBrains build numbers rather than strict
+semver, so the version is taken verbatim. Sandbox mode is not available on Windows."""
+
+[binaries]
+names = ["junie"]
+version_args = ["--version"]
+version_extract = "line"
+
+# SOURCE: https://github.com/JetBrains/junie (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm", "${USERPROFILE}/.local/bin"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://junie.jetbrains.com/docs/junie-cli-configuration.html (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.json"
+description = "User-scope Junie configuration, including personal hooks."
+format = "json"
+path = { windows = "${USERPROFILE}/.junie/config.json", macos = "${HOME}/.junie/config.json", linux = "${HOME}/.junie/config.json" }
+
+# SOURCE: https://junie.jetbrains.com/docs/junie-cli-configuration.html (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "Separate channel for user settings such as the selected model."
+format = "json"
+path = { windows = "${USERPROFILE}/.junie/settings.json", macos = "${HOME}/.junie/settings.json", linux = "${HOME}/.junie/settings.json" }
+
+# SOURCE: https://junie.jetbrains.com/docs/junie-cli.html (checked 2026-10-05)
+[[configs]]
+id = "allowlist"
+label = "allowlist.json"
+description = "Allowed commands and command patterns."
+format = "json"
+path = { windows = "${USERPROFILE}/.junie/allowlist.json", macos = "${HOME}/.junie/allowlist.json", linux = "${HOME}/.junie/allowlist.json" }
+
+# SOURCE: https://junie.jetbrains.com/docs/junie-cli.html (checked 2026-10-05)
+[[configs]]
+id = "sandbox"
+label = "sandbox.json"
+description = "Sandbox policy (macOS and Linux only)."
+format = "json"
+path = { macos = "${HOME}/.junie/sandbox.json", linux = "${HOME}/.junie/sandbox.json" }
+
+# SOURCE: https://junie.jetbrains.com/docs/agent-skills.html (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "User skills; ~/.agents/skills is also read."
+path = { windows = "${USERPROFILE}/.junie/skills", macos = "${HOME}/.junie/skills", linux = "${HOME}/.junie/skills" }
+
+# SOURCE: https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "Shared by the Junie CLI and the IDE plugin."
+path = { windows = "${USERPROFILE}/.junie/mcp/mcp.json", macos = "${HOME}/.junie/mcp/mcp.json", linux = "${HOME}/.junie/mcp/mcp.json" }
+
+# SOURCE: https://junie.jetbrains.com/docs/guidelines-and-memory.html (checked 2026-10-05)
+[[other]]
+id = "guidelines"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global guidelines applied in every project."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.junie/AGENTS.md", macos = "${HOME}/.junie/AGENTS.md", linux = "${HOME}/.junie/AGENTS.md" }
+
+# SOURCE: https://junie.jetbrains.com/docs/custom-slash-commands.html (checked 2026-10-05)
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom slash commands"
+description = "User commands stored as markdown files."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.junie/commands", macos = "${HOME}/.junie/commands", linux = "${HOME}/.junie/commands" }
+
+# SOURCE: https://junie.jetbrains.com/docs/junie-cli-subagents.html (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Custom subagents"
+description = "User-scope subagent definitions; ~/.agents is also read."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.junie/agents", macos = "${HOME}/.junie/agents", linux = "${HOME}/.junie/agents" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://github.com/JetBrains/junie (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://junie.jetbrains.com/install.sh | bash"
+update_command = "junie update"
+docs_url = "https://github.com/JetBrains/junie"
+priority = 0
+
+# SOURCE: https://github.com/JetBrains/junie (checked 2026-10-05)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "powershell -NoProfile -ExecutionPolicy Bypass -Command \"iex (irm 'https://junie.jetbrains.com/install.ps1')\""
+update_command = "junie update"
+docs_url = "https://github.com/JetBrains/junie"
+priority = 0
+
+# SOURCE: https://github.com/JetBrains/junie (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @jetbrains/junie"
+update_command = "junie update"
+uninstall_command = "npm uninstall -g @jetbrains/junie"
+docs_url = "https://github.com/JetBrains/junie"
+requires = ["node >= 20"]
+priority = 1

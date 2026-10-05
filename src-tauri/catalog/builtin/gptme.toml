@@ -1,0 +1,110 @@
+id = "gptme"
+name = "gptme"
+description = "Open-source terminal agent with tools, skills, lessons and persistent memory."
+tagline = "Your agent in the terminal, with skills and memory you own"
+website = "https://gptme.org"
+docs = "https://gptme.org/docs"
+icon = "gptme"
+category = "cli"
+popular = true
+vendor = "gptme"
+features = [
+    "Terminal agent that can run code, browse and edit files",
+    "TOML config at ~/.config/gptme/config.toml",
+    "Skills, lessons and memory directories",
+    "MCP servers in the [mcp] section of the config",
+]
+github = "gptme/gptme"
+unverified = []
+notes = """Verified against gptme.org/docs on 2026-10-05. Global config is `~/.config/gptme/config.toml`
+plus optional `config.local.toml` and `config.runtime.toml`. Native Windows is not supported —
+Windows users run gptme through WSL or Docker — so the methods are macOS/Linux only."""
+
+[binaries]
+names = ["gptme"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://gptme.org/docs/getting-started.html (checked 2026-10-05)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["${HOME}/.local/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://gptme.org/docs/config.html (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.toml"
+description = "Global config, including the [mcp] section and [[hooks.scripts]]."
+format = "toml"
+path = { windows = "${USERPROFILE}/.config/gptme/config.toml", macos = "${HOME}/.config/gptme/config.toml", linux = "${HOME}/.config/gptme/config.toml" }
+
+# SOURCE: https://gptme.org/docs/config.html (checked 2026-10-05)
+[[configs]]
+id = "config-local"
+label = "config.local.toml"
+description = "Local overrides and secrets layered on top of config.toml."
+format = "toml"
+path = { windows = "${USERPROFILE}/.config/gptme/config.local.toml", macos = "${HOME}/.config/gptme/config.local.toml", linux = "${HOME}/.config/gptme/config.local.toml" }
+
+# SOURCE: https://gptme.org/docs/config.html (checked 2026-10-05)
+[[configs]]
+id = "config-runtime"
+label = "config.runtime.toml"
+description = "Deployment-provided defaults, read alongside the main config."
+format = "toml"
+path = { windows = "${USERPROFILE}/.config/gptme/config.runtime.toml", macos = "${HOME}/.config/gptme/config.runtime.toml", linux = "${HOME}/.config/gptme/config.runtime.toml" }
+
+# SOURCE: https://gptme.org/docs/skills.html (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "gptme-native skills; ~/.claude/skills and ~/.agents/skills are also read."
+path = { windows = "${USERPROFILE}/.config/gptme/skills", macos = "${HOME}/.config/gptme/skills", linux = "${HOME}/.config/gptme/skills" }
+
+# SOURCE: https://gptme.org/docs/mcp.html (checked 2026-10-05)
+[mcp]
+format = "toml"
+key_path = ["mcp", "servers"]
+shared_with_config = true
+description = "Servers are declared as [[mcp.servers]] entries in config.toml."
+path = { windows = "${USERPROFILE}/.config/gptme/config.toml", macos = "${HOME}/.config/gptme/config.toml", linux = "${HOME}/.config/gptme/config.toml" }
+
+# SOURCE: https://gptme.org/docs/lessons.html (checked 2026-10-05)
+[[other]]
+id = "lessons"
+kind = "rules"
+label = "Lessons"
+description = "Lessons learned by the agent, applied to future sessions."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.config/gptme/lessons", macos = "${HOME}/.config/gptme/lessons", linux = "${HOME}/.config/gptme/lessons" }
+
+# SOURCE: https://gptme.org/docs/memory.html (checked 2026-10-05)
+[[other]]
+id = "memory"
+kind = "memory"
+label = "Memory"
+description = "Persistent memory entries read at the start of a session."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.config/gptme/memory", macos = "${HOME}/.config/gptme/memory", linux = "${HOME}/.config/gptme/memory" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://gptme.org/docs/getting-started.html (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -sSf https://gptme.ai/install.sh | sh"
+docs_url = "https://gptme.org/docs/getting-started.html"
+priority = 0
+
+# SOURCE: https://gptme.org/docs/getting-started.html (checked 2026-10-05)
+[[methods]]
+id = "pipx"
+manager = "pipx"
+os = ["macos", "linux"]
+command = "pipx install gptme"
+docs_url = "https://gptme.org/docs/getting-started.html"
+requires = ["python >= 3.10"]
+priority = 1

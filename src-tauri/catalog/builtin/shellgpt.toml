@@ -1,0 +1,73 @@
+id = "shellgpt"
+name = "ShellGPT"
+description = "Command-line LLM assistant for the shell, with custom roles and functions."
+tagline = "A command-line productivity tool powered by LLMs"
+website = "https://github.com/TheR1D/shell_gpt"
+docs = "https://github.com/TheR1D/shell_gpt/blob/main/README.md"
+icon = "shellgpt"
+category = "cli"
+popular = true
+vendor = "TheR1D"
+features = [
+    "Generate and execute shell commands with an LLM",
+    "Custom roles stored as JSON in ~/.config/shell_gpt/roles",
+    "Python function calling from ~/.config/shell_gpt/functions",
+    "Runtime settings in ~/.config/shell_gpt/.sgptrc",
+]
+github = "TheR1D/shell_gpt"
+unverified = []
+notes = """Verified against the TheR1D/shell_gpt README and sources on 2026-10-05. The console script
+is `sgpt`; `shell-gpt` is only the PyPI distribution name. ShellGPT has no MCP or skills support
+— its extensibility is roles and Python functions. Config lives under the platform `~/.config`
+(`%USERPROFILE%\\.config` on Windows)."""
+
+[binaries]
+names = ["sgpt"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://github.com/TheR1D/shell_gpt/blob/main/sgpt/config.py (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/Python/Scripts", "${LOCALAPPDATA}/Programs/Python/Python312/Scripts"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://github.com/TheR1D/shell_gpt/blob/main/README.md (checked 2026-10-05)
+[[configs]]
+id = "rc"
+label = ".sgptrc"
+description = "Runtime configuration (key=value), including API keys and default model."
+format = "text"
+path = { windows = "${USERPROFILE}/.config/shell_gpt/.sgptrc", macos = "${HOME}/.config/shell_gpt/.sgptrc", linux = "${HOME}/.config/shell_gpt/.sgptrc" }
+
+# SOURCE: https://github.com/TheR1D/shell_gpt/blob/main/README.md (checked 2026-10-05)
+[[other]]
+id = "roles"
+kind = "prompts"
+label = "Custom roles"
+description = "One JSON file per role; each becomes an sgpt system prompt."
+format = "json"
+glob = "*.json"
+path = { windows = "${USERPROFILE}/.config/shell_gpt/roles", macos = "${HOME}/.config/shell_gpt/roles", linux = "${HOME}/.config/shell_gpt/roles" }
+
+# SOURCE: https://github.com/TheR1D/shell_gpt/blob/main/README.md (checked 2026-10-05)
+[[other]]
+id = "functions"
+kind = "commands"
+label = "Functions"
+description = "Python functions the model can call, named after the file."
+format = "text"
+glob = "*.py"
+path = { windows = "${USERPROFILE}/.config/shell_gpt/functions", macos = "${HOME}/.config/shell_gpt/functions", linux = "${HOME}/.config/shell_gpt/functions" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://github.com/TheR1D/shell_gpt/blob/main/README.md (checked 2026-10-05)
+[[methods]]
+id = "pip"
+manager = "pip"
+command = "pip install shell-gpt"
+update_command = "pip install --upgrade shell-gpt"
+uninstall_command = "pip uninstall -y shell-gpt"
+docs_url = "https://github.com/TheR1D/shell_gpt/blob/main/README.md"
+requires = ["python >= 3.10"]
+priority = 0

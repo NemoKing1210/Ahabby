@@ -1,0 +1,101 @@
+id = "openhands"
+name = "OpenHands"
+description = "Open-source software development agent with a terminal CLI and web UI."
+tagline = "An open-source agent that writes, tests and ships code"
+website = "https://www.openhands.dev"
+docs = "https://docs.openhands.dev/openhands/usage/cli/installation"
+icon = "openhands"
+category = "cli"
+popular = true
+vendor = "All Hands AI"
+features = [
+    "Terminal CLI and web UI for the same agent",
+    "User settings and MCP servers under ~/.openhands",
+    "Skills in ~/.agents/skills, shared with other agents",
+    "Sandboxed execution with conversation history",
+]
+github = "All-Hands-AI/OpenHands"
+unverified = []
+notes = """Verified against docs.openhands.dev and the OpenHands-CLI repository on 2026-10-05. The CLI
+keeps its state in `~/.openhands` (settings.json, agent_settings.json, cli_config.json, mcp.json
+and conversations/). Skills follow the cross-tool `~/.agents/skills` convention; the legacy
+`~/.openhands/skills` and microagents directories are still read. Windows is supported through
+WSL."""
+
+[binaries]
+names = ["openhands"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.openhands.dev/openhands/usage/cli/installation (checked 2026-10-05)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["${HOME}/.local/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.openhands.dev/openhands/usage/cli/installation (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "LLM and session settings for the CLI."
+format = "json"
+path = { windows = "${USERPROFILE}/.openhands/settings.json", macos = "${HOME}/.openhands/settings.json", linux = "${HOME}/.openhands/settings.json" }
+
+# SOURCE: https://github.com/OpenHands/OpenHands-CLI (checked 2026-10-05)
+[[configs]]
+id = "agent-settings"
+label = "agent_settings.json"
+description = "Persisted agent settings chosen in the TUI."
+format = "json"
+path = { windows = "${USERPROFILE}/.openhands/agent_settings.json", macos = "${HOME}/.openhands/agent_settings.json", linux = "${HOME}/.openhands/agent_settings.json" }
+
+# SOURCE: https://github.com/OpenHands/OpenHands-CLI (checked 2026-10-05)
+[[configs]]
+id = "cli-config"
+label = "cli_config.json"
+description = "CLI and TUI preferences."
+format = "json"
+path = { windows = "${USERPROFILE}/.openhands/cli_config.json", macos = "${HOME}/.openhands/cli_config.json", linux = "${HOME}/.openhands/cli_config.json" }
+
+# SOURCE: https://docs.openhands.dev/openhands/usage/cli/mcp-servers (checked 2026-10-05)
+[[configs]]
+id = "mcp"
+label = "mcp.json"
+description = "User-scope MCP server definitions."
+format = "json"
+path = { windows = "${USERPROFILE}/.openhands/mcp.json", macos = "${HOME}/.openhands/mcp.json", linux = "${HOME}/.openhands/mcp.json" }
+
+# SOURCE: https://docs.openhands.dev/openhands/usage/skills/overview (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "User skills in ~/.agents/skills; ~/.openhands/skills and microagents are legacy fallbacks."
+path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/skills", linux = "${HOME}/.agents/skills" }
+
+# SOURCE: https://docs.openhands.dev/openhands/usage/cli/mcp-servers (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "`openhands mcp add` writes servers into ~/.openhands/mcp.json."
+path = { windows = "${USERPROFILE}/.openhands/mcp.json", macos = "${HOME}/.openhands/mcp.json", linux = "${HOME}/.openhands/mcp.json" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.openhands.dev/openhands/usage/cli/installation (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://install.openhands.dev/install.sh | sh"
+docs_url = "https://docs.openhands.dev/openhands/usage/cli/installation"
+priority = 0
+
+# SOURCE: https://pypi.org/project/openhands/ (checked 2026-10-05)
+[[methods]]
+id = "pip"
+manager = "pip"
+os = ["macos", "linux"]
+command = "pip install openhands"
+update_command = "pip install --upgrade openhands"
+uninstall_command = "pip uninstall -y openhands"
+docs_url = "https://docs.openhands.dev/openhands/usage/cli/installation"
+requires = ["python >= 3.12"]
+priority = 1

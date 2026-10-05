@@ -1,0 +1,67 @@
+id = "tabby"
+name = "Tabby"
+description = "Self-hosted, open-source AI coding assistant and completion server."
+tagline = "Your own self-hosted coding assistant"
+website = "https://www.tabbyml.com"
+docs = "https://tabby.tabbyml.com/docs"
+icon = "tabby"
+category = "cli"
+popular = false
+vendor = "TabbyML"
+features = [
+    "Self-hosted code completion and chat server",
+    "Repositories and settings in ~/.tabby/config.toml",
+    "Runs fully offline with local models",
+    "IDE extensions connect to the local server",
+]
+github = "TabbyML/tabby"
+unverified = []
+notes = """Verified against tabby.tabbyml.com/docs on 2026-10-05. Tabby is a server rather than a
+terminal agent: it has no MCP, skills or instructions of its own. `~/.tabby/config.toml` is the
+only user-scope file and the only way to register repositories for the OSS server."""
+
+[binaries]
+names = ["tabby"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://tabby.tabbyml.com/docs/quick-start/installation/apple (checked 2026-10-05)
+[[search_paths]]
+macos = ["/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["/usr/local/bin", "${HOME}/.local/bin"]
+
+# SOURCE: https://tabby.tabbyml.com/docs/configuration (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.toml"
+description = "Tabby server configuration: repositories, model and server settings."
+format = "toml"
+path = { windows = "${USERPROFILE}/.tabby/config.toml", macos = "${HOME}/.tabby/config.toml", linux = "${HOME}/.tabby/config.toml" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://tabby.tabbyml.com/docs/quick-start/installation/apple (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos"]
+command = "brew install tabbyml/tabby/tabby"
+docs_url = "https://tabby.tabbyml.com/docs/quick-start/installation/apple"
+priority = 0
+
+# SOURCE: https://tabby.tabbyml.com/docs/quick-start/installation/linux (checked 2026-10-05)
+[[methods]]
+id = "linux"
+manager = "manual"
+os = ["linux"]
+command = "Download the tabby_x86_64-manylinux2014.zip release and run the tabby executable"
+docs_url = "https://tabby.tabbyml.com/docs/quick-start/installation/linux"
+priority = 1
+
+# SOURCE: https://tabby.tabbyml.com/docs/quick-start/installation/windows (checked 2026-10-05)
+[[methods]]
+id = "windows"
+manager = "manual"
+os = ["windows"]
+command = "Download the Windows release archive and run tabby.exe"
+docs_url = "https://tabby.tabbyml.com/docs/quick-start/installation/windows"
+priority = 1

@@ -36,8 +36,9 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
 
 ## What it does
 
-- **Finds agents automatically.** Claude Code, Codex CLI, Gemini CLI, opencode, GitHub Copilot CLI, Cursor
-  CLI, Aider, Cline, Continue, Qwen Code — one declarative manifest each, no code per agent.
+- **Finds agents automatically.** Over 30 agents — Claude Code, Codex CLI, Gemini CLI, opencode, Copilot
+  CLI, Cursor CLI, Amp, Kilo Code, Kiro, Goose, Crush, Droid, Junie, Hermes, OpenClaw, Pi, omp, Zed,
+  Windsurf, Aider, Cline, Continue and more — one declarative manifest each, no code per agent.
 - **Shows what is actually installed:** version, path, how it was installed, and whether a newer version
   exists (optional, uses the npm registry or GitHub releases).
 - **Gives every agent its own page:** what the tool is, who publishes it, its key features, and tabs for its

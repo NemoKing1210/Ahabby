@@ -5,6 +5,21 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-05
+
+### Added
+
+- 24 new agents, taking the catalog from 10 to 34: Hermes, OpenClaw, Pi, omp, Amp, Kilo Code, Kiro, Goose,
+  Crush, Plandex, gptme, ShellGPT, Open Interpreter, Tabby, Forge, Factory Droid, OpenHands, Codebuff,
+  JetBrains Junie, Augment Code, Warp, Zed, Windsurf and Amazon Q Developer CLI — each with its config
+  files, skills, MCP servers, instructions, other resources and install/update commands
+- `binaries.version_extract = "line"` for agents whose build numbers are not semver (Junie, Warp, Zed)
+
+### Changed
+
+- Every new manifest carries `# SOURCE:` comments pointing at the official documentation, and anything the
+  docs do not confirm is listed under `unverified` instead of being guessed
+
 ## [0.1.1] - 2026-10-05
 
 ### Fixed

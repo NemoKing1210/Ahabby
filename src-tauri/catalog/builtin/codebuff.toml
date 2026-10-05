@@ -1,0 +1,59 @@
+id = "codebuff"
+name = "Codebuff"
+description = "Open-source terminal coding agent with a knowledge file and custom agents."
+tagline = "An open coding agent for the terminal"
+website = "https://codebuff.com"
+docs = "https://codebuff.com/docs"
+icon = "codebuff"
+category = "cli"
+popular = true
+vendor = "Codebuff"
+features = [
+    "Terminal coding agent installed from npm",
+    "Home knowledge file at ~/.knowledge.md",
+    "MCP servers from ~/.agents/mcp.json",
+    "Custom agents written in TypeScript",
+]
+github = "CodebuffAI/codebuff"
+unverified = []
+notes = """Verified against codebuff.com/docs and the codebuff npm package on 2026-10-05. Codebuff
+keeps its local data (binary, chats) under `~/.config/manicode` and has no separate user settings
+JSON; the home knowledge file and `~/.agents/mcp.json` are the user-scope configuration surfaces.
+Codebuff updates itself."""
+
+[binaries]
+names = ["codebuff", "cb"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://codebuff.com/docs/help/quick-start (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://codebuff.com/docs/tips/mcp-servers (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "Servers are read from .agents/mcp.json in the working tree, its parent, or ~/.agents/mcp.json."
+path = { windows = "${USERPROFILE}/.agents/mcp.json", macos = "${HOME}/.agents/mcp.json", linux = "${HOME}/.agents/mcp.json" }
+
+# SOURCE: https://codebuff.com/docs/tips/knowledge-files (checked 2026-10-05)
+[[other]]
+id = "knowledge"
+kind = "instructions"
+label = ".knowledge.md"
+description = "Home knowledge file; ~/.AGENTS.md and ~/.CLAUDE.md are used if it is missing."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.knowledge.md", macos = "${HOME}/.knowledge.md", linux = "${HOME}/.knowledge.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://codebuff.com/docs/help/quick-start (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g codebuff"
+docs_url = "https://codebuff.com/docs/help/quick-start"
+note = "Installs the `codebuff` (alias `cb`) CLI; it updates itself in place."
+priority = 0

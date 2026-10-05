@@ -1,0 +1,127 @@
+id = "hermes"
+name = "Hermes Agent"
+description = "Nous Research's self-improving terminal agent with persistent memory and skills."
+tagline = "A terminal agent that remembers you between sessions"
+website = "https://hermes-agent.nousresearch.com"
+docs = "https://hermes-agent.nousresearch.com/docs"
+icon = "hermes"
+category = "cli"
+popular = true
+vendor = "Nous Research"
+features = [
+    "Terminal agent with persistent memory (MEMORY.md, USER.md)",
+    "Agent-created skills loaded from ~/.hermes/skills",
+    "SOUL.md controls the agent's identity and system prompt",
+    "MCP servers configured in config.yaml",
+]
+github = "NousResearch/hermes-agent"
+unverified = []
+notes = """Verified against hermes-agent.nousresearch.com/docs on 2026-10-05. All settings live in
+a single data root: `~/.hermes/` on macOS/Linux (or `$HERMES_HOME`), `%LOCALAPPDATA%\\hermes` on
+native Windows (WSL2 uses `~/.hermes`). The docs document the root and the file layout
+(config.yaml, .env, auth.json, SOUL.md, memories/, skills/); the per-file Windows paths are the
+same names under the documented Windows root. `hermes update` / `hermes uninstall` manage the
+source checkout the installer creates."""
+
+[binaries]
+names = ["hermes"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/getting-started/installation (checked 2026-10-05)
+# The POSIX installer creates a launcher in ~/.local/bin; the npm prefix is a common fallback.
+[[search_paths]]
+windows = ["${LOCALAPPDATA}/hermes/bin", "${USERPROFILE}/.local/bin", "${APPDATA}/npm"]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/user-guide/configuration (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.yaml"
+description = "Primary config file for all non-secret settings, including MCP servers."
+format = "yaml"
+path = { windows = "${LOCALAPPDATA}/hermes/config.yaml", macos = "${HOME}/.hermes/config.yaml", linux = "${HOME}/.hermes/config.yaml" }
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/user-guide/configuration (checked 2026-10-05)
+[[configs]]
+id = "env"
+label = ".env"
+description = "API keys and secrets; required for every provider credential."
+format = "text"
+path = { windows = "${LOCALAPPDATA}/hermes/.env", macos = "${HOME}/.hermes/.env", linux = "${HOME}/.hermes/.env" }
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/user-guide/configuration (checked 2026-10-05)
+[[configs]]
+id = "auth"
+label = "auth.json"
+description = "OAuth provider credentials written by `hermes setup`."
+format = "json"
+path = { windows = "${LOCALAPPDATA}/hermes/auth.json", macos = "${HOME}/.hermes/auth.json", linux = "${HOME}/.hermes/auth.json" }
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/user-guide/which-file-does-what (checked 2026-10-05)
+[[configs]]
+id = "soul"
+label = "SOUL.md"
+description = "Primary agent identity — slot #1 in the system prompt."
+format = "markdown"
+path = { windows = "${LOCALAPPDATA}/hermes/SOUL.md", macos = "${HOME}/.hermes/SOUL.md", linux = "${HOME}/.hermes/SOUL.md" }
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/user-guide/features/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Agent-created skills, one directory per skill containing a SKILL.md with YAML frontmatter."
+path = { windows = "${LOCALAPPDATA}/hermes/skills", macos = "${HOME}/.hermes/skills", linux = "${HOME}/.hermes/skills" }
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference (checked 2026-10-05)
+[mcp]
+format = "yaml"
+key_path = ["mcp_servers"]
+shared_with_config = true
+description = "MCP servers live under the top-level `mcp_servers` key of config.yaml."
+path = { windows = "${LOCALAPPDATA}/hermes/config.yaml", macos = "${HOME}/.hermes/config.yaml", linux = "${HOME}/.hermes/config.yaml" }
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/user-guide/which-file-does-what (checked 2026-10-05)
+[[other]]
+id = "user-profile"
+kind = "memory"
+label = "USER.md"
+description = "Agent-written profile of the user, kept across sessions."
+format = "markdown"
+path = { windows = "${LOCALAPPDATA}/hermes/memories/USER.md", macos = "${HOME}/.hermes/memories/USER.md", linux = "${HOME}/.hermes/memories/USER.md" }
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/user-guide/which-file-does-what (checked 2026-10-05)
+[[other]]
+id = "memory"
+kind = "memory"
+label = "MEMORY.md"
+description = "The agent's own persistent notes."
+format = "markdown"
+path = { windows = "${LOCALAPPDATA}/hermes/memories/MEMORY.md", macos = "${HOME}/.hermes/memories/MEMORY.md", linux = "${HOME}/.hermes/memories/MEMORY.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://hermes-agent.nousresearch.com/docs/getting-started/installation (checked 2026-10-05)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash"
+update_command = "hermes update"
+uninstall_command = "hermes uninstall"
+docs_url = "https://hermes-agent.nousresearch.com/docs/getting-started/installation"
+note = "Official installer: creates a managed source checkout and a launcher in ~/.local/bin."
+requires = ["git", "curl", "tar"]
+priority = 0
+
+# SOURCE: https://hermes-agent.nousresearch.com/docs/getting-started/installation (checked 2026-10-05)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://hermes-agent.nousresearch.com/install.ps1 | iex"
+update_command = "hermes update"
+uninstall_command = "hermes uninstall"
+docs_url = "https://hermes-agent.nousresearch.com/docs/getting-started/installation"
+note = "Official PowerShell installer; data lands in %LOCALAPPDATA%\\hermes."
+requires = ["PowerShell 5.1+"]
+priority = 0
