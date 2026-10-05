@@ -10,7 +10,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.7.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.12.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -58,21 +58,21 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 
 ## Key Directories
 
-| Path                               | Purpose                                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell           |
-| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, skills, mcp, library, install, settings |
-| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                          |
-| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                              |
-| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                           |
-| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                      |
-| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                 |
-| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                              |
-| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · state.rs · error.rs`       |
-| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                |
-| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                |
-| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                     |
-| `.github/workflows/ci.yml`         | The only CI workflow                                                                             |
+| Path                               | Purpose                                                                                                  |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                   |
+| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, install, settings |
+| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                  |
+| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                      |
+| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                   |
+| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                              |
+| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                         |
+| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                      |
+| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · state.rs · error.rs`               |
+| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                        |
+| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                        |
+| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                             |
+| `.github/workflows/ci.yml`         | The only CI workflow                                                                                     |
 
 ## Development Commands
 
@@ -163,11 +163,24 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   hand-rolling `initial`/`animate` pairs, and build slide-ins on `useSoftSlide` — `reducedMotion="user"`
   (set in `providers.tsx`) stops layout animation and instant-jumps transforms, but it would still hold a
   slide offset for the whole tween.
-- **Config edits** must follow: edit → `previewConfigSave` (diff + validation + hash) → `saveConfig`.
-  Stale-file errors are detected via `isStaleFileError`.
+- **Document edits** go through `features/editor` — one `DocumentEditorDialog` for every addressable file
+  (configs, MCP source files, `SKILL.md`, instructions/commands/hooks/rules), described by an
+  `EditorDocument`. The order is fixed: edit → `previewConfigSave` (diff + validation + hash) → `saveConfig`,
+  and the preview re-runs on a debounce so the banner and the Save button always describe the text on screen.
+  Stale-file errors are detected via `isStaleFileError` and turn into the reload banner; `editable` is never
+  raised on the frontend — a read-only document stays read-only in the UI and the backend refuses it anyway.
+- **CodeMirror** (`shared/ui/CodeViewer`, lazy-loaded) is themed by `shared/ui/code/editorTheme.ts` from
+  design tokens only, and the wrapper passes `theme="none"` so CodeMirror's own light/dark palettes cannot
+  paint over them. Adding a language means extending `extensionsFor`; `Ctrl+F` needs the `search()` extension
+  (the basic setup only binds the keymap).
 - **Theme**: `src/app/theme.ts` owns the only `prefers-color-scheme` subscription (through the app-wide
   `themeApplier`) and pushes the resolved palette to the native title bar. Always apply themes through
   that applier — a stale subscription re-applies a theme the user has already left.
+- **Appearance**: `src/app/appearance.ts` maps the accent/size/font settings onto root CSS custom properties
+  (`--ah-accent*`, `--ah-ui-scale`, `--ah-font-scale`, `--ah-font-*`) and is applied at boot and on save;
+  the Settings page previews an unsaved draft live and restores the saved values on unmount. `--ah-ui-scale`
+  is what resizes the layout (it multiplies Tailwind's `--spacing` and the radii), `--ah-font-scale` resizes
+  type — keep that split when adding tokens.
 - **i18n**: add every new string to **both** `en.json` and `ru.json`; parity is enforced by
   `src/shared/i18n/locales.test.ts`. Plurals use i18next `_one`/`_other`.
 - **Icons**: `AgentIcon` paints the manifest `icon` key with the brand palette from
@@ -185,8 +198,10 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   must go through DWM, not `Window::set_theme`: tao turns that into a theme change that reaches our own
   webview and flips the `prefers-color-scheme` a `system` theme is resolved from.
 - Services take a `PlatformContext` and must not depend on `AppHandle` (except where a `JobSink` is needed).
-- Commands resolve inputs through `AppState` (e.g. `config_target(agent_id, path)` is the security seam: the
-  path must exactly match a declared config of that agent, else `CommandNotAllowed`). `remove_skill` /
+- Commands resolve inputs through `AppState` (`document_target(agent_id, path)` is the security seam: the path
+  must exactly match a config declared by the manifest, a scanned resource file, or a skill's entry file —
+  see `state::resolve_document` — else `CommandNotAllowed`; a document the manifest marks read-only, or a
+  plugin-managed skill, is refused by `preview_config_save` / `save_config` even if the UI asks). `remove_skill` /
   `remove_mcp_server` / `run_install` all take `confirm` and go through `commands::require_confirmation`, so a
   UI that skips its dialog is refused instead of deleting or executing something.
 - Commands are never trusted from the UI: the UI sends an agent id + method id; `plan_for()` resolves the

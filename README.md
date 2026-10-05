@@ -54,7 +54,8 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
   back from Settings.
 - **Keeps secrets masked**: MCP tokens and headers are masked in the backend, and revealed one value at a
   time when you ask for it.
-- **Speaks English and Russian**, light and dark theme, warm editorial design.
+- **Speaks English and Russian**, light and dark theme, warm editorial design — and the look is yours to
+  tune: accent colour (including a custom one), interface and text size, and the interface/code fonts.
 
 ## Requirements
 

@@ -1,6 +1,6 @@
 [package]
 name = "ahabby"
-version = "0.7.0"
+version = "0.12.0"
 description = "Ahabby — a control panel for the AI coding agents installed on your machine"
 authors = ["Ahabby contributors"]
 license = "MIT"

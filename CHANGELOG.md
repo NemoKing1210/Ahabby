@@ -5,6 +5,82 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-05
+
+### Changed
+
+- Page headers stay pinned to the top of the scrolling area: the title and its actions remain visible on
+  every screen instead of scrolling away, sitting on a blurred backdrop so content passes cleanly beneath
+
+## [0.11.0] - 2026-10-05
+
+### Added
+
+- The file editor has a quick-action bar: undo/redo, revert to the saved version, clear, format
+  JSON, find and replace, copy, line wrapping, the diff and the backup list — plus `Ctrl+S` to save
+- MCP servers can be opened in the editor from their card, and skills (`SKILL.md`) and
+  instructions/commands/hooks/rules files can now be viewed and edited too: any file the scan
+  declared is editable, always with a timestamped backup first
+
+### Fixed
+
+- The editor finally follows the app theme: it is no longer painted with CodeMirror's own light
+  palette (which made plain text invisible in dark mode), line indentation and gutter spacing are
+  even, and searching with `Ctrl+F` opens a styled panel instead of doing nothing
+
+### Changed
+
+- Edits are validated automatically shortly after typing, so the error banner and the Save button
+  always describe the text on screen; a file changed by someone else is still refused, not
+  overwritten
+
+## [0.10.0] - 2026-10-05
+
+### Added
+
+- The sidebar navigation shows how much is behind each section while it is expanded: the Agents item
+  carries the number of installed agents, the Library item the total of skills, MCP servers and other
+  resources. The badges are hidden in the collapsed icon rail
+
+## [0.9.0] - 2026-10-05
+
+### Added
+
+- Appearance settings, so the app can be tuned to taste: an accent colour (nine presets or any custom
+  `#rrggbb`), an interface size and a text size, plus the interface font (Inter, system or Lora) and the code
+  font (JetBrains Mono or the system one). Everything is previewed live on the real interface and restored if
+  you leave without saving, and a single button resets accent, sizes and fonts to their defaults
+- The Appearance section carries a preview: heading, body text, button, badge and code chip, painted with the
+  choices currently in the draft
+
+### Changed
+
+- Type sizes are expressed in rem, so the text-size setting reaches every label, badge, code block, rendered
+  markdown and the config editor — not only the token-driven text
+- Settings written or edited by hand are sanitized on load and on save: the two size scales are clamped and a
+  custom accent that is not a colour falls back to the default preset
+
+## [0.8.0] - 2026-10-05
+
+### Added
+
+- The sidebar can be collapsed to an icon-only rail with a button next to the navigation; collapsed
+  items reveal their label on hover, and the scan status and rescan button tuck into icons
+
+### Changed
+
+- Sidebar navigation items are larger — bigger hit area, icon and label — so the rail reads at a
+  glance and is easier to click
+
+## [0.7.1] - 2026-10-05
+
+### Changed
+
+- Card lists are tighter and concentric: the cards sit close together, the corners at the exposed ends
+  keep the full radius, and a corner facing a neighbouring card is rounded a step smaller
+- The agent Overview tab uses the same grouped stack, so its panels sit close with matching corners
+- Dropdown options follow the same rule: a menu item is rounded by the content radius minus its padding
+
 ## [0.7.0] - 2026-10-05
 
 ### Added
