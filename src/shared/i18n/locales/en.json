@@ -79,7 +79,29 @@
     "problems": "Catalog problems",
     "problemsHint": "One or more manifests could not be loaded. The affected agent is not listed.",
     "searchPlaceholder": "Search agents…",
-    "noSearchResults": "No agent matches “{{query}}”"
+    "noSearchResults": "No agent matches “{{query}}”",
+    "filters": {
+      "scope": "Install state",
+      "signals": "Properties",
+      "clear": "Clear filters",
+      "noResults": "No agent matches the current filters",
+      "scopeAll": "All",
+      "scopeInstalled": "Installed",
+      "scopeAvailable": "Available",
+      "warnings": "With warnings",
+      "skills": "With skills",
+      "mcp": "With MCP"
+    },
+    "remove": "Remove",
+    "removeTitle": "Remove {{name}} from Ahabby?",
+    "removeBodyHidden": "The agent will be hidden from the list. Its manifest ships with Ahabby, so nothing on disk is touched — you can bring it back from Settings → Hidden agents at any time.",
+    "removeBodyManifest": "Its manifest file {{path}} will be moved to the OS trash, and the agent will disappear from Ahabby.",
+    "removeDelete": "Delete manifest",
+    "removedHidden": "{{name}} was removed from Ahabby",
+    "removedDeleted": "{{name}} was removed and its manifest was moved to the trash",
+    "menu": {
+      "open": "Open details"
+    }
   },
   "agent": {
     "backToList": "All agents",
@@ -298,6 +320,11 @@
     "catalog": "Catalog",
     "catalogDir": "Your manifest directory",
     "catalogDirHint": "Drop extra agent manifests (TOML) here. A file with the same id overrides the built-in one.",
+    "hiddenAgents": "Hidden agents",
+    "hiddenAgentsHint": "Agents you removed that Ahabby can still see on disk. Restoring brings them back to the list.",
+    "hiddenAgentsNone": "No agents are hidden.",
+    "restoreAgent": "Restore",
+    "agentRestored": "{{name}} is back in the list",
     "managers": "Package managers found",
     "managersNone": "None found — installs and updates will be unavailable.",
     "saved": "Settings saved",

@@ -40,6 +40,36 @@ export function useRescan() {
   })
 }
 
+/**
+ * Removes an agent from Ahabby and refreshes everything that lists agents. The backend
+ * decides whether that means deleting a user manifest or hiding a shipped agent; the
+ * returned `data` says which happened.
+ */
+export function useRemoveAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (agentId: string) => ipc.removeAgent(agentId, true),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.agents(), result.report)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings() })
+    },
+  })
+}
+
+/** Brings a hidden agent back into the list. */
+export function useRestoreAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (agentId: string) => ipc.restoreAgent(agentId),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.agents(), result.report)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings() })
+    },
+  })
+}
+
 export function useRevealPath() {
   return useMutation({ mutationFn: (path: string) => ipc.revealPath(path) })
 }

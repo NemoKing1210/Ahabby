@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FolderOpen, Plus, Save, Trash2 } from 'lucide-react'
+import { FolderOpen, Plus, Save, Trash2, Undo2 } from 'lucide-react'
 
 import { ipc } from '@/shared/api/ipc'
 import type { Settings } from '@/shared/bindings/Settings'
 import { LANGUAGES, type Language } from '@/shared/i18n'
+import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
@@ -14,6 +15,8 @@ import { SkeletonList } from '@/shared/ui/Primitives'
 import { Select } from '@/shared/ui/Select'
 import { SwitchField } from '@/shared/ui/Switch'
 import { toast, toastAppError } from '@/shared/ui/Toast'
+
+import { useRestoreAgent } from '@/features/agents/api/queries'
 
 import {
   useBackupRoot,
@@ -50,6 +53,7 @@ export function SettingsPage() {
   const managers = usePackageManagers()
   const catalogDir = useUserCatalogDir()
   const backupRoot = useBackupRoot()
+  const restore = useRestoreAgent()
 
   const [override, setOverride] = useState<Partial<Settings> | null>(null)
 
@@ -239,7 +243,39 @@ export function SettingsPage() {
         {catalogDir.data ? <PathRow path={catalogDir.data} className="py-3" /> : null}
       </Section>
 
-      <Section title={t('settings.managers')}>
+      <Section title={t('settings.hiddenAgents')} hint={t('settings.hiddenAgentsHint')}>
+        {settings.hiddenAgents.length === 0 ? (
+          <p className="text-muted py-3 text-[13px]">{t('settings.hiddenAgentsNone')}</p>
+        ) : (
+          <ul className="flex flex-col gap-2 py-3">
+            {settings.hiddenAgents.map((hidden) => (
+              <li key={hidden.id} className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <AgentIcon name={hidden.name} icon={hidden.icon} size="sm" />
+                  <span className="truncate text-sm">{hidden.name}</span>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={restore.isPending}
+                  onClick={() =>
+                    restore.mutate(hidden.id, {
+                      onSuccess: () =>
+                        toast.success(t('settings.agentRestored', { name: hidden.name })),
+                      onError: (error) => toastAppError(error),
+                    })
+                  }
+                >
+                  <Undo2 className="size-3.5" aria-hidden />
+                  {t('settings.restoreAgent')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section title={t('settings.about')}>
         {managers.data && managers.data.length > 0 ? (
           <ul className="flex flex-col gap-2 py-3">
             {managers.data.map((manager) => (

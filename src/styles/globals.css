@@ -271,6 +271,19 @@
     }
   }
 
+  /* Context menu: grows out of the pointer. Radix hands the content its placement origin
+     through `--radix-context-menu-content-transform-origin`. */
+  @keyframes ah-menu-in {
+    from {
+      opacity: 0;
+      scale: 0.96;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
   @keyframes ah-toast-in {
     from {
       opacity: 0;

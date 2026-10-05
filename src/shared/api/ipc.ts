@@ -9,9 +9,11 @@
 import { invoke } from '@tauri-apps/api/core'
 
 import type { Agent } from '@/shared/bindings/Agent'
+import type { AgentRemoval } from '@/shared/bindings/AgentRemoval'
 import type { BackupEntry } from '@/shared/bindings/BackupEntry'
 import type { ConfigSnapshot } from '@/shared/bindings/ConfigSnapshot'
 import type { DiffPreview } from '@/shared/bindings/DiffPreview'
+import type { HiddenAgent } from '@/shared/bindings/HiddenAgent'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
 import type { InstallPlan } from '@/shared/bindings/InstallPlan'
 import type { Library } from '@/shared/bindings/Library'
@@ -31,6 +33,10 @@ export const ipc = {
   listAgents: (force = false) => invoke<ScanReport>('list_agents', { force }),
   rescan: () => invoke<ScanReport>('rescan'),
   getAgent: (agentId: string) => invoke<Agent>('get_agent', { agentId }),
+  removeAgent: (agentId: string, confirm: boolean) =>
+    invoke<MutationResult<AgentRemoval>>('remove_agent', { agentId, confirm }),
+  restoreAgent: (agentId: string) =>
+    invoke<MutationResult<HiddenAgent>>('restore_agent', { agentId }),
   listPackageManagers: () => invoke<PackageManagerInfo[]>('list_package_managers'),
   revealPath: (path: string) => invoke<void>('reveal_path', { path }),
   openUrl: (url: string) => invoke<void>('open_url', { url }),

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Play, RefreshCw } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft, Play, RefreshCw, Trash2 } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import type { InstallAction } from '@/shared/bindings/InstallAction'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
@@ -19,12 +19,15 @@ import { SkillsTab } from '@/features/skills/components/SkillsTab'
 import { useAgent } from '../api/queries'
 import { OtherTab } from '../components/OtherTab'
 import { OverviewTab } from '../components/OverviewTab'
+import { RemoveAgentDialog } from '../components/RemoveAgentDialog'
 
 export function AgentPage() {
   const { agentId } = useParams<{ agentId: string }>()
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { agent, isLoading, error, isMissing } = useAgent(agentId)
   const [installAction, setInstallAction] = useState<InstallAction | null>(null)
+  const [removeOpen, setRemoveOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -105,6 +108,11 @@ export function AgentPage() {
                 {t('agents.install')}
               </Button>
             ) : null}
+
+            <Button variant="ghost" onClick={() => setRemoveOpen(true)}>
+              <Trash2 className="size-3.5" aria-hidden />
+              {t('agents.remove')}
+            </Button>
           </div>
         </header>
       </div>
@@ -161,6 +169,14 @@ export function AgentPage() {
           agent={agent}
           action={installAction}
           onOpenChange={() => setInstallAction(null)}
+        />
+      ) : null}
+
+      {removeOpen ? (
+        <RemoveAgentDialog
+          agent={agent}
+          onRemoved={() => navigate('/')}
+          onClose={() => setRemoveOpen(false)}
         />
       ) : null}
     </div>

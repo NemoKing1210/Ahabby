@@ -1,9 +1,12 @@
-import type { HTMLAttributes, ReactNode } from 'react'
+import type { ComponentPropsWithRef, HTMLAttributes, ReactNode } from 'react'
 
 import { cn } from '@/shared/lib/cn'
 
-/** Thin bordered surface — the workhorse container of the whole UI. */
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+/**
+ * Thin bordered surface — the workhorse container of the whole UI. Forwards its ref, so a
+ * card can be a Radix trigger (`ContextMenuTrigger asChild`) without an extra wrapper node.
+ */
+export function Card({ className, ...props }: ComponentPropsWithRef<'div'>) {
   return (
     <div
       className={cn(
