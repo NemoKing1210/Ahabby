@@ -1,4 +1,32 @@
-# Ahabby
+<p align="center">
+  <img src="src-tauri/icons/icon.png" width="96" height="96" alt="Ahabby">
+</p>
+
+<h1 align="center">Ahabby</h1>
+
+<p align="center">
+  <strong>One place for every AI coding agent on your machine.</strong><br>
+  Versions, config files, global skills, MCP servers, sub-agents and instructions.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-59d5cc?style=flat-square" alt="MIT License"></a>
+  <a href="https://github.com/NemoKing1210/Ahabby/actions/workflows/ci.yml"><img src="https://github.com/NemoKing1210/Ahabby/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/NemoKing1210/Ahabby/releases/latest"><img src="https://img.shields.io/github/v/release/NemoKing1210/Ahabby?style=flat-square" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri 2">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React 19">
+  <img src="https://img.shields.io/badge/Rust-2021-DEA584?style=flat-square&logo=rust&logoColor=white" alt="Rust">
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#build">Build</a> ·
+  <a href="#adding-an-agent">Adding an agent</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+---
 
 Ahabby finds the AI coding agents installed on your machine and puts them in one place: versions, config
 files, global skills, MCP servers, sub-agents and instructions. You can read all of it, edit configs with a

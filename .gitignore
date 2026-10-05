@@ -18,6 +18,10 @@ src-tauri/gen/
 .DS_Store
 Thumbs.db
 
+# secrets
+.env
+.env.*
+
 # logs
 *.log
 npm-debug.log*

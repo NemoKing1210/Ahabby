@@ -13,6 +13,41 @@ npm run tauri dev      # desktop app with hot reload
 
 Requirements are in the [README](README.md#requirements).
 
+## Commits
+
+Every commit uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```
+<type>(<scope>)!: <description>
+```
+
+- **type** — one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- **scope** — optional and lowercase; recommended: `agents`, `catalog`, `configs`, `skills`, `mcp`, `library`,
+  `install`, `settings`, `ui`, `i18n`, `api`, `ci`, `deps`, `release`.
+- **!** — mark a breaking change.
+- **description** — imperative, no trailing period, whole subject within 100 characters.
+
+```
+feat(agents): show the detected version on the card
+fix(api): reject config paths the manifest does not declare
+ci: cache the Rust build between jobs
+chore(deps): bump vite to 8.3
+```
+
+One logical change per commit. Merge, revert, `fixup!`, `squash!` and Dependabot (`Bump ...`) commits are
+accepted as-is, so rebases and bot PRs are never blocked.
+
+`npm install` enables the hooks (`prepare` → `scripts/setup-hooks.mjs`, `core.hooksPath=.githooks`):
+
+| Hook         | Runs                                               |
+| ------------ | -------------------------------------------------- |
+| `commit-msg` | Rejects a message that is not Conventional Commits |
+| `pre-commit` | Prettier check and ESLint on the staged files      |
+| `pre-push`   | `npm run check:versions`                           |
+
+Bypass a hook once with `git commit --no-verify` / `git push --no-verify`. CI re-validates the whole PR with
+`npm run check:commits <base>..<head>`, so a bypass only moves the failure.
+
 ## Before you push
 
 ```bash
@@ -22,8 +57,8 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-CI runs exactly these, plus a build on Windows, macOS and Linux, and it fails if the generated TypeScript
-bindings are out of date.
+CI runs exactly these, plus version sync and the release-script tests. Installers for Windows, macOS and Linux
+are built by the release workflow on a `v*.*.*` tag, not on every pull request.
 
 ## Rules of the house
 
@@ -183,5 +218,26 @@ Commit the regenerated files together with the Rust change; CI fails if they dri
 
 ## Release
 
-`Cargo.toml`, `package.json` and `tauri.conf.json` carry the same version; bump all three in one commit. Release
-binaries are produced by the CI workflow (`tauri build` on each platform).
+Versions and the changelog are managed by scripts, not by hand. Every shipped change gets a SemVer bump and a
+dated `CHANGELOG.md` section in the same commit — see [`.cursor/rules/versioning.mdc`](.cursor/rules/versioning.mdc).
+
+```bash
+npm run version:patch     # or version:minor / version:major
+npm run check:versions    # confirm every version file and the changelog section agree
+npm run release           # tag vX.Y.Z from package.json and push it
+```
+
+`version:*` updates `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`,
+`src-tauri/tauri.conf.json` and the `Version:` line in [AGENTS.md](AGENTS.md), then inserts a `CHANGELOG.md`
+stub. Edit the notes before committing.
+
+Pushing a `v*.*.*` tag (or running the workflow manually) starts [`.github/workflows/release.yml`](.github/workflows/release.yml):
+it re-runs CI, builds installers for macOS arm64/x64, Linux x64/arm64 and Windows x64, and attaches them to a
+draft GitHub Release whose notes come from the matching `CHANGELOG.md` section. Signing is optional and uses
+these repository secrets:
+
+| Secret                                                                        | Purpose              |
+| ----------------------------------------------------------------------------- | -------------------- |
+| `APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD` / `APPLE_SIGNING_IDENTITY` | macOS code signing   |
+| `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID`                               | macOS notarization   |
+| `WINDOWS_CERTIFICATE` / `WINDOWS_CERTIFICATE_PASSWORD`                        | Windows code signing |

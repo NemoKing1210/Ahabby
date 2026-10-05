@@ -1,102 +1,132 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   frontend:
-    name: Frontend (lint, types, tests)
-    runs-on: ubuntu-latest
+    name: Frontend
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup
+        uses: ./.github/actions/setup
         with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - name: Formatting
-        run: npx prettier --check .
+          rust: 'false'
+
+      - name: Format
+        run: npm run format:check
+
       - name: Lint
         run: npm run lint
+
       - name: Types
         run: npm run typecheck
-      - name: Unit tests
-        run: npm test
-      - name: Production bundle
-        run: npx vite build
 
-  backend:
-    name: Backend (fmt, clippy, tests)
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  rust:
+    name: Rust
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup
+        uses: ./.github/actions/setup
         with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-      - name: System dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
-            libssl-dev pkg-config
-      - name: Formatting
+          node: 'false'
+          frontend: 'false'
+
+      - name: Format
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
       - name: Clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-      - name: Tests
+
+      - name: Test
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Generated bindings are up to date
         run: |
           cargo test --manifest-path src-tauri/Cargo.toml export_bindings
           git diff --exit-code -- src/shared/bindings
 
-  build:
-    name: Build (${{ matrix.os }})
-    needs: [frontend, backend]
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-22.04]
-    runs-on: ${{ matrix.os }}
+  versions:
+    name: Versions
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup
+        uses: ./.github/actions/setup
         with:
-          node-version: 24
-          cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+          rust: 'false'
+          frontend: 'false'
+
+      - name: Check version sync
+        run: npm run check:versions
+
+      - name: Test release scripts
+        run: npm run test:scripts
+
+  commits:
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
-          workspaces: src-tauri
-      - name: System dependencies (Linux)
-        if: matrix.os == 'ubuntu-22.04'
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          rust: 'false'
+          frontend: 'false'
+
+      - name: Validate commit messages
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-commits.mjs "$BASE_SHA..$HEAD_SHA"
+
+  ci:
+    name: CI
+    needs: [frontend, rust, versions, commits]
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every check
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
-            libssl-dev pkg-config
-      - run: npm ci
-      - name: Build the desktop app
-        run: npm run tauri build
-      - name: Upload installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: ahabby-${{ matrix.os }}
-          if-no-files-found: warn
-          path: |
-            src-tauri/target/release/bundle/**
-            src-tauri/target/release/ahabby
-            src-tauri/target/release/ahabby.exe
+          test '${{ needs.frontend.result }}' = success
+          test '${{ needs.rust.result }}' = success
+          test '${{ needs.versions.result }}' = success
+          test '${{ needs.commits.result }}' = success -o '${{ needs.commits.result }}' = skipped

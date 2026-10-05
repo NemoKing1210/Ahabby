@@ -10,6 +10,8 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
+Version: `0.1.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+
 ## Architecture & Data Flow
 
 Rust layers (dependencies point one way; no business logic in `commands`):
@@ -98,7 +100,7 @@ cargo run --manifest-path src-tauri/Cargo.toml --example scan         # validate
 cargo run --manifest-path src-tauri/Cargo.toml --example scan -- --json
 ```
 
-Before pushing, run: `npm run format && npm run lint && npm run typecheck && npm test` plus `cargo fmt --all -- --check && cargo clippy … -D warnings && cargo test`. CI also fails if `src/shared/bindings/**` differs after regeneration.
+Before pushing, run: `npm run format && npm run lint && npm run typecheck && npm test` plus `cargo fmt --all -- --check && cargo clippy … -D warnings && cargo test`. CI also fails if `src/shared/bindings/**` differs after regeneration. Commit messages are validated by the `.githooks/commit-msg` hook and by `npm run check:commits` in CI.
 
 ## Code Conventions & Common Patterns
 
@@ -113,6 +115,16 @@ Before pushing, run: `npm run format && npm run lint && npm run typecheck && npm
   **`noUncheckedIndexedAccess`** (indexing yields `T | undefined`), **`verbatimModuleSyntax`**.
 - Alias: `@/* → src/*` (mirrored in `tsconfig.json` and `vite.config.ts`). Group imports:
   react/builtins → third-party → `@/shared/*` → feature-relative.
+
+### Commits (enforced by the `.githooks` hook and CI)
+
+- Conventional Commits: `<type>(<scope>)!: <description>`; types `feat fix docs style refactor perf test
+build ci chore revert`; lowercase scope; imperative description without a trailing period; subject ≤ 100
+  characters. One logical change per commit.
+- Hooks live in `.githooks/` (`core.hooksPath`, installed by `npm install` → `prepare`): `commit-msg` validates
+  the message, `pre-commit` runs Prettier + ESLint on staged files, `pre-push` runs `npm run check:versions`.
+- CI re-validates every PR commit with `npm run check:commits <base>..<head>`, so `--no-verify` only defers
+  the failure. Rules live in `scripts/lib/commits.mjs`; keep `.cursor/rules/commits.mdc` in sync.
 
 ### Naming
 

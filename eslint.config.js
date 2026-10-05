@@ -85,8 +85,8 @@ export default tseslint.config(
     },
   },
   {
-    // Config files run in Node, not in the browser, and are not part of the TS project.
-    files: ['*.js'],
+    // Config files and release scripts run in Node, not in the browser, and are not part of the TS project.
+    files: ['*.js', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: { ...browserGlobals, process: 'readonly' },
     },

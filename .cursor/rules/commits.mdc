@@ -1,0 +1,33 @@
+---
+description: Conventional Commits for every commit; enforced by the .githooks commit-msg hook and CI
+alwaysApply: true
+---
+
+# Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for every commit:
+
+```
+<type>(<scope>)!: <description>
+```
+
+- **type** — `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- **scope** — optional, lowercase; recommended: `agents`, `catalog`, `configs`, `skills`, `mcp`, `library`, `install`, `settings`, `ui`, `i18n`, `api`, `ci`, `deps`, `release`.
+- **!** — breaking change.
+- **description** — imperative, no trailing period, subject ≤ 100 characters.
+
+```
+feat(agents): show the detected version on the card
+fix(api): reject config paths the manifest does not declare
+chore(deps): bump vite to 8.3
+```
+
+Merge, revert, `fixup!`, `squash!` and Dependabot (`Bump ...`) commits are accepted as-is. One logical change per commit — and pair each shipped change with a SemVer bump and a `CHANGELOG.md` entry (see `versioning.mdc`).
+
+Hooks live in `.githooks/` (`core.hooksPath`, installed by `npm install`):
+
+- `commit-msg` — validates this convention;
+- `pre-commit` — Prettier + ESLint on staged files;
+- `pre-push` — `npm run check:versions`.
+
+CI re-checks every PR commit with `npm run check:commits <base>..<head>`, so `--no-verify` does not get a message merged.
