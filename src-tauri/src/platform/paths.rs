@@ -162,16 +162,12 @@ where
             continue;
         }
         if open_percent {
-            match rest[index + 1..].find('%') {
-                Some(offset) => {
-                    let end = index + 1 + offset;
-                    let key = &rest[index + 1..end];
-                    out.push_str(&resolve(key)?);
-                    index = end + 1;
-                    continue;
-                }
-                None => return None,
-            }
+            let offset = rest[index + 1..].find('%')?;
+            let end = index + 1 + offset;
+            let key = &rest[index + 1..end];
+            out.push_str(&resolve(key)?);
+            index = end + 1;
+            continue;
         }
 
         // Copy one UTF-8 character.
