@@ -10,6 +10,7 @@ import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/Card'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
+import { PageHeader } from '@/shared/ui/PageHeader'
 import { SkeletonList } from '@/shared/ui/Primitives'
 import { toastAppError } from '@/shared/ui/Toast'
 
@@ -38,14 +39,14 @@ function CatalogProblems({ problems }: { problems: CatalogProblem[] }) {
   return (
     <Card className="border-warning/40">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-[15px]">
+        <CardTitle className="flex items-center gap-2 text-[0.9375rem]">
           <TriangleAlert className="text-warning-fg size-4" aria-hidden />
           {t('agents.problems')}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <p className="text-muted text-[13px]">{t('agents.problemsHint')}</p>
-        <ul className="text-muted flex flex-col gap-1 font-mono text-[12px]">
+        <p className="text-muted text-[0.8125rem]">{t('agents.problemsHint')}</p>
+        <ul className="text-muted flex flex-col gap-1 font-mono text-[0.75rem]">
           {failures.map((problem, index) => (
             <li key={`${problem.source}-${index}`} className="break-all">
               {problem.manifestId ? `${problem.manifestId}: ` : ''}
@@ -160,10 +161,10 @@ export function AgentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <PageHeader className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl">{t('agents.title')}</h1>
-          <p className="text-muted text-[13px]">
+          <p className="text-muted text-[0.8125rem]">
             {t('agents.installedCount', { count: data?.installed ?? 0 })} ·{' '}
             {t('agents.availableCount', { count: data?.availableToInstall ?? 0 })}
           </p>
@@ -179,7 +180,7 @@ export function AgentsPage() {
           />
           {rescan.isPending ? t('agents.rescanning') : t('agents.rescan')}
         </Button>
-      </header>
+      </PageHeader>
 
       <AgentFilters
         state={filters}
@@ -208,7 +209,7 @@ export function AgentsPage() {
             {section.agents.length === 0 ? (
               <EmptyState {...emptyCopy(section.key)} action={clearAction} />
             ) : (
-              <AnimatedList className="flex flex-col gap-3">
+              <AnimatedList>
                 {section.agents.map((agent) => (
                   <AgentCard
                     key={agent.id}

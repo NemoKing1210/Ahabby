@@ -8,6 +8,7 @@ import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { ErrorState, EmptyState } from '@/shared/ui/EmptyState'
+import { PageHeader } from '@/shared/ui/PageHeader'
 import { SkeletonList } from '@/shared/ui/Primitives'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 
@@ -56,66 +57,64 @@ export function AgentPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4">
-        <Link
-          to="/"
-          className="text-muted hover:text-foreground flex w-fit items-center gap-1.5 text-[12px]"
-        >
-          <ArrowLeft className="size-3.5" aria-hidden />
-          {t('agent.backToList')}
-        </Link>
+      <Link
+        to="/"
+        className="text-muted hover:text-foreground flex w-fit items-center gap-1.5 text-[0.75rem]"
+      >
+        <ArrowLeft className="size-3.5" aria-hidden />
+        {t('agent.backToList')}
+      </Link>
 
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-4">
-            <AgentIcon name={agent.name} icon={agent.icon} size="lg" />
-            <div className="flex min-w-0 flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl">{agent.name}</h1>
-                {installed && agent.version ? (
-                  <Badge tone="neutral">{agent.version.raw}</Badge>
-                ) : (
-                  <Badge tone="outline">{t('agents.notInstalled')}</Badge>
-                )}
-                {agent.update ? (
-                  <Badge tone="accent">
-                    {t('agents.updateTo', { version: agent.update.latest })}
-                  </Badge>
-                ) : null}
-                {agent.unverified.length > 0 ? (
-                  <Badge tone="warning">{t('agents.unverified')}</Badge>
-                ) : null}
-              </div>
-              <p className="text-muted max-w-prose text-[13px]">
-                {agent.tagline ?? agent.description}
-              </p>
-              {!installed ? (
-                <p className="text-faint text-[12px]">{t('agent.notInstalledHint')}</p>
+      <PageHeader className="-mt-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-4">
+          <AgentIcon name={agent.name} icon={agent.icon} size="lg" />
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl">{agent.name}</h1>
+              {installed && agent.version ? (
+                <Badge tone="neutral">{agent.version.raw}</Badge>
+              ) : (
+                <Badge tone="outline">{t('agents.notInstalled')}</Badge>
+              )}
+              {agent.update ? (
+                <Badge tone="accent">
+                  {t('agents.updateTo', { version: agent.update.latest })}
+                </Badge>
+              ) : null}
+              {agent.unverified.length > 0 ? (
+                <Badge tone="warning">{t('agents.unverified')}</Badge>
               ) : null}
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {installed ? (
-              agent.canUpdate ? (
-                <Button variant="secondary" onClick={() => setInstallAction('update')}>
-                  <RefreshCw className="size-3.5" aria-hidden />
-                  {t('agents.update')}
-                </Button>
-              ) : null
-            ) : agent.canInstall ? (
-              <Button variant="primary" onClick={() => setInstallAction('install')}>
-                <Play className="size-3.5" aria-hidden />
-                {t('agents.install')}
-              </Button>
+            <p className="text-muted max-w-prose text-[0.8125rem]">
+              {agent.tagline ?? agent.description}
+            </p>
+            {!installed ? (
+              <p className="text-faint text-[0.75rem]">{t('agent.notInstalledHint')}</p>
             ) : null}
-
-            <Button variant="ghost" onClick={() => setRemoveOpen(true)}>
-              <Trash2 className="size-3.5" aria-hidden />
-              {t('agents.remove')}
-            </Button>
           </div>
-        </header>
-      </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {installed ? (
+            agent.canUpdate ? (
+              <Button variant="secondary" onClick={() => setInstallAction('update')}>
+                <RefreshCw className="size-3.5" aria-hidden />
+                {t('agents.update')}
+              </Button>
+            ) : null
+          ) : agent.canInstall ? (
+            <Button variant="primary" onClick={() => setInstallAction('install')}>
+              <Play className="size-3.5" aria-hidden />
+              {t('agents.install')}
+            </Button>
+          ) : null}
+
+          <Button variant="ghost" onClick={() => setRemoveOpen(true)}>
+            <Trash2 className="size-3.5" aria-hidden />
+            {t('agents.remove')}
+          </Button>
+        </div>
+      </PageHeader>
 
       <Tabs defaultValue="overview" className="flex flex-col">
         <TabsList>
@@ -156,7 +155,7 @@ export function AgentPage() {
           <SkillsTab agentId={agent.id} skills={agent.skills} />
         </TabsContent>
         <TabsContent value="mcp">
-          <McpTab agentId={agent.id} servers={agent.mcpServers} />
+          <McpTab agentId={agent.id} servers={agent.mcpServers} configs={agent.configs} />
         </TabsContent>
         <TabsContent value="other">
           <OtherTab resources={agent.other} />

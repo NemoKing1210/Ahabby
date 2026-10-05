@@ -12,6 +12,7 @@ import { Card } from '@/shared/ui/Card'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
 import { Input } from '@/shared/ui/Input'
+import { PageHeader } from '@/shared/ui/PageHeader'
 import { SkeletonList } from '@/shared/ui/Primitives'
 import { Select } from '@/shared/ui/Select'
 import { toast, toastAppError } from '@/shared/ui/Toast'
@@ -59,7 +60,7 @@ function SkillList({
 }) {
   const { t } = useTranslation()
   return (
-    <AnimatedList className="flex flex-col gap-3">
+    <AnimatedList>
       {skills.map((skill) => (
         <Card key={skill.id} className="flex items-start gap-3 p-4">
           <Sparkles className="text-faint mt-0.5 size-4 shrink-0" aria-hidden />
@@ -80,9 +81,11 @@ function SkillList({
               {!skill.removable ? <Badge tone="neutral">{t('skills.pluginManaged')}</Badge> : null}
             </div>
             {skill.description ? (
-              <p className="text-muted max-w-prose text-[12px]">{skill.description}</p>
+              <p className="text-muted max-w-prose text-[0.75rem]">{skill.description}</p>
             ) : null}
-            <code className="text-faint font-mono text-[11px]">{shortenPath(skill.path, 4)}</code>
+            <code className="text-faint font-mono text-[0.6875rem]">
+              {shortenPath(skill.path, 4)}
+            </code>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <Button variant="ghost" size="sm" onClick={() => onOpen(skill)}>
@@ -166,10 +169,10 @@ export function LibraryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
+      <PageHeader className="flex flex-col gap-1">
         <h1 className="text-2xl">{t('library.title')}</h1>
-        <p className="text-muted text-[13px]">{t('library.subtitle')}</p>
-      </header>
+        <p className="text-muted text-[0.8125rem]">{t('library.subtitle')}</p>
+      </PageHeader>
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -229,13 +232,13 @@ export function LibraryPage() {
               {Array.from(groupedSkills.entries()).map(([group, items]) => (
                 <section key={group} className="flex flex-col gap-2">
                   {items.length > 1 && groupMode === 'name' ? (
-                    <h3 className="text-muted flex items-center gap-2 text-[13px]">
+                    <h3 className="text-muted flex items-center gap-2 text-[0.8125rem]">
                       {items[0]?.name}
                       <Badge tone="neutral">{items.length}</Badge>
                     </h3>
                   ) : null}
                   {groupMode === 'agent' ? (
-                    <h3 className="text-muted text-[13px]">{items[0]?.agents[0]?.name}</h3>
+                    <h3 className="text-muted text-[0.8125rem]">{items[0]?.agents[0]?.name}</h3>
                   ) : null}
                   <SkillList skills={items} onOpen={setDetail} onDelete={setDeleteSkillTarget} />
                 </section>
@@ -254,11 +257,11 @@ export function LibraryPage() {
             <div className="flex flex-col gap-6">
               {Array.from(groupedServers.entries()).map(([group, items]) => (
                 <section key={group} className="flex flex-col gap-2">
-                  <h3 className="text-muted flex flex-wrap items-center gap-2 text-[13px]">
+                  <h3 className="text-muted flex flex-wrap items-center gap-2 text-[0.8125rem]">
                     {items[0]?.name}
                     <Badge tone="neutral">{items.length}</Badge>
                   </h3>
-                  <AnimatedList className="flex flex-col gap-3">
+                  <AnimatedList>
                     {items.map((server) => (
                       <McpCard
                         key={server.id}
