@@ -4,6 +4,7 @@ import { FileCode2, Pencil, Save } from 'lucide-react'
 
 import type { ConfigFile } from '@/shared/bindings/ConfigFile'
 import { formatBytes, formatRelative } from '@/shared/lib/format'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
@@ -77,70 +78,72 @@ export function ConfigsTab({ agentId, configs }: { agentId: string; configs: Con
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {configs.map((config) => (
-        <Card key={`${config.id}-${config.path}`} className="p-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-foreground text-sm">{config.label}</span>
-                  <Badge tone="outline">{config.format}</Badge>
-                  {config.exists ? null : <Badge tone="neutral">{t('configs.missing')}</Badge>}
-                  {config.editable ? null : <Badge tone="neutral">{t('common.readOnly')}</Badge>}
+    <>
+      <AnimatedList className="flex flex-col gap-3">
+        {configs.map((config) => (
+          <Card key={`${config.id}-${config.path}`} className="p-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-foreground text-sm">{config.label}</span>
+                    <Badge tone="outline">{config.format}</Badge>
+                    {config.exists ? null : <Badge tone="neutral">{t('configs.missing')}</Badge>}
+                    {config.editable ? null : <Badge tone="neutral">{t('common.readOnly')}</Badge>}
+                  </div>
+                  {config.description ? (
+                    <p className="text-muted max-w-prose text-[12px]">{config.description}</p>
+                  ) : null}
                 </div>
-                {config.description ? (
-                  <p className="text-muted max-w-prose text-[12px]">{config.description}</p>
-                ) : null}
-              </div>
 
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!config.exists}
-                  onClick={() => setViewTarget(config)}
-                >
-                  <FileCode2 className="size-3.5" aria-hidden />
-                  {t('configs.view')}
-                </Button>
-                <Tooltip content={config.editable ? t('configs.edit') : t('configs.notEditable')}>
+                <div className="flex items-center gap-1.5">
                   <Button
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
-                    disabled={!config.editable}
-                    onClick={() => setEditTarget(config)}
+                    disabled={!config.exists}
+                    onClick={() => setViewTarget(config)}
                   >
-                    <Pencil className="size-3.5" aria-hidden />
-                    {t('configs.edit')}
+                    <FileCode2 className="size-3.5" aria-hidden />
+                    {t('configs.view')}
                   </Button>
-                </Tooltip>
+                  <Tooltip content={config.editable ? t('configs.edit') : t('configs.notEditable')}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={!config.editable}
+                      onClick={() => setEditTarget(config)}
+                    >
+                      <Pencil className="size-3.5" aria-hidden />
+                      {t('configs.edit')}
+                    </Button>
+                  </Tooltip>
+                </div>
+              </div>
+
+              <PathRow path={config.path} />
+
+              <div className="text-faint flex flex-wrap items-center gap-3 text-[12px]">
+                {config.exists ? (
+                  <>
+                    <span>
+                      {t('configs.size')}: {formatBytes(config.sizeBytes) ?? '—'}
+                    </span>
+                    <span>
+                      {t('configs.modified')}:{' '}
+                      {formatRelative(config.modifiedMs, i18n.language) ?? '—'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <Save className="size-3" aria-hidden />
+                    {t('configs.missing')}
+                  </span>
+                )}
               </div>
             </div>
-
-            <PathRow path={config.path} />
-
-            <div className="text-faint flex flex-wrap items-center gap-3 text-[12px]">
-              {config.exists ? (
-                <>
-                  <span>
-                    {t('configs.size')}: {formatBytes(config.sizeBytes) ?? '—'}
-                  </span>
-                  <span>
-                    {t('configs.modified')}:{' '}
-                    {formatRelative(config.modifiedMs, i18n.language) ?? '—'}
-                  </span>
-                </>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <Save className="size-3" aria-hidden />
-                  {t('configs.missing')}
-                </span>
-              )}
-            </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        ))}
+      </AnimatedList>
 
       {viewTarget ? (
         <ConfigViewDialog
@@ -159,6 +162,6 @@ export function ConfigsTab({ agentId, configs }: { agentId: string; configs: Con
           onOpenChange={() => setEditTarget(null)}
         />
       ) : null}
-    </div>
+    </>
   )
 }

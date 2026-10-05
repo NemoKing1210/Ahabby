@@ -5,6 +5,7 @@ import { Search, Sparkles } from 'lucide-react'
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Skill } from '@/shared/bindings/Skill'
 import { groupBy, shortenPath } from '@/shared/lib/format'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
@@ -58,7 +59,7 @@ function SkillList({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-3">
+    <AnimatedList className="flex flex-col gap-3">
       {skills.map((skill) => (
         <Card key={skill.id} className="flex items-start gap-3 p-4">
           <Sparkles className="text-faint mt-0.5 size-4 shrink-0" aria-hidden />
@@ -95,7 +96,7 @@ function SkillList({
           </div>
         </Card>
       ))}
-    </div>
+    </AnimatedList>
   )
 }
 
@@ -257,7 +258,7 @@ export function LibraryPage() {
                     {items[0]?.name}
                     <Badge tone="neutral">{items.length}</Badge>
                   </h3>
-                  <div className="flex flex-col gap-3">
+                  <AnimatedList className="flex flex-col gap-3">
                     {items.map((server) => (
                       <McpCard
                         key={server.id}
@@ -268,7 +269,7 @@ export function LibraryPage() {
                         }
                       />
                     ))}
-                  </div>
+                  </AnimatedList>
                 </section>
               ))}
             </div>

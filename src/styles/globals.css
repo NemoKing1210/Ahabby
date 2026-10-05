@@ -237,6 +237,78 @@
       transform: translateX(100%);
     }
   }
+
+  @keyframes ah-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* `scale`, not `transform`: the dialog is centred with Tailwind's `translate` property,
+     which a `transform` animation would wipe out mid-flight. */
+  @keyframes ah-dialog-in {
+    from {
+      opacity: 0;
+      scale: 0.97;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
+  @keyframes ah-dialog-out {
+    from {
+      opacity: 1;
+      scale: 1;
+    }
+    to {
+      opacity: 0;
+      scale: 0.98;
+    }
+  }
+
+  @keyframes ah-toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes ah-toast-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes ah-toast-swipe-out {
+    from {
+      transform: translateX(var(--radix-toast-swipe-end-x));
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  /* Radix unmounts a toast only once its exit animation ends, and a swiped toast matches
+     both state selectors — the swipe rule must be the later one, so both live here. */
+  .ah-toast[data-state='closed'] {
+    animation: ah-toast-out 140ms var(--ease-warm) both;
+  }
+
+  .ah-toast[data-swipe='end'] {
+    animation: ah-toast-swipe-out 150ms var(--ease-warm) both;
+  }
 }
 
 @utility ah-animate-in {
@@ -251,6 +323,21 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Switching between light and dark is a crossfade of the tokens for one beat, not a hard
+   flip. `data-theme-animating` is set for the length of the transition by `applyTheme`. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme-animating] *,
+  html[data-theme-animating] *::before,
+  html[data-theme-animating] *::after {
+    transition:
+      background-color 220ms var(--ease-warm),
+      border-color 220ms var(--ease-warm),
+      color 220ms var(--ease-warm),
+      fill 220ms var(--ease-warm),
+      stroke 220ms var(--ease-warm);
   }
 }
 

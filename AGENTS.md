@@ -10,7 +10,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.2.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.4.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -148,7 +148,14 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   `rounded-lg`, `shadow-popover`, `duration-150 ease-warm`. There is no `bg-surface-1`, `text-fg` or
   `*-primary`. Every screen needs loading (skeleton), empty (hint) and error (code + retry) states.
 - **Dialogs** are conditionally mounted with a `key` for state reset and an `onOpenChange` that unmounts —
-  not always-present with an `open` prop.
+  not always-present with an `open` prop. A dialog that stays mounted while `open` flips (e.g. `ConfirmDialog`)
+  plays the exit animation; an unmounting one only animates in.
+- **Motion**: JS-driven animation goes through `motion` (import from `motion/react`) with the tokens in
+  `src/shared/lib/motion.ts`; CSS-driven animation uses the keyframes in `globals.css` and Tailwind's
+  `animate-[…]`. Reuse `AnimatedList` for card stacks and `Reveal` for disclosure content instead of
+  hand-rolling `initial`/`animate` pairs, and build slide-ins on `useSoftSlide` — `reducedMotion="user"`
+  (set in `providers.tsx`) stops layout animation and instant-jumps transforms, but it would still hold a
+  slide offset for the whole tween.
 - **Config edits** must follow: edit → `previewConfigSave` (diff + validation + hash) → `saveConfig`.
   Stale-file errors are detected via `isStaleFileError`.
 - **i18n**: add every new string to **both** `en.json` and `ru.json`; parity is enforced by

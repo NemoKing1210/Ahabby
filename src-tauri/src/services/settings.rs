@@ -9,6 +9,7 @@ use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::domain::{Proxy, ProxyMode};
 use crate::error::{AppError, Result};
 use crate::platform::{self, PlatformContext};
 
@@ -48,6 +49,10 @@ pub struct Settings {
     pub backup_dir: Option<String>,
     /// How long a version check result is reused.
     pub version_cache_minutes: u32,
+    /// How Ahabby reaches the network. Defaults to a direct connection.
+    pub proxy_mode: ProxyMode,
+    /// Manual proxy URL (`http://host:port`); only read when `proxy_mode` is `manual`.
+    pub proxy_url: Option<String>,
 }
 
 impl Default for Settings {
@@ -59,11 +64,22 @@ impl Default for Settings {
             network_version_checks: true,
             backup_dir: None,
             version_cache_minutes: 60,
+            proxy_mode: ProxyMode::None,
+            proxy_url: None,
         }
     }
 }
 
 impl Settings {
+    /// Validated proxy configuration for version checks and install/update jobs.
+    pub fn proxy(&self) -> Result<Proxy> {
+        match self.proxy_mode {
+            ProxyMode::None => Ok(Proxy::none()),
+            ProxyMode::System => Ok(Proxy::system()),
+            ProxyMode::Manual => Proxy::manual(self.proxy_url.as_deref().unwrap_or_default()),
+        }
+    }
+
     /// Where backups actually go.
     pub fn backup_root(&self, app_data: &Path) -> PathBuf {
         match &self.backup_dir {
@@ -145,6 +161,30 @@ mod tests {
         assert!(settings.network_version_checks);
         assert_eq!(settings.language, Language::En);
         assert_eq!(settings.theme, Theme::System);
+        assert_eq!(settings.proxy_mode, ProxyMode::None);
+        assert!(settings.proxy_url.is_none());
+        assert_eq!(settings.proxy().unwrap(), Proxy::none());
+    }
+
+    #[test]
+    fn proxy_round_trips_and_is_validated() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        let mut settings = service.get();
+        settings.proxy_mode = ProxyMode::Manual;
+        settings.proxy_url = Some("http://127.0.0.1:7890".to_string());
+        service.save(settings).unwrap();
+
+        let reloaded = SettingsService::load(dir.path()).get();
+        assert_eq!(reloaded.proxy_mode, ProxyMode::Manual);
+        assert_eq!(
+            reloaded.proxy().unwrap().url(),
+            Some("http://127.0.0.1:7890/")
+        );
+
+        let mut broken = reloaded;
+        broken.proxy_url = Some("127.0.0.1:7890".to_string());
+        assert_eq!(broken.proxy().unwrap_err().code(), "invalid_input");
     }
 
     #[test]

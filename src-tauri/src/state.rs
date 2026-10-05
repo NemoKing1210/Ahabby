@@ -7,10 +7,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use tauri::{AppHandle, Emitter, Manager};
+use tracing::warn;
 
 use crate::adapters::AgentAdapter;
 use crate::catalog::{self, Catalog};
-use crate::domain::{Agent, ConfigFormat, McpServer, Skill};
+use crate::domain::{Agent, ConfigFormat, McpServer, Proxy, Skill};
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
 use crate::services::{
@@ -48,6 +49,16 @@ pub struct ConfigTarget {
     pub editable: bool,
 }
 
+/// A settings file edited by hand can carry an unusable proxy URL; fall back to a direct
+/// connection instead of failing to start (or to run a job) — and never route traffic
+/// through a proxy the user did not pick.
+fn proxy_or_default(settings: &Settings) -> Proxy {
+    settings.proxy().unwrap_or_else(|error| {
+        warn!("ignoring invalid proxy settings: {error}");
+        Proxy::none()
+    })
+}
+
 pub struct AppState {
     app_data: PathBuf,
     app_config: PathBuf,
@@ -70,6 +81,7 @@ impl AppState {
 
         let settings = SettingsService::load(&app_config);
         let current = settings.get();
+        let proxy = proxy_or_default(&current);
         let catalog = Self::load_catalog(&app_config);
 
         Ok(Self {
@@ -77,6 +89,7 @@ impl AppState {
             versions: RwLock::new(Arc::new(VersionChecker::new(
                 current.network_version_checks,
                 current.version_cache_minutes,
+                &proxy,
             ))),
             scanner: Scanner::new(&catalog),
             settings,
@@ -99,14 +112,22 @@ impl AppState {
 
     /// Persist settings and rebuild everything that depends on them.
     pub fn save_settings(&self, settings: Settings) -> Result<Settings> {
+        // Reject an unusable manual proxy URL before it reaches the disk.
+        let proxy = settings.proxy()?;
         let saved = self.settings.save(settings)?;
         if let Ok(mut versions) = self.versions.write() {
             *versions = Arc::new(VersionChecker::new(
                 saved.network_version_checks,
                 saved.version_cache_minutes,
+                &proxy,
             ));
         }
         Ok(saved)
+    }
+
+    /// The proxy every version check and install job uses.
+    pub fn proxy(&self) -> Proxy {
+        proxy_or_default(&self.settings())
     }
 
     pub fn platform_context(&self) -> PlatformContext {

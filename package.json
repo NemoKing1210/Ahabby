@@ -1,7 +1,7 @@
 {
   "name": "ahabby",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.4.1",
   "type": "module",
   "description": "Ahabby — a control panel for AI coding agents installed on your machine.",
   "license": "MIT",
@@ -68,6 +68,7 @@
     "i18next": "^26.4.2",
     "lucide-react": "^1.52.0",
     "marked": "^18.0.14",
+    "motion": "^14.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.15",

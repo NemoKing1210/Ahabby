@@ -4,6 +4,7 @@ import { Package, Sparkles } from 'lucide-react'
 
 import type { Skill } from '@/shared/bindings/Skill'
 import { shortenPath } from '@/shared/lib/format'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
@@ -26,32 +27,36 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {skills.map((skill) => (
-        <Card key={skill.id} className="flex items-start gap-3 p-4">
-          <Package className="text-faint mt-0.5 size-4 shrink-0" aria-hidden />
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className="text-foreground hover:text-accent-strong text-sm"
-                onClick={() => setDetail(skill)}
-              >
-                {skill.name}
-              </button>
-              {!skill.removable ? <Badge tone="neutral">{t('skills.pluginManaged')}</Badge> : null}
-              {skill.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
+    <>
+      <AnimatedList className="flex flex-col gap-3">
+        {skills.map((skill) => (
+          <Card key={skill.id} className="flex items-start gap-3 p-4">
+            <Package className="text-faint mt-0.5 size-4 shrink-0" aria-hidden />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="text-foreground hover:text-accent-strong text-sm"
+                  onClick={() => setDetail(skill)}
+                >
+                  {skill.name}
+                </button>
+                {!skill.removable ? (
+                  <Badge tone="neutral">{t('skills.pluginManaged')}</Badge>
+                ) : null}
+                {skill.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
+              </div>
+              {skill.description ? (
+                <p className="text-muted max-w-prose text-[12px]">{skill.description}</p>
+              ) : null}
+              <code className="text-faint font-mono text-[11px]">{shortenPath(skill.path, 4)}</code>
             </div>
-            {skill.description ? (
-              <p className="text-muted max-w-prose text-[12px]">{skill.description}</p>
-            ) : null}
-            <code className="text-faint font-mono text-[11px]">{shortenPath(skill.path, 4)}</code>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => setDetail(skill)}>
-            {t('common.open')}
-          </Button>
-        </Card>
-      ))}
+            <Button variant="ghost" size="sm" onClick={() => setDetail(skill)}>
+              {t('common.open')}
+            </Button>
+          </Card>
+        ))}
+      </AnimatedList>
 
       <SkillDetailDialog
         skill={detail}
@@ -92,6 +97,6 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
           )
         }}
       />
-    </div>
+    </>
   )
 }

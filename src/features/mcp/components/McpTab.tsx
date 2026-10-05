@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Plug } from 'lucide-react'
 
 import type { McpServer } from '@/shared/bindings/McpServer'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { toast, toastAppError } from '@/shared/ui/Toast'
@@ -21,10 +22,12 @@ export function McpTab({ agentId, servers }: { agentId: string; servers: McpServ
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {servers.map((server) => (
-        <McpCard key={server.id} server={server} onDelete={setDeleteTarget} />
-      ))}
+    <>
+      <AnimatedList className="flex flex-col gap-3">
+        {servers.map((server) => (
+          <McpCard key={server.id} server={server} onDelete={setDeleteTarget} />
+        ))}
+      </AnimatedList>
 
       <ConfirmDialog
         open={deleteTarget !== null}
@@ -53,6 +56,6 @@ export function McpTab({ agentId, servers }: { agentId: string; servers: McpServ
           )
         }}
       />
-    </div>
+    </>
   )
 }

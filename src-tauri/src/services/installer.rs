@@ -18,7 +18,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 use tokio::sync::{watch, Mutex};
 use ts_rs::TS;
 
-use crate::domain::{InstallAction, InstallPlan};
+use crate::domain::{InstallAction, InstallPlan, Proxy};
 use crate::error::{AppError, Result};
 use crate::platform;
 
@@ -80,8 +80,9 @@ impl JobRunner {
         })
     }
 
-    /// Start a job and return its id immediately.
-    pub async fn start(self: &Arc<Self>, plan: InstallPlan) -> Result<String> {
+    /// Start a job and return its id immediately. `proxy` is captured for the whole run, so
+    /// changing Settings does not affect a job that is already going.
+    pub async fn start(self: &Arc<Self>, plan: InstallPlan, proxy: Proxy) -> Result<String> {
         if plan.program.trim().is_empty() {
             return Err(AppError::InvalidInput(
                 "the install plan has no program to run".to_string(),
@@ -104,7 +105,7 @@ impl JobRunner {
         let runner = Arc::clone(self);
         let task_id = job_id.clone();
         tokio::spawn(async move {
-            let outcome = run_job(runner.sink.clone(), &plan, &task_id, receiver).await;
+            let outcome = run_job(runner.sink.clone(), &plan, &proxy, &task_id, receiver).await;
             runner.jobs.lock().await.remove(&task_id);
             runner.sink.finished(outcome);
         });
@@ -131,6 +132,7 @@ impl JobRunner {
 async fn run_job(
     sink: Arc<dyn JobSink>,
     plan: &InstallPlan,
+    proxy: &Proxy,
     job_id: &str,
     mut cancel: watch::Receiver<bool>,
 ) -> JobOutcome {
@@ -144,6 +146,9 @@ async fn run_job(
     };
 
     emit(StreamKind::System, format!("$ {}", plan.display_command));
+    if let Some(url) = proxy.url() {
+        emit(StreamKind::System, format!("using proxy {url}"));
+    }
     if plan.uses_shell {
         emit(
             StreamKind::System,
@@ -156,6 +161,7 @@ async fn run_job(
 
     let mut command = platform::build_command(&plan.program);
     command.args(&plan.args);
+    platform::apply_proxy(&mut command, proxy);
 
     let mut child = match command.spawn() {
         Ok(child) => child,
@@ -344,7 +350,10 @@ mod tests {
     async fn streams_output_and_reports_success() {
         let (sender, receiver) = mpsc::unbounded_channel();
         let runner = JobRunner::new(Arc::new(TestSink(sender)));
-        let job_id = runner.start(echo_plan("ahabby-install-ok")).await.unwrap();
+        let job_id = runner
+            .start(echo_plan("ahabby-install-ok"), Proxy::system())
+            .await
+            .unwrap();
         assert_eq!(runner.running().await, vec![job_id.clone()]);
 
         let (output, outcome) = drain(receiver).await;
@@ -371,7 +380,7 @@ mod tests {
             &program,
             &args.iter().map(String::as_str).collect::<Vec<_>>(),
         );
-        runner.start(plan).await.unwrap();
+        runner.start(plan, Proxy::system()).await.unwrap();
 
         let (_output, outcome) = drain(receiver).await;
         assert!(!outcome.ok);
@@ -382,7 +391,7 @@ mod tests {
     async fn cancellation_kills_the_process() {
         let (sender, receiver) = mpsc::unbounded_channel();
         let runner = JobRunner::new(Arc::new(TestSink(sender)));
-        let job_id = runner.start(sleep_plan()).await.unwrap();
+        let job_id = runner.start(sleep_plan(), Proxy::system()).await.unwrap();
 
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
         assert!(runner.cancel(&job_id).await.unwrap());
@@ -406,6 +415,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn install_jobs_run_with_the_manual_proxy() {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        let runner = JobRunner::new(Arc::new(TestSink(sender)));
+        let command_line = if cfg!(windows) {
+            "[Console]::Out.WriteLine($env:HTTPS_PROXY)"
+        } else {
+            "printf %s \"$HTTPS_PROXY\""
+        };
+        let (program, args) = platform::shell_invocation(Os::current(), command_line);
+        let plan = plan(
+            &program,
+            &args.iter().map(String::as_str).collect::<Vec<_>>(),
+        );
+
+        runner
+            .start(
+                plan,
+                Proxy::manual("http://127.0.0.1:7890").expect("valid proxy"),
+            )
+            .await
+            .unwrap();
+
+        let (output, outcome) = drain(receiver).await;
+        assert!(outcome.ok, "outcome: {outcome:?}");
+        assert!(
+            output.iter().any(|event| event.stream == StreamKind::Stdout
+                && event.line.contains("http://127.0.0.1:7890")),
+            "the job did not see HTTPS_PROXY: {output:?}"
+        );
+        assert!(output.iter().any(
+            |event| event.stream == StreamKind::System && event.line.starts_with("using proxy")
+        ));
+    }
+
+    #[tokio::test]
     async fn refuses_unavailable_managers_and_empty_programs() {
         let (sender, _receiver) = mpsc::unbounded_channel();
         let runner = JobRunner::new(Arc::new(TestSink(sender)));
@@ -413,14 +457,22 @@ mod tests {
         let mut unavailable = echo_plan("x");
         unavailable.manager_available = false;
         assert_eq!(
-            runner.start(unavailable).await.unwrap_err().code(),
+            runner
+                .start(unavailable, Proxy::system())
+                .await
+                .unwrap_err()
+                .code(),
             "manager_unavailable"
         );
 
         let mut empty = echo_plan("x");
         empty.program = "   ".to_string();
         assert_eq!(
-            runner.start(empty).await.unwrap_err().code(),
+            runner
+                .start(empty, Proxy::system())
+                .await
+                .unwrap_err()
+                .code(),
             "invalid_input"
         );
     }

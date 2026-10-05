@@ -175,6 +175,45 @@ export function SettingsPage() {
             }
           />
         </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4 py-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm">{t('settings.proxy')}</span>
+            <span className="text-muted text-[13px]">{t('settings.proxyHint')}</span>
+          </div>
+          <Select
+            ariaLabel={t('settings.proxy')}
+            value={draft.proxyMode}
+            onValueChange={(value) => update({ proxyMode: value as Settings['proxyMode'] })}
+            options={[
+              { value: 'none', label: t('settings.proxyNone') },
+              { value: 'system', label: t('settings.proxySystem') },
+              { value: 'manual', label: t('settings.proxyManual') },
+            ]}
+            className="min-w-40"
+          />
+        </div>
+
+        {draft.proxyMode === 'manual' ? (
+          <div className="flex flex-col gap-1 py-3">
+            <span className="text-sm">{t('settings.proxyUrl')}</span>
+            <Input
+              value={draft.proxyUrl ?? ''}
+              placeholder={t('settings.proxyUrlPlaceholder')}
+              aria-label={t('settings.proxyUrl')}
+              onChange={(event) =>
+                update({ proxyUrl: event.target.value.length > 0 ? event.target.value : null })
+              }
+            />
+            <p className="text-faint text-[12px]">{t('settings.proxyUrlHint')}</p>
+          </div>
+        ) : (
+          <p className="text-faint py-3 text-[12px]">
+            {draft.proxyMode === 'none'
+              ? t('settings.proxyNoneHint')
+              : t('settings.proxySystemHint')}
+          </p>
+        )}
       </Section>
 
       <Section title={t('settings.safety')} hint={t('settings.backupDirHint')}>

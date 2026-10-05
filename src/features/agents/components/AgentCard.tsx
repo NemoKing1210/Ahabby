@@ -31,7 +31,7 @@ export function AgentCard({
   const installed = agent.status === 'installed'
 
   return (
-    <Card className="group ease-warm hover:border-border-strong relative transition-colors duration-150">
+    <Card className="group ease-warm hover:border-border-strong relative transition-[border-color,translate] duration-150 hover:-translate-y-px">
       <div className="flex items-start gap-4 p-4">
         <Link
           to={`/agents/${agent.id}`}

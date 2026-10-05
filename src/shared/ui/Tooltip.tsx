@@ -24,7 +24,7 @@ export function Tooltip({
         <TooltipPrimitive.Content
           side={side}
           sideOffset={6}
-          className="border-border bg-surface text-foreground shadow-popover z-50 max-w-xs rounded-lg border px-2.5 py-1.5 text-[12px]"
+          className="border-border bg-surface text-foreground shadow-popover z-50 max-w-xs animate-[ah-fade-in_120ms_ease-out] rounded-lg border px-2.5 py-1.5 text-[12px] data-[state=closed]:animate-[ah-fade-out_90ms_ease-in]"
         >
           {content}
         </TooltipPrimitive.Content>

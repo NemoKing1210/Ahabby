@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+import { MotionConfig } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 import { ipc } from '@/shared/api/ipc'
@@ -66,11 +67,15 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={250}>
-        <JobEventBridge />
-        {children}
-      </TooltipProvider>
-      <Toaster />
+      {/* `reducedMotion="user"` drops transform and layout animation for users who asked
+          the OS for less motion; opacity fades survive, which is what the CSS side does too. */}
+      <MotionConfig reducedMotion="user">
+        <TooltipProvider delayDuration={250}>
+          <JobEventBridge />
+          {children}
+        </TooltipProvider>
+        <Toaster />
+      </MotionConfig>
     </QueryClientProvider>
   )
 }

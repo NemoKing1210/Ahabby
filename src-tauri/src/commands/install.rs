@@ -64,7 +64,7 @@ pub async fn run_install(
             agent: plan.agent_name.clone(),
         });
     }
-    state.jobs().start(plan).await
+    state.jobs().start(plan, state.proxy()).await
 }
 
 #[tauri::command]

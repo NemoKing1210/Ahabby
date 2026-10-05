@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { CodeViewer } from '@/shared/ui/CodeViewer'
 import { PathRow } from '@/shared/ui/PathRow'
+import { Reveal } from '@/shared/ui/Reveal'
 
 import { SecretValue } from './SecretValue'
 
@@ -151,9 +152,9 @@ export function McpCard({
           )}
           {t('mcp.raw')}
         </Button>
-        {showRaw ? (
+        <Reveal open={showRaw}>
           <CodeViewer value={server.raw} format="json" height="40vh" className="mt-2" />
-        ) : null}
+        </Reveal>
       </div>
     </Card>
   )

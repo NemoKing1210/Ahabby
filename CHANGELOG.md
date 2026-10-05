@@ -5,6 +5,43 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-05
+
+### Removed
+
+- The top bar showing the app name and tagline; the sidebar now starts at the very top of the window
+
+## [0.4.0] - 2026-10-05
+
+### Added
+
+- Motion across the interface, tuned to stay quick and quiet: screens cross-fade as you navigate, the
+  sidebar highlight glides between sections, tab underlines slide to the active tab, and card lists
+  settle in with a short stagger. The first paint stays still — nothing animates on launch
+- Resource and raw-JSON sections now grow open and close smoothly instead of appearing in one step
+
+### Changed
+
+- Dialogs, tooltips, selects and toasts ease in as they appear, and dialogs and toasts also animate out
+  again (a toast can still be swiped away)
+- Switching between the light and dark theme crossfades the palette instead of flipping in a single frame
+- Anyone who asked their system for less motion gets plain fades: slides, layout movement and the
+  growing height of collapsible sections are dropped instead of animated
+
+## [0.3.0] - 2026-10-05
+
+### Added
+
+- Proxy settings with three modes: connect directly (the new default — `HTTP_PROXY` / `HTTPS_PROXY` are
+  ignored and stripped from install commands), use the system proxy from the environment, or enter one
+  custom `http://`/`https://` URL. The choice applies to the "newer version exists" checks and to every
+  install, update and uninstall command (npm, pip, cargo, brew and `curl`-based install scripts)
+
+### Changed
+
+- The app shell has a full-width header in the theme colours (application name and tagline), and the
+  sidebar no longer carries the logo — it starts straight with the navigation
+
 ## [0.2.0] - 2026-10-05
 
 ### Added

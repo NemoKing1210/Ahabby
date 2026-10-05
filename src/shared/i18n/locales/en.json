@@ -1,8 +1,4 @@
 {
-  "app": {
-    "name": "Ahabby",
-    "tagline": "One place for every AI coding agent on your machine"
-  },
   "nav": {
     "agents": "Agents",
     "library": "Library",
@@ -270,6 +266,16 @@
     "networkChecks": "Check for new versions online",
     "networkChecksHint": "Queries the npm registry or GitHub releases of the agents you have installed. Never sends any personal data. Scans work fine without it.",
     "cacheMinutes": "Cache version checks for (minutes)",
+    "proxy": "Proxy",
+    "proxyHint": "Used for version checks and for every install/update command (npm, pip, cargo, brew, install scripts).",
+    "proxyNone": "No proxy",
+    "proxyNoneHint": "Connects directly: HTTP_PROXY / HTTPS_PROXY are ignored and removed from install commands.",
+    "proxySystem": "System",
+    "proxyManual": "Custom",
+    "proxySystemHint": "Uses HTTP_PROXY / HTTPS_PROXY from your environment, exactly like your shell and package managers do.",
+    "proxyUrl": "Proxy URL",
+    "proxyUrlPlaceholder": "http://127.0.0.1:7890",
+    "proxyUrlHint": "http:// or https:// only. Applied to new install and update jobs; a running job keeps the proxy it started with.",
     "safety": "Safety",
     "backupDir": "Backup directory",
     "backupDirHint": "Every write to a config file is backed up here with a timestamp. Leave empty to use the default location.",

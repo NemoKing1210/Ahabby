@@ -43,7 +43,7 @@ export function Select({
         <SelectPrimitive.Content
           position="popper"
           sideOffset={4}
-          className="border-border bg-surface shadow-popover z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border"
+          className="border-border bg-surface shadow-popover z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border data-[state=closed]:animate-[ah-fade-out_100ms_ease-in] data-[state=open]:animate-[ah-fade-in_120ms_ease-out]"
         >
           <SelectPrimitive.Viewport className="p-1">
             {options.map((option) => (

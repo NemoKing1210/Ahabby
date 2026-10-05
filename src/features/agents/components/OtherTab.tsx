@@ -5,12 +5,14 @@ import { ChevronDown, ChevronRight, FolderTree } from 'lucide-react'
 import type { OtherKind } from '@/shared/bindings/OtherKind'
 import type { OtherResource } from '@/shared/bindings/OtherResource'
 import { formatBytes } from '@/shared/lib/format'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Card } from '@/shared/ui/Card'
 import { CodeViewer } from '@/shared/ui/CodeViewer'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { Markdown } from '@/shared/ui/Markdown'
 import { PathRow } from '@/shared/ui/PathRow'
+import { Reveal } from '@/shared/ui/Reveal'
 
 const KIND_ORDER: OtherKind[] = [
   'instructions',
@@ -25,7 +27,13 @@ const KIND_ORDER: OtherKind[] = [
 function ResourceCard({ resource }: { resource: OtherResource }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
-  const hasBody = resource.exists && (resource.content !== undefined || resource.isDirectory)
+  const content = resource.content
+  const hasBody = resource.exists && (content !== undefined || resource.isDirectory)
+  const body = !content ? null : resource.format === 'markdown' ? (
+    <Markdown source={content} />
+  ) : (
+    <CodeViewer value={content} format={resource.format} height="40vh" />
+  )
 
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -65,13 +73,7 @@ function ResourceCard({ resource }: { resource: OtherResource }) {
 
       <PathRow path={resource.path} />
 
-      {expanded && resource.content ? (
-        resource.format === 'markdown' ? (
-          <Markdown source={resource.content} />
-        ) : (
-          <CodeViewer value={resource.content} format={resource.format} height="40vh" />
-        )
-      ) : null}
+      <Reveal open={expanded && body !== null}>{body}</Reveal>
     </Card>
   )
 }
@@ -97,11 +99,11 @@ export function OtherTab({ resources }: { resources: OtherResource[] }) {
             {t(`library.kind.${group.kind}`)}
             <Badge tone="neutral">{group.items.length}</Badge>
           </h3>
-          <div className="flex flex-col gap-3">
+          <AnimatedList className="flex flex-col gap-3">
             {group.items.map((resource) => (
               <ResourceCard key={resource.id} resource={resource} />
             ))}
-          </div>
+          </AnimatedList>
         </section>
       ))}
     </div>

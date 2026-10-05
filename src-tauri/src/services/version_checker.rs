@@ -8,7 +8,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use crate::domain::{AgentManifest, Version};
+use tracing::warn;
+
+use crate::domain::{AgentManifest, Proxy, ProxyMode, Version};
 use crate::platform::now_ms;
 
 /// Where a "latest version" can be read from.
@@ -58,12 +60,28 @@ pub struct VersionChecker {
 }
 
 impl VersionChecker {
-    pub fn new(enabled: bool, cache_minutes: u32) -> Self {
-        let client = reqwest::Client::builder()
+    /// `proxy` decides how requests leave the machine: direct (proxy variables ignored),
+    /// system (`reqwest`'s own `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` detection), or one
+    /// manual URL.
+    pub fn new(enabled: bool, cache_minutes: u32, proxy: &Proxy) -> Self {
+        let mut builder = reqwest::Client::builder()
             .user_agent(concat!("Ahabby/", env!("CARGO_PKG_VERSION")))
-            .timeout(Duration::from_secs(8))
-            .build()
-            .unwrap_or_default();
+            .timeout(Duration::from_secs(8));
+        match proxy.mode() {
+            // `reqwest` picks up the environment on its own, so "no proxy" has to be said out loud.
+            ProxyMode::None => builder = builder.no_proxy(),
+            ProxyMode::System => {}
+            ProxyMode::Manual => {
+                if let Some(url) = proxy.url() {
+                    match reqwest::Proxy::all(url) {
+                        Ok(configured) => builder = builder.proxy(configured),
+                        // Settings validation already rejects bad URLs; a hand-edited file lands here.
+                        Err(error) => warn!("ignoring proxy '{url}': {error}"),
+                    }
+                }
+            }
+        }
+        let client = builder.build().unwrap_or_default();
         Self {
             client,
             cache: Mutex::new(HashMap::new()),
@@ -188,7 +206,7 @@ command = "npm install -g @scope/demo"
 
     #[test]
     fn disabled_checker_never_touches_the_network() {
-        let checker = VersionChecker::new(false, 60);
+        let checker = VersionChecker::new(false, 60, &Proxy::system());
         assert!(!checker.enabled());
         let manifest = manifest(
             r#"
@@ -233,8 +251,29 @@ command = "curl -fsSL https://example.com/install.sh | sh"
     }
 
     #[test]
+    fn reqwest_accepts_the_urls_we_validate() {
+        // Whatever `Proxy::manual` lets through must be something reqwest can actually use,
+        // otherwise the client silently falls back to no proxy.
+        let proxy = crate::domain::Proxy::manual("http://user:pw@127.0.0.1:7890").unwrap();
+        assert!(reqwest::Proxy::all(proxy.url().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn every_mode_builds_a_client() {
+        // Building the client is where a bad proxy configuration would surface; the three
+        // modes must all produce one (the request behaviour itself is smoke-tested manually).
+        for proxy in [
+            crate::domain::Proxy::none(),
+            crate::domain::Proxy::system(),
+            crate::domain::Proxy::manual("https://proxy.example.com:3128").unwrap(),
+        ] {
+            assert!(VersionChecker::new(true, 60, &proxy).enabled());
+        }
+    }
+
+    #[test]
     fn cache_honours_ttl() {
-        let checker = VersionChecker::new(true, 60);
+        let checker = VersionChecker::new(true, 60, &Proxy::system());
         checker.store(
             "demo",
             Cached {

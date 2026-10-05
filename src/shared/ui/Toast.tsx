@@ -15,13 +15,22 @@ interface ToastItem {
   kind: ToastKind
   title: string
   description?: string
+  /** Set while the exit animation plays; the entry is dropped shortly after. */
+  closing?: boolean
 }
 
 interface ToastState {
   toasts: ToastItem[]
   push: (toast: Omit<ToastItem, 'id'>) => void
   dismiss: (id: number) => void
+  remove: (id: number) => void
 }
+
+/**
+ * Radix unmounts a toast by itself once its exit animation ends; this backstop drops the
+ * store entry (and the React root with it) even if that animation never runs.
+ */
+const TOAST_EXIT_MS = 400
 
 const useToastStore = create<ToastState>((set) => ({
   toasts: [],
@@ -31,7 +40,13 @@ const useToastStore = create<ToastState>((set) => ({
       // Keep at most three: this is a desktop panel, not a notification centre.
       return { toasts: [...state.toasts.slice(-2), { ...toast, id }] }
     }),
-  dismiss: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
+  dismiss: (id) => {
+    set((state) => ({
+      toasts: state.toasts.map((item) => (item.id === id ? { ...item, closing: true } : item)),
+    }))
+    window.setTimeout(() => useToastStore.getState().remove(id), TOAST_EXIT_MS)
+  },
+  remove: (id) => set((state) => ({ toasts: state.toasts.filter((item) => item.id !== id) })),
 }))
 
 /** Imperative toast API, usable from callbacks that are not React components. */
@@ -77,13 +92,13 @@ export function Toaster() {
         return (
           <ToastPrimitive.Root
             key={item.id}
-            open
+            open={!item.closing}
             onOpenChange={(open) => {
               if (!open) dismiss(item.id)
             }}
             className={cn(
-              'border-border bg-surface shadow-popover flex items-start gap-3 rounded-xl border p-4',
-              'data-[state=open]:animate-[ah-rise_180ms_var(--ease-warm)]',
+              'ah-toast border-border bg-surface shadow-popover flex items-start gap-3 rounded-xl border p-4',
+              'data-[state=open]:animate-[ah-toast-in_220ms_var(--ease-warm)_both]',
             )}
           >
             <Icon className={cn('mt-0.5 size-4 shrink-0', ACCENT[item.kind])} aria-hidden />

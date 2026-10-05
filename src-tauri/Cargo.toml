@@ -1,6 +1,6 @@
 [package]
 name = "ahabby"
-version = "0.2.0"
+version = "0.4.1"
 description = "Ahabby — a control panel for the AI coding agents installed on your machine"
 authors = ["Ahabby contributors"]
 license = "MIT"
@@ -37,6 +37,8 @@ dirs = "7.0"
 which = "8.0"
 walkdir = "2.5"
 semver = "1.0"
+# Already in the tree through reqwest; used to validate manual proxy URLs in Settings.
+url = "2.5"
 similar = "3.2"
 trash = "5.2"
 sha2 = "0.11"

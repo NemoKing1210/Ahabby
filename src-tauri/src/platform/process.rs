@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use tokio::process::{Child, Command};
 
-use crate::domain::Os;
+use crate::domain::{Os, Proxy};
 use crate::error::{AppError, Result};
 
 /// Result of a finished (or timed out) command.
@@ -98,6 +98,21 @@ pub fn build_command(program: &str) -> Command {
         command.process_group(0);
     }
     command
+}
+
+/// Force Ahabby's proxy choice onto a child process.
+///
+/// Install and update jobs run through here, so npm, pip, cargo, brew and the `curl`-based
+/// install scripts all do what the user picked: a manual proxy is injected, a direct
+/// connection has the proxy variables removed, and the system mode leaves the inherited
+/// environment alone.
+pub fn apply_proxy(command: &mut Command, proxy: &Proxy) {
+    for (key, value) in proxy.env_pairs() {
+        command.env(key, value);
+    }
+    for key in proxy.removed_env() {
+        command.env_remove(key);
+    }
 }
 
 /// Kill a running child and everything it spawned.
@@ -306,5 +321,60 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(output.best_text(), "4.5.6", "stderr: {}", output.stderr);
+    }
+
+    #[tokio::test]
+    async fn injects_the_manual_proxy_into_children() {
+        let command_line = if cfg!(windows) {
+            "[Console]::Out.WriteLine($env:HTTPS_PROXY)"
+        } else {
+            "printf %s \"$HTTPS_PROXY\""
+        };
+        let (program, args) = shell_invocation(Os::current(), command_line);
+
+        let mut manual = build_command(&program);
+        manual.args(&args);
+        apply_proxy(
+            &mut manual,
+            &Proxy::manual("http://127.0.0.1:7890").unwrap(),
+        );
+        let output = manual.output().await.unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("http://127.0.0.1:7890"), "stdout: {text}");
+    }
+
+    #[tokio::test]
+    async fn direct_mode_strips_an_inherited_proxy_and_system_mode_keeps_it() {
+        let command_line = if cfg!(windows) {
+            "[Console]::Out.WriteLine($env:HTTPS_PROXY)"
+        } else {
+            "printf %s \"$HTTPS_PROXY\""
+        };
+        let (program, args) = shell_invocation(Os::current(), command_line);
+
+        let with_inherited_proxy = |proxy: &Proxy| {
+            let mut command = build_command(&program);
+            command.args(&args);
+            command.env("HTTPS_PROXY", "http://parent:1");
+            apply_proxy(&mut command, proxy);
+            command
+        };
+
+        // System mode hands the parent's environment through untouched...
+        let output = with_inherited_proxy(&Proxy::system())
+            .output()
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("http://parent:1"),
+            "system mode dropped the inherited proxy"
+        );
+
+        // ...while a direct connection strips it.
+        let output = with_inherited_proxy(&Proxy::none()).output().await.unwrap();
+        assert!(
+            String::from_utf8_lossy(&output.stdout).trim().is_empty(),
+            "direct mode leaked the inherited proxy"
+        );
     }
 }

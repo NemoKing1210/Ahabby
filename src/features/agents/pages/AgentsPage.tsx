@@ -5,6 +5,7 @@ import { RefreshCw, Search, TriangleAlert } from 'lucide-react'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { CatalogProblem } from '@/shared/bindings/CatalogProblem'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/Card'
@@ -131,7 +132,7 @@ export function AgentsPage() {
             hint={query.length > 0 ? undefined : t('agents.emptyHint')}
           />
         ) : (
-          <div className="flex flex-col gap-3">
+          <AnimatedList className="flex flex-col gap-3">
             {installed.map((agent) => (
               <AgentCard
                 key={agent.id}
@@ -139,7 +140,7 @@ export function AgentsPage() {
                 onInstall={(target, action) => setInstallTarget({ agent: target, action })}
               />
             ))}
-          </div>
+          </AnimatedList>
         )}
       </section>
 
@@ -156,7 +157,7 @@ export function AgentsPage() {
             hint={query.length > 0 ? undefined : t('agents.emptyAvailableHint')}
           />
         ) : (
-          <div className="flex flex-col gap-3">
+          <AnimatedList className="flex flex-col gap-3">
             {available.map((agent) => (
               <AgentCard
                 key={agent.id}
@@ -164,7 +165,7 @@ export function AgentsPage() {
                 onInstall={(target, action) => setInstallTarget({ agent: target, action })}
               />
             ))}
-          </div>
+          </AnimatedList>
         )}
       </section>
 

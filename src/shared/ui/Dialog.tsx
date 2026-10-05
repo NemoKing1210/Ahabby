@@ -22,11 +22,11 @@ export function DialogContent({
 }: ComponentProps<typeof DialogPrimitive.Content> & { footer?: ReactNode }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="bg-overlay fixed inset-0 z-40 animate-[ah-fade-in_150ms_ease-out]" />
+      <DialogPrimitive.Overlay className="bg-overlay fixed inset-0 z-40 data-[state=closed]:animate-[ah-fade-out_140ms_ease-in] data-[state=open]:animate-[ah-fade-in_180ms_ease-out]" />
       <DialogPrimitive.Content
         className={cn(
           'fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[min(760px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col',
-          'border-border bg-surface shadow-popover rounded-2xl border outline-none',
+          'border-border bg-surface shadow-popover rounded-2xl border outline-none data-[state=closed]:animate-[ah-dialog-out_140ms_ease-in] data-[state=open]:animate-[ah-dialog-in_200ms_var(--ease-warm)]',
           className,
         )}
         {...props}
