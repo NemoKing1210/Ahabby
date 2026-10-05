@@ -5,6 +5,43 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-10-06
+
+### Added
+
+- The app opens on a home screen instead of jumping straight into the agent list: what Ahabby is in one
+  sentence, the state of the last scan with a Rescan button, and four numbers — agents installed, skills, MCP
+  servers and other resources — that each lead to the screen explaining them
+- The home screen also carries the roster of the agents installed on this machine: brand mark, name and the
+  version its own CLI reported, favourites first, with an "Update available" badge and a jump to the agent —
+  alongside the three sections (Agents, Library, Settings) as one-line links
+
+### Changed
+
+- Settings is a set of sub-pages instead of one long scroll: Appearance, Terminal, Search & catalog, Network,
+  Safety, Hidden agents and About each have an address of their own, listed in a section rail beside the
+  content (a scrollable row on a narrow window), so a section can be linked to and the back button walks
+  between them — the appearance sets the tone here as everywhere else
+- Settings keeps one draft and one Save button across every sub-page: switching sections no longer throws away
+  an unsaved edit, the header marks the draft as unsaved, and "Discard changes" puts the whole thing back; the
+  live preview of the language, theme and accent keeps applying the page being edited, wherever that is
+- The settings areas are grouped by what they affect: Appearance is General, Accent color and Size & fonts;
+  Network is Version checks and Proxy; Search & catalog keeps the extra scan paths together with your manifest
+  directory; Safety is the backup directory; About is the version and the package managers that were found
+- The cards on a settings sub-page sit in the same concentric run as the agent list: one tight stack where only
+  the exposed corners keep the full radius, instead of evenly spaced cards each rounded on every side
+- The agent list moved to `/agents` (an agent to `/agents/:id`) so that `/` can be the home screen; the sidebar
+  gained a Home entry, and "All agents" on an agent's page returns to the list
+- Files that do not exist yet stand out on an agent's page: the config or resource card is drawn with a dashed
+  border on a tinted surface, its badge reads "Not created yet" in the accent colour, and the action reads
+  "Create" instead of "Edit" (a primary button, since there is nothing to edit yet); such files are also listed
+  after the ones that already exist, so nothing to act on never stands in the way of something that is
+
+### Removed
+
+- Settings "About" no longer repeats the catalog directory under a second "About" heading — the directory is
+  listed once, in Search & catalog, with the copy and reveal actions that belong to it
+
 ## [0.18.2] - 2026-10-06
 
 ### Changed

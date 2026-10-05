@@ -10,7 +10,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.18.2`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.19.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -55,8 +55,9 @@ Frontend boundaries (enforce them):
 - Server state = React Query (per-feature `api/` hooks, keys in `src/shared/api/keys.ts`). Zustand is used in
   exactly three places: the install-job console store, the toast store and the terminal tab store.
 - Routing is hash-based (`createHashRouter` in `src/app/router.tsx`) because the packaged app has no server SPA
-  fallback. Routes: `/` (agents), `/agents/:agentId`, `/library`, `/settings`. The terminal has no route — it is
-  a dock of the shell, lazily loaded, that stays open under every screen.
+  fallback. Routes: `/` (home — the summary and this machine's roster), `/agents`, `/agents/:agentId`,
+  `/library`, and `/settings/*` (one sub-page per area, `features/settings/routes.tsx`). The terminal has no
+  route — it is a dock of the shell, lazily loaded, that stays open under every screen.
 - **A terminal session is asked for by agent id.** The frontend never sends a program, a command line or an
   interpreter; the backend starts the executable the scan resolved, inside the user's own shell.
 
