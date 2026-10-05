@@ -1,0 +1,160 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+
+import type { AgentRef } from '@/shared/bindings/AgentRef'
+import type { McpServer } from '@/shared/bindings/McpServer'
+import { Badge } from '@/shared/ui/Badge'
+import { Button } from '@/shared/ui/Button'
+import { Card } from '@/shared/ui/Card'
+import { CodeViewer } from '@/shared/ui/CodeViewer'
+import { PathRow } from '@/shared/ui/PathRow'
+
+import { SecretValue } from './SecretValue'
+
+function TransportBadge({ server }: { server: McpServer }) {
+  const tone =
+    server.transport.type === 'http'
+      ? 'info'
+      : server.transport.type === 'stdio'
+        ? 'accent'
+        : 'neutral'
+  return <Badge tone={tone}>{server.transport.type}</Badge>
+}
+
+/** One MCP server, with its transport, secrets and the file it lives in. */
+export function McpCard({
+  server,
+  agents,
+  onDelete,
+}: {
+  server: McpServer
+  /** Every agent that declares a server with this name; defaults to this server's owner. */
+  agents?: AgentRef[]
+  onDelete?: (server: McpServer) => void
+}) {
+  const { t } = useTranslation()
+  const [showRaw, setShowRaw] = useState(false)
+  const agentId = server.agent.id
+  const owners = agents ?? [server.agent]
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-foreground text-sm">{server.name}</span>
+            <TransportBadge server={server} />
+            {server.hasSecrets ? (
+              <Badge tone="warning">
+                {t('mcp.secretsHidden', {
+                  count: server.env.filter((entry) => entry.masked).length,
+                })}
+              </Badge>
+            ) : null}
+            {server.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
+          </div>
+          {owners.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {owners.map((agent) => (
+                <Badge key={agent.id} tone="outline">
+                  {agent.name}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {onDelete && server.removable ? (
+          <Button variant="ghost" size="sm" onClick={() => onDelete(server)}>
+            <Trash2 className="size-3.5" aria-hidden />
+            {t('mcp.delete')}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        {server.transport.type === 'stdio' ? (
+          <>
+            <div className="flex flex-col gap-1">
+              <span className="text-faint text-[11px] tracking-wide uppercase">
+                {t('mcp.command')}
+              </span>
+              <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[12px] break-all">
+                {server.transport.command}
+              </code>
+            </div>
+            {server.transport.args.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-faint text-[11px] tracking-wide uppercase">
+                  {t('mcp.args')}
+                </span>
+                <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[12px] break-all">
+                  {server.transport.args.join(' ')}
+                </code>
+              </div>
+            ) : null}
+          </>
+        ) : server.transport.type === 'http' ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-faint text-[11px] tracking-wide uppercase">
+              {t('mcp.url')} · {server.transport.protocol}
+            </span>
+            <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[12px] break-all">
+              {server.transport.url}
+            </code>
+          </div>
+        ) : (
+          <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[12px] break-all">
+            {server.transport.detail}
+          </code>
+        )}
+      </div>
+
+      {server.env.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-faint text-[11px] tracking-wide uppercase">{t('mcp.env')}</span>
+          {server.env.map((entry) => (
+            <SecretValue key={entry.key} agentId={agentId} serverId={server.id} entry={entry} />
+          ))}
+        </div>
+      ) : null}
+
+      {server.headers.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-faint text-[11px] tracking-wide uppercase">{t('mcp.headers')}</span>
+          {server.headers.map((entry) => (
+            <SecretValue key={entry.key} agentId={agentId} serverId={server.id} entry={entry} />
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        <span className="text-faint text-[11px] tracking-wide uppercase">
+          {t('mcp.sourceConfig')}
+        </span>
+        <PathRow path={server.sourceConfig} />
+      </div>
+
+      <div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="px-0"
+          onClick={() => setShowRaw((value) => !value)}
+          aria-expanded={showRaw}
+        >
+          {showRaw ? (
+            <ChevronDown className="size-3.5" aria-hidden />
+          ) : (
+            <ChevronRight className="size-3.5" aria-hidden />
+          )}
+          {t('mcp.raw')}
+        </Button>
+        {showRaw ? (
+          <CodeViewer value={server.raw} format="json" height="40vh" className="mt-2" />
+        ) : null}
+      </div>
+    </Card>
+  )
+}

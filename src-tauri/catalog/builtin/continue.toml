@@ -1,0 +1,96 @@
+id = "continue"
+name = "Continue"
+description = "Open-source IDE agent for VS Code and JetBrains, with the 'cn' terminal CLI."
+tagline = "Build, share and run custom AI code agents in your editor."
+website = "https://continue.dev"
+docs = "https://docs.continue.dev/"
+icon = "continue"
+category = "extension"
+popular = true
+github = "continuedev/continue"
+unverified = ["mcp.key_path"]
+notes = "Verified 2026-10-05. Continue ships as IDE extensions (VS Code / JetBrains) plus the Continue CLI, whose executable is 'cn' (npm package @continuedev/cli). Unverified: Continue stores MCP servers under 'mcpServers' in config.yaml, but that key is a YAML list of objects with a 'name' field, not the name -> server map Ahabby's MCP reader expects, so mcp.key_path needs an adapter check. Rules directories are workspace-scoped (.continue/rules) and are declared relative to the project root; only global config files are listed as configs."
+
+[binaries]
+names = ["cn"]
+# SOURCE: https://docs.continue.dev/cli/quickstart (checked 2026-10-05)
+version_args = ["--version"]
+help_args = ["--help"]
+
+[[search_paths]]
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-05)
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+[[configs]]
+id = "config-yaml"
+label = "config.yaml"
+description = "Current user-level config (models, rules, prompts, docs, mcpServers); the same file is used by the IDE extensions and the CLI."
+format = "yaml"
+# SOURCE: https://docs.continue.dev/customize/deep-dives/configuration (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.continue/config.yaml", macos = "${HOME}/.continue/config.yaml", linux = "${HOME}/.continue/config.yaml" }
+
+[[configs]]
+id = "config-json"
+label = "config.json"
+description = "Deprecated original configuration format, stored next to config.yaml. Migrated automatically to config.yaml."
+format = "json"
+# SOURCE: https://docs.continue.dev/customize/deep-dives/configuration (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.continue/config.json", macos = "${HOME}/.continue/config.json", linux = "${HOME}/.continue/config.json" }
+
+[[configs]]
+id = "config-ts"
+label = "config.ts"
+description = "Deprecated advanced config: a TypeScript module exporting modifyConfig(), merged onto config.json."
+format = "text"
+# SOURCE: https://docs.continue.dev/customize/deep-dives/configuration (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.continue/config.ts", macos = "${HOME}/.continue/config.ts", linux = "${HOME}/.continue/config.ts" }
+
+[mcp]
+format = "yaml"
+key_path = ["mcpServers"]
+description = "MCP servers declared in the user config.yaml under 'mcpServers' (a list of named servers)."
+shared_with_config = true
+# SOURCE: https://docs.continue.dev/reference (checked 2026-10-05)
+# UNVERIFIED: 'mcpServers' is a YAML list of objects (name, command, args, env, url, type), not the
+# name -> server map Ahabby's MCP reader expects.
+path = { windows = "${USERPROFILE}/.continue/config.yaml", macos = "${HOME}/.continue/config.yaml", linux = "${HOME}/.continue/config.yaml" }
+
+[[other]]
+id = "rules"
+kind = "rules"
+label = ".continue/rules"
+description = "Workspace rules applied to Agent, Chat and Edit requests; project-scoped, so the path is relative to the repository root. Markdown files with optional YAML frontmatter (name, globs, regex, alwaysApply)."
+format = "markdown"
+glob = "**/*.md"
+# SOURCE: https://docs.continue.dev/customize/deep-dives/rules (checked 2026-10-05)
+path = { windows = ".continue/rules", macos = ".continue/rules", linux = ".continue/rules" }
+
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @continuedev/cli"
+update_command = "npm install -g @continuedev/cli@latest"
+uninstall_command = "npm uninstall -g @continuedev/cli"
+docs_url = "https://docs.continue.dev/cli/overview"
+note = "Installs the Continue CLI ('cn'); the IDE extensions are installed from their marketplaces."
+requires = ["node >= 20"]
+priority = 0
+
+[[methods]]
+id = "script"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://raw.githubusercontent.com/continuedev/continue/main/extensions/cli/scripts/install.sh | bash"
+docs_url = "https://docs.continue.dev/cli/quickstart"
+note = "Official shell installer; bundles its own runtime, so Node.js is not required."
+priority = 1
+
+[[methods]]
+id = "ide-extension"
+manager = "manual"
+command = "Install the 'Continue' extension from the VS Code or JetBrains marketplace"
+docs_url = "https://docs.continue.dev/"
+note = "The IDE extensions are the primary distribution; 'cn' is the separate terminal agent."
+priority = 2

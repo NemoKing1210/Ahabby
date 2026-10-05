@@ -1,0 +1,569 @@
+//! The scanner: turns manifests + a machine into the agent list the UI shows.
+//!
+//! Design notes:
+//! * all agents are scanned **concurrently** (bounded), because most of the time is spent
+//!   waiting for `--version` subprocesses;
+//! * every agent has a hard timeout, so one hanging CLI cannot freeze the app;
+//! * a failing sub-step becomes a warning on that agent, never a failed scan;
+//! * the result is cached, which is what makes navigation instant.
+
+use std::collections::BTreeSet;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
+
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+use crate::adapters::{AdapterRegistry, AgentAdapter};
+use crate::catalog::Catalog;
+use crate::domain::{
+    Agent, AgentStatus, CatalogProblem, Detection, InstallOption, Manager, ManifestSource, Os,
+    UpdateInfo,
+};
+use crate::platform::{self, PlatformContext};
+
+use super::version_checker::VersionChecker;
+
+/// A single agent may not take longer than this, no matter what it does.
+pub const PER_AGENT_TIMEOUT: Duration = Duration::from_secs(45);
+
+/// How many agents are inspected at the same time.
+const CONCURRENCY: usize = 6;
+
+/// Result of one full scan.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct ScanReport {
+    pub agents: Vec<Agent>,
+    pub problems: Vec<CatalogProblem>,
+    #[ts(type = "number")]
+    pub scanned_at_ms: i64,
+    #[ts(type = "number")]
+    pub duration_ms: u64,
+    pub installed: usize,
+    pub available_to_install: usize,
+    pub os: Os,
+}
+
+impl ScanReport {
+    pub fn agent(&self, id: &str) -> Option<&Agent> {
+        self.agents.iter().find(|agent| agent.id == id)
+    }
+
+    pub fn installed_agents(&self) -> impl Iterator<Item = &Agent> {
+        self.agents.iter().filter(|agent| agent.is_installed())
+    }
+}
+
+pub struct Scanner {
+    registry: RwLock<AdapterRegistry>,
+    problems: RwLock<Vec<CatalogProblem>>,
+    cache: RwLock<Option<ScanReport>>,
+}
+
+impl Scanner {
+    pub fn new(catalog: &Catalog) -> Self {
+        Self {
+            registry: RwLock::new(AdapterRegistry::from_catalog(catalog)),
+            problems: RwLock::new(catalog.problems.clone()),
+            cache: RwLock::new(None),
+        }
+    }
+
+    /// Swap in a freshly loaded catalog (user manifests may have changed on disk) while
+    /// keeping the last scan available until the new one finishes.
+    pub fn reload(&self, catalog: &Catalog) {
+        if let Ok(mut registry) = self.registry.write() {
+            *registry = AdapterRegistry::from_catalog(catalog);
+        }
+        if let Ok(mut problems) = self.problems.write() {
+            *problems = catalog.problems.clone();
+        }
+    }
+
+    pub fn last_report(&self) -> Option<ScanReport> {
+        self.cache.read().ok().and_then(|cache| cache.clone())
+    }
+
+    pub fn registry(&self) -> AdapterRegistry {
+        self.registry
+            .read()
+            .map(|registry| registry.clone())
+            .unwrap_or_default()
+    }
+
+    /// Scan everything. `versions` is optional: when `None` (or when the user disabled
+    /// network checks) only locally available information is used.
+    pub async fn scan(
+        &self,
+        ctx: &PlatformContext,
+        versions: Option<Arc<VersionChecker>>,
+    ) -> ScanReport {
+        let started = Instant::now();
+        let registry = self.registry();
+        // Owned `Arc`s and `FuturesUnordered` instead of `StreamExt::map`: a closure whose
+        // argument is `&Arc<dyn Trait>` cannot satisfy the higher-ranked lifetime bounds
+        // required by `buffer_unordered`.
+        let adapters: Vec<Arc<dyn AgentAdapter>> = registry.all().to_vec();
+        let available_managers: Arc<BTreeSet<Manager>> = Arc::new(
+            platform::detect_managers()
+                .into_iter()
+                .map(|found| found.manager)
+                .collect(),
+        );
+
+        let mut agents: Vec<Agent> = Vec::with_capacity(adapters.len());
+        for chunk in adapters.chunks(CONCURRENCY) {
+            let mut pending = FuturesUnordered::new();
+            for adapter in chunk {
+                let adapter = Arc::clone(adapter);
+                let versions = versions.clone();
+                let available_managers = Arc::clone(&available_managers);
+                pending.push(async move {
+                    let manifest = adapter.manifest().clone();
+                    match tokio::time::timeout(
+                        PER_AGENT_TIMEOUT,
+                        scan_agent(
+                            adapter.as_ref(),
+                            ctx,
+                            versions.as_deref(),
+                            &available_managers,
+                            &manifest,
+                        ),
+                    )
+                    .await
+                    {
+                        Ok(agent) => agent,
+                        Err(_) => {
+                            let mut skeleton = skeleton_agent(&manifest);
+                            skeleton.warnings.push(format!(
+                                "scanning {} timed out after {}s",
+                                manifest.name,
+                                PER_AGENT_TIMEOUT.as_secs()
+                            ));
+                            skeleton
+                        }
+                    }
+                });
+            }
+            while let Some(agent) = pending.next().await {
+                agents.push(agent);
+            }
+        }
+
+        let installed = agents.iter().filter(|agent| agent.is_installed()).count();
+        let available_to_install = agents.iter().filter(|agent| agent.can_install).count();
+
+        let report = ScanReport {
+            agents,
+            problems: self
+                .problems
+                .read()
+                .map(|problems| problems.clone())
+                .unwrap_or_default(),
+            scanned_at_ms: platform::now_ms(),
+            duration_ms: started.elapsed().as_millis() as u64,
+            installed,
+            available_to_install,
+            os: ctx.os,
+        };
+
+        if let Ok(mut cache) = self.cache.write() {
+            *cache = Some(report.clone());
+        }
+        report
+    }
+}
+
+async fn scan_agent(
+    adapter: &dyn AgentAdapter,
+    ctx: &PlatformContext,
+    versions: Option<&VersionChecker>,
+    available_managers: &BTreeSet<Manager>,
+    manifest: &crate::domain::AgentManifest,
+) -> Agent {
+    let started = Instant::now();
+    let mut warnings: Vec<String> = Vec::new();
+
+    let detection = match adapter.detect(ctx).await {
+        Ok(detection) => detection,
+        Err(error) => {
+            warnings.push(format!("detection failed: {error}"));
+            None
+        }
+    };
+
+    let mut agent = skeleton_agent(manifest);
+    agent.manifest_source = manifest.source.clone();
+
+    let installed = detection.is_some();
+    let mut version = None;
+
+    if let Some(detection) = &detection {
+        agent.status = AgentStatus::Installed;
+        agent.binary_path = Some(detection.binary_path.clone());
+        agent.found_in = Some(detection.found_in.clone());
+        version = adapter.version(ctx, detection).await;
+        if version.is_none() {
+            warnings.push(format!(
+                "{} did not report a version",
+                manifest.binaries.version_args.join(" ")
+            ));
+        }
+
+        let (configs, skills, mcp_servers, other) = futures::join!(
+            adapter.config_files(ctx),
+            adapter.list_skills(ctx),
+            adapter.list_mcp_servers(ctx),
+            adapter.list_other_resources(ctx),
+        );
+
+        match configs {
+            Ok(configs) => agent.configs = configs,
+            Err(error) => warnings.push(format!("configs: {error}")),
+        }
+        match skills {
+            Ok(skills) => agent.skills = skills,
+            Err(error) => warnings.push(format!("skills: {error}")),
+        }
+        match mcp_servers {
+            Ok(servers) => agent.mcp_servers = servers,
+            Err(error) => warnings.push(format!("mcp servers: {error}")),
+        }
+        match other {
+            Ok(resources) => agent.other = other_resources_sorted(resources),
+            Err(error) => warnings.push(format!("other resources: {error}")),
+        }
+    }
+
+    agent.version = version;
+    agent.install_options = install_options(manifest, ctx.os, available_managers, &detection);
+    agent.installed_via = agent
+        .install_options
+        .iter()
+        .find(|option| option.detected)
+        .map(|option| option.id.clone());
+    agent.can_install = !installed && agent.install_options.iter().any(|option| option.available);
+    agent.can_update = installed && agent.install_options.iter().any(|option| option.available);
+
+    if installed {
+        if let (Some(checker), Some(current)) = (versions, agent.version.as_ref()) {
+            if let Some((latest, source)) = checker.latest_for(manifest).await {
+                if latest.is_newer_than(current) {
+                    agent.update = Some(UpdateInfo {
+                        latest: latest.raw.clone(),
+                        source,
+                        checked_at_ms: platform::now_ms(),
+                    });
+                }
+            }
+        }
+    }
+
+    agent.warnings = warnings;
+    agent.scan_ms = started.elapsed().as_millis() as u64;
+    agent
+}
+
+fn skeleton_agent(manifest: &crate::domain::AgentManifest) -> Agent {
+    Agent {
+        id: manifest.id.clone(),
+        name: manifest.name.clone(),
+        description: manifest.description.clone(),
+        tagline: manifest.tagline.clone(),
+        icon: manifest.icon.clone(),
+        category: manifest.category.clone(),
+        website: manifest.website.clone(),
+        docs: manifest.docs.clone(),
+        popular: manifest.popular,
+        status: AgentStatus::NotInstalled,
+        binary_path: None,
+        found_in: None,
+        version: None,
+        installed_via: None,
+        install_options: Vec::new(),
+        can_install: false,
+        install_docs_url: manifest.install_docs_url().map(str::to_string),
+        can_update: false,
+        configs: Vec::new(),
+        skills: Vec::new(),
+        mcp_servers: Vec::new(),
+        other: Vec::new(),
+        update: None,
+        unverified: manifest.unverified.clone(),
+        notes: manifest.notes.clone(),
+        manifest_source: ManifestSource::Builtin,
+        warnings: Vec::new(),
+        scan_ms: 0,
+    }
+}
+
+fn install_options(
+    manifest: &crate::domain::AgentManifest,
+    os: Os,
+    available_managers: &BTreeSet<Manager>,
+    detection: &Option<Detection>,
+) -> Vec<InstallOption> {
+    let detected_manager = detection.as_ref().and_then(|detection| detection.manager);
+    manifest
+        .methods_for(os)
+        .into_iter()
+        .map(|method| {
+            let manager_available = match method.manager {
+                Manager::Manual => false,
+                Manager::Script => true,
+                manager => available_managers.contains(&manager),
+            };
+            let unavailable_reason = if manager_available {
+                None
+            } else if method.manager == Manager::Manual {
+                Some("manual installation only".to_string())
+            } else {
+                Some(format!(
+                    "{} is not installed",
+                    method
+                        .manager
+                        .binary()
+                        .unwrap_or("the required package manager")
+                ))
+            };
+            InstallOption {
+                id: method.id.clone(),
+                manager: method.manager,
+                command: method.command.clone(),
+                update_command: method.update_command.clone(),
+                requires: method.requires.clone(),
+                docs_url: method.docs_url.clone(),
+                note: method.note.clone(),
+                available: manager_available,
+                unavailable_reason,
+                detected: detected_manager == Some(method.manager),
+            }
+        })
+        .collect()
+}
+
+fn other_resources_sorted(
+    resources: Vec<crate::domain::OtherResource>,
+) -> Vec<crate::domain::OtherResource> {
+    let mut resources = resources;
+    resources.sort_by(|a, b| {
+        format!("{:?}", a.kind)
+            .cmp(&format!("{:?}", b.kind))
+            .then_with(|| a.label.to_lowercase().cmp(&b.label.to_lowercase()))
+    });
+    resources
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::parse_manifest;
+
+    fn manifest() -> crate::domain::AgentManifest {
+        parse_manifest(
+            r#"
+id = "unit-agent"
+name = "Unit Agent"
+description = "an agent that exists only for tests"
+popular = true
+website = "https://example.com"
+docs = "https://example.com/docs"
+
+[binaries]
+names = ["unit-agent"]
+version_args = ["--version"]
+
+[[configs]]
+id = "settings"
+label = "Settings"
+format = "json"
+path = { linux = "${HOME}/.unit-agent/settings.json", windows = "${HOME}/.unit-agent/settings.json", macos = "${HOME}/.unit-agent/settings.json" }
+
+[skills]
+format = "skillMd"
+path = { linux = "${HOME}/.unit-agent/skills", windows = "${HOME}/.unit-agent/skills", macos = "${HOME}/.unit-agent/skills" }
+
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+path = { linux = "${HOME}/.unit-agent/settings.json", windows = "${HOME}/.unit-agent/settings.json", macos = "${HOME}/.unit-agent/settings.json" }
+
+[[methods]]
+id = "script"
+manager = "script"
+command = "curl -fsSL https://example.com/install.sh | sh"
+"#,
+            "test",
+        )
+        .unwrap()
+    }
+
+    fn catalog(manifest: crate::domain::AgentManifest) -> Catalog {
+        Catalog {
+            manifests: vec![manifest],
+            problems: Vec::new(),
+        }
+    }
+
+    fn context(home: &std::path::Path) -> PlatformContext {
+        PlatformContext::for_tests(Os::current(), home, home.join("appdata"), home.join("cfg"))
+    }
+
+    #[tokio::test]
+    async fn not_installed_agent_is_reported_without_errors() {
+        let home = tempfile::tempdir().unwrap();
+        let mut manifest = manifest();
+        manifest.binaries.names = vec!["definitely-not-installed-unit-agent".to_string()];
+        let scanner = Scanner::new(&catalog(manifest));
+        let report = scanner.scan(&context(home.path()), None).await;
+
+        let agent = report.agent("unit-agent").unwrap();
+        assert_eq!(agent.status, AgentStatus::NotInstalled);
+        assert!(agent.binary_path.is_none());
+        assert!(
+            agent.can_install,
+            "a script method is always available, so this is installable"
+        );
+        assert!(agent.warnings.is_empty());
+        assert_eq!(report.installed, 0);
+        assert!(report.problems.is_empty());
+    }
+
+    #[tokio::test]
+    async fn installed_agent_is_scanned_end_to_end() {
+        let home = tempfile::tempdir().unwrap();
+        let agent_dir = home.path().join(".unit-agent");
+        std::fs::create_dir_all(agent_dir.join("skills/pdf")).unwrap();
+        std::fs::create_dir_all(agent_dir.join("skills/summarise")).unwrap();
+
+        std::fs::write(
+            agent_dir.join("settings.json"),
+            r#"{
+  "mcpServers": {
+    "github": { "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "ghp_supersecret" } }
+  }
+}
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            agent_dir.join("skills/pdf/SKILL.md"),
+            "---\nname: pdf\ndescription: Work with PDFs\n---\n\n# PDF\n\nBody.\n",
+        )
+        .unwrap();
+        std::fs::write(
+            agent_dir.join("skills/summarise/SKILL.md"),
+            "---\nname: summarise\ndescription: Summarise documents.\n---\n\n# Summarise\n",
+        )
+        .unwrap();
+
+        // A fake binary that reports a version.
+        let bin_dir = home.path().join("bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let binary = write_fake_binary(&bin_dir, "unit-agent", "3.1.4");
+
+        let mut manifest = manifest();
+        manifest.search_paths = vec![crate::domain::SearchPathSpec {
+            windows: vec!["${HOME}/bin".to_string()],
+            macos: vec!["${HOME}/bin".to_string()],
+            linux: vec!["${HOME}/bin".to_string()],
+        }];
+        manifest.binaries.names = vec!["unit-agent".to_string()];
+
+        let scanner = Scanner::new(&catalog(manifest));
+        let report = scanner.scan(&context(home.path()), None).await;
+        let agent = report.agent("unit-agent").unwrap();
+
+        assert_eq!(agent.status, AgentStatus::Installed);
+        assert_eq!(
+            agent.binary_path.as_deref(),
+            Some(binary.to_string_lossy().as_ref())
+        );
+        assert_eq!(agent.version.as_ref().unwrap().raw, "3.1.4");
+        assert_eq!(report.installed, 1);
+
+        assert_eq!(agent.configs.len(), 1);
+        assert!(agent.configs[0].exists);
+
+        assert_eq!(agent.skills.len(), 2, "skills: {:?}", agent.skills);
+        assert!(agent.skills.iter().any(|skill| skill.name == "pdf"));
+        assert!(agent.skills.iter().any(|skill| skill.name == "summarise"));
+
+        assert_eq!(agent.mcp_servers.len(), 1);
+        let server = &agent.mcp_servers[0];
+        assert_eq!(server.name, "github");
+        assert_eq!(server.key_path, vec!["mcpServers", "github"]);
+        assert!(server.has_secrets);
+        assert_eq!(server.env[0].value, None);
+        assert!(!server.raw.contains("ghp_supersecret"));
+    }
+
+    #[tokio::test]
+    async fn broken_config_becomes_a_warning_not_a_failure() {
+        let home = tempfile::tempdir().unwrap();
+        let agent_dir = home.path().join(".unit-agent");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        std::fs::write(agent_dir.join("settings.json"), "{ broken").unwrap();
+
+        let bin_dir = home.path().join("bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        write_fake_binary(&bin_dir, "unit-agent", "1.0.0");
+
+        let mut manifest = manifest();
+        manifest.binaries.names = vec!["unit-agent".to_string()];
+        manifest.search_paths = vec![crate::domain::SearchPathSpec {
+            linux: vec!["${HOME}/bin".to_string()],
+            macos: vec!["${HOME}/bin".to_string()],
+            windows: vec!["${HOME}/bin".to_string()],
+        }];
+
+        let scanner = Scanner::new(&catalog(manifest));
+        let report = scanner.scan(&context(home.path()), None).await;
+        let agent = report.agent("unit-agent").unwrap();
+
+        assert_eq!(agent.status, AgentStatus::Installed);
+        assert!(agent
+            .warnings
+            .iter()
+            .any(|warning| warning.starts_with("mcp servers:")));
+        // The config file itself is still listed, the UI can show the problem to the user.
+        assert_eq!(agent.configs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn second_scan_is_served_from_the_cache() {
+        let home = tempfile::tempdir().unwrap();
+        let scanner = Scanner::new(&catalog(manifest()));
+        assert!(scanner.last_report().is_none());
+        let report = scanner.scan(&context(home.path()), None).await;
+        let cached = scanner.last_report().expect("cached");
+        assert_eq!(cached.scanned_at_ms, report.scanned_at_ms);
+        assert_eq!(cached.agents.len(), 1);
+    }
+
+    /// Create a small executable that prints a version, for the current OS.
+    fn write_fake_binary(
+        directory: &std::path::Path,
+        name: &str,
+        version: &str,
+    ) -> std::path::PathBuf {
+        if cfg!(windows) {
+            let path = directory.join(format!("{name}.cmd"));
+            std::fs::write(&path, format!("@echo off\r\necho {version} (fake)\r\n")).unwrap();
+            path
+        } else {
+            let path = directory.join(name);
+            std::fs::write(&path, format!("#!/bin/sh\necho \"{version} (fake)\"\n")).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            path
+        }
+    }
+}

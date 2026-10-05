@@ -1,0 +1,116 @@
+id = "aider"
+name = "Aider"
+description = "AI pair programming in your terminal."
+tagline = "Pair program with an LLM on your local git repository."
+website = "https://aider.chat"
+docs = "https://aider.chat/docs/"
+icon = "aider"
+category = "cli"
+popular = true
+github = "Aider-AI/aider"
+unverified = []
+notes = "Verified 2026-10-05. Aider is published on PyPI as 'aider-chat' and exposes exactly one console script, 'aider' (pyproject.toml [project.scripts]). Aider has no native MCP support: feature request Aider-AI/aider#3314 is still open and the MCP client PR is unmerged, so no [mcp] block is declared. 'CONVENTIONS.md' is a workspace file (read from the repository root and referenced with `read:` in .aider.conf.yml), so its path is declared relative to the project root."
+
+[binaries]
+names = ["aider"]
+# SOURCE: https://aider.chat/docs/config/options.html (checked 2026-10-05)
+version_args = ["--version"]
+help_args = ["--help"]
+
+[[search_paths]]
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-05)
+# SOURCE: https://pipx.pypa.io/stable/ (checked 2026-10-05)
+windows = ["${APPDATA}/npm", "${USERPROFILE}/.local/bin"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+[[configs]]
+id = "conf"
+label = ".aider.conf.yml"
+description = "Main YAML config; loaded from the home directory, the git repo root and the current directory, in that order (later wins)."
+format = "yaml"
+# SOURCE: https://aider.chat/docs/config/aider_conf.html (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.aider.conf.yml", macos = "${HOME}/.aider.conf.yml", linux = "${HOME}/.aider.conf.yml" }
+
+[[configs]]
+id = "model-settings"
+label = ".aider.model.settings.yml"
+description = "Overrides or adds per-model settings (edit format, weak/editor model, extra litellm params)."
+format = "yaml"
+# SOURCE: https://aider.chat/docs/config/adv-model-settings.html (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.aider.model.settings.yml", macos = "${HOME}/.aider.model.settings.yml", linux = "${HOME}/.aider.model.settings.yml" }
+
+[[configs]]
+id = "model-metadata"
+label = ".aider.model.metadata.json"
+description = "Context window sizes and token costs for models aider does not know about."
+format = "json"
+# SOURCE: https://aider.chat/docs/config/adv-model-settings.html (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.aider.model.metadata.json", macos = "${HOME}/.aider.model.metadata.json", linux = "${HOME}/.aider.model.metadata.json" }
+
+[[configs]]
+id = "env"
+label = ".env"
+description = "API keys and AIDER_* options; searched in the home directory, the git repo root and the current directory, in that order."
+format = "text"
+# SOURCE: https://aider.chat/docs/config/dotenv.html (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.env", macos = "${HOME}/.env", linux = "${HOME}/.env" }
+
+[[other]]
+id = "conventions"
+kind = "instructions"
+label = "CONVENTIONS.md"
+description = "Coding conventions added to every chat as a read-only file. Workspace-scoped: it lives at the project root and is loaded with '/read CONVENTIONS.md' or a 'read:' entry in .aider.conf.yml."
+format = "markdown"
+# SOURCE: https://aider.chat/docs/usage/conventions.html (checked 2026-10-05)
+path = { windows = "CONVENTIONS.md", macos = "CONVENTIONS.md", linux = "CONVENTIONS.md" }
+
+[[methods]]
+id = "pipx"
+manager = "pipx"
+command = "pipx install aider-chat"
+update_command = "pipx upgrade aider-chat"
+uninstall_command = "pipx uninstall aider-chat"
+docs_url = "https://aider.chat/docs/install.html"
+note = "Recommended install; pipx keeps aider in its own virtualenv."
+requires = ["python >= 3.9, < 3.13"]
+priority = 0
+
+[[methods]]
+id = "pip"
+manager = "pip"
+command = "pip install aider-chat"
+update_command = "pip install --upgrade aider-chat"
+uninstall_command = "pip uninstall -y aider-chat"
+docs_url = "https://aider.chat/docs/install.html"
+note = "Use a virtualenv; the docs recommend the official installer or pipx first."
+priority = 1
+
+[[methods]]
+id = "script"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -LsSf https://aider.chat/install.sh | sh"
+docs_url = "https://aider.chat/docs/install.html"
+note = "Official one-liner; installs aider with its own Python 3.12 via uv."
+priority = 2
+
+[[methods]]
+id = "script-windows"
+manager = "script"
+os = ["windows"]
+command = "powershell -ExecutionPolicy ByPass -c \"irm https://aider.chat/install.ps1 | iex\""
+docs_url = "https://aider.chat/docs/install.html"
+note = "Official Windows one-liner."
+priority = 3
+
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install aider"
+update_command = "brew upgrade aider"
+uninstall_command = "brew uninstall aider"
+docs_url = "https://formulae.brew.sh/formula/aider"
+note = "Aider's docs warn that system package managers often install broken dependencies; prefer pipx or the official installer."
+priority = 4

@@ -1,0 +1,10 @@
+# Keep line endings identical on every platform: the linters (rustfmt, prettier) and the
+# CI diff checks depend on it.
+* text=auto eol=lf
+
+# Binary assets that must never be rewritten.
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.exe binary

@@ -1,0 +1,70 @@
+id = "gemini-cli"
+name = "Gemini CLI"
+description = "Google's open-source terminal AI agent that brings Gemini models directly into your shell."
+tagline = "Google's Gemini-powered coding agent for the terminal."
+website = "https://geminicli.com"
+docs = "https://geminicli.com/docs/"
+icon = "gemini"
+category = "cli"
+popular = true
+github = "google-gemini/gemini-cli"
+unverified = []
+notes = "Paths and commands confirmed against the official Gemini CLI docs and the google-gemini/gemini-cli repository on 2026-10-05."
+
+[binaries]
+names = ["gemini"]
+version_args = ["--version"]
+help_args = ["--help"]
+
+# SOURCE: https://docs.npmjs.com/cli/v9/configuring-npm/folders (checked 2026-10-05)
+# SOURCE: https://docs.brew.sh/FAQ (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["/usr/local/bin"]
+
+# SOURCE: https://geminicli.com/docs/reference/configuration (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "User-level Gemini CLI settings, including MCP servers and general behavior."
+format = "json"
+path = { windows = "${USERPROFILE}/.gemini/settings.json", macos = "${HOME}/.gemini/settings.json", linux = "${HOME}/.gemini/settings.json" }
+
+# SOURCE: https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+description = "MCP servers are declared under the top-level mcpServers object of settings.json."
+path = { windows = "${USERPROFILE}/.gemini/settings.json", macos = "${HOME}/.gemini/settings.json", linux = "${HOME}/.gemini/settings.json" }
+
+# SOURCE: https://geminicli.com/docs/reference/configuration (checked 2026-10-05)
+[[other]]
+id = "instructions"
+kind = "instructions"
+label = "GEMINI.md"
+description = "Global context/instruction file in the Gemini home directory, loaded for every project."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.gemini/GEMINI.md", macos = "${HOME}/.gemini/GEMINI.md", linux = "${HOME}/.gemini/GEMINI.md" }
+
+# SOURCE: https://geminicli.com/docs/get-started/installation (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @google/gemini-cli"
+update_command = "npm install -g @google/gemini-cli@latest"
+uninstall_command = "npm uninstall -g @google/gemini-cli"
+requires = ["node >= 20"]
+priority = 0
+
+# SOURCE: https://geminicli.com/docs/get-started/installation (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install gemini-cli"
+update_command = "brew upgrade gemini-cli"
+uninstall_command = "brew uninstall gemini-cli"
+docs_url = "https://formulae.brew.sh/formula/gemini-cli"
+priority = 1

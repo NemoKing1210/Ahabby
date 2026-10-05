@@ -1,0 +1,66 @@
+[package]
+name = "ahabby"
+version = "0.1.0"
+description = "Ahabby — a control panel for the AI coding agents installed on your machine"
+authors = ["Ahabby contributors"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.82"
+default-run = "ahabby"
+
+[lib]
+name = "ahabby_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+toml_edit = { version = "0.25", features = ["serde"] }
+serde_yaml = "0.9"
+tokio = { version = "1.53", features = [
+  "rt-multi-thread",
+  "macros",
+  "process",
+  "sync",
+  "time",
+  "fs",
+  "io-util",
+] }
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "7.0"
+which = "8.0"
+walkdir = "2.5"
+semver = "1.0"
+similar = "3.2"
+trash = "5.2"
+sha2 = "0.11"
+hex = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+globset = "0.4"
+futures = "0.3"
+async-trait = "0.1"
+reqwest = { version = "0.13", default-features = false, features = [
+  "default-tls",
+  "json",
+] }
+ts-rs = { version = "12.0", features = ["no-serde-warnings"] }
+
+[dev-dependencies]
+tempfile = "3.27"
+
+[features]
+# Used by `tauri build` so the frontend assets are served from the binary.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -1,0 +1,142 @@
+id = "qwen-code"
+name = "Qwen Code"
+description = "Open-source AI coding agent for the terminal, from the Qwen team."
+tagline = "An agentic coding CLI with sub-agents, skills, hooks and MCP."
+website = "https://github.com/QwenLM/qwen-code"
+docs = "https://qwenlm.github.io/qwen-code-docs/en/users/overview"
+icon = "qwen"
+category = "cli"
+popular = true
+github = "QwenLM/qwen-code"
+unverified = []
+notes = "Verified 2026-10-05. The npm package is @qwen-code/qwen-code and its only bin is 'qwen'. User data lives under ~/.qwen/ (settings.json, skills/, rules/, commands/, agents/, QWEN.md); project files live under <project>/.qwen/. Note that Qwen's MCP HTTP servers use 'httpUrl' and SSE servers use 'url', so remote servers that declare 'httpUrl' may not be recognised by Ahabby's MCP reader even though the 'mcpServers' key path is correct."
+
+[binaries]
+names = ["qwen"]
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/ (checked 2026-10-05)
+version_args = ["--version"]
+help_args = ["--help"]
+
+[[search_paths]]
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-05)
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+[[configs]]
+id = "settings"
+label = ".qwen/settings.json"
+description = "User-level settings: models, UI, tools, hooks and MCP servers, applied to all sessions for this user."
+format = "json"
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/ (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.qwen/settings.json", macos = "${HOME}/.qwen/settings.json", linux = "${HOME}/.qwen/settings.json" }
+
+[[configs]]
+id = "system-settings"
+label = "System settings.json"
+description = "System-wide settings that override user and project settings; owned by the OS administrator, so Ahabby must not write it."
+format = "json"
+editable = false
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/ (checked 2026-10-05)
+path = { windows = "${PROGRAMDATA}/qwen-code/settings.json", macos = "/Library/Application Support/QwenCode/settings.json", linux = "/etc/qwen-code/settings.json" }
+
+[[configs]]
+id = "system-defaults"
+label = "System defaults system-defaults.json"
+description = "System-wide defaults with the lowest precedence; owned by the OS administrator, so Ahabby must not write it."
+format = "json"
+editable = false
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/ (checked 2026-10-05)
+path = { windows = "${PROGRAMDATA}/qwen-code/system-defaults.json", macos = "/Library/Application Support/QwenCode/system-defaults.json", linux = "/etc/qwen-code/system-defaults.json" }
+
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "MCP servers are stored under 'mcpServers' in the selected settings.json (user scope by default)."
+shared_with_config = true
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/ (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.qwen/settings.json", macos = "${HOME}/.qwen/settings.json", linux = "${HOME}/.qwen/settings.json" }
+
+[skills]
+format = "skillMd"
+description = "Personal Agent Skills; each skill is a directory containing a SKILL.md with YAML frontmatter (name, description)."
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/ (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.qwen/skills", macos = "${HOME}/.qwen/skills", linux = "${HOME}/.qwen/skills" }
+
+[[other]]
+id = "memory"
+kind = "memory"
+label = "QWEN.md"
+description = "Global context file loaded at the start of every session (the project-level QWEN.md and .qwen/QWEN.local.md live in the repository)."
+format = "markdown"
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/features/memory/ (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.qwen/QWEN.md", macos = "${HOME}/.qwen/QWEN.md", linux = "${HOME}/.qwen/QWEN.md" }
+
+[[other]]
+id = "rules"
+kind = "rules"
+label = "Rules"
+description = "User-level rules always loaded; Markdown files with optional frontmatter (description, paths). $QWEN_HOME/rules/ is used when QWEN_HOME is set."
+format = "markdown"
+glob = "**/*.md"
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/features/rules/ (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.qwen/rules", macos = "${HOME}/.qwen/rules", linux = "${HOME}/.qwen/rules" }
+
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom commands"
+description = "User-level slash commands available in all projects; Markdown files with frontmatter."
+format = "markdown"
+glob = "**/*.md"
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/features/commands/ (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.qwen/commands", macos = "${HOME}/.qwen/commands", linux = "${HOME}/.qwen/commands" }
+
+[[other]]
+id = "subagents"
+kind = "subagents"
+label = "SubAgents"
+description = "User-level sub-agent definitions; Markdown files with YAML frontmatter (name, description, tools, ...)."
+format = "markdown"
+glob = "**/*.md"
+# SOURCE: https://qwenlm.github.io/qwen-code-docs/en/users/features/sub-agents/ (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.qwen/agents", macos = "${HOME}/.qwen/agents", linux = "${HOME}/.qwen/agents" }
+
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @qwen-code/qwen-code@latest"
+update_command = "npm install -g @qwen-code/qwen-code@latest"
+uninstall_command = "npm uninstall -g @qwen-code/qwen-code"
+docs_url = "https://qwenlm.github.io/qwen-code-docs/en/users/quickstart"
+note = "Official npm distribution; the bin is 'qwen'."
+requires = ["node >= 22"]
+priority = 0
+
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install qwen-code"
+update_command = "brew upgrade qwen-code"
+uninstall_command = "brew uninstall qwen-code"
+docs_url = "https://github.com/QwenLM/qwen-code/blob/main/README.md"
+priority = 1
+
+[[methods]]
+id = "script"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash"
+docs_url = "https://qwenlm.github.io/qwen-code-docs/en/users/quickstart"
+note = "Official standalone installer (bundles a private Node.js runtime); restart the terminal afterwards."
+priority = 2
+
+[[methods]]
+id = "script-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.ps1 | iex"
+docs_url = "https://qwenlm.github.io/qwen-code-docs/en/users/quickstart"
+note = "Official Windows standalone installer; run from PowerShell and restart the terminal afterwards."
+priority = 3

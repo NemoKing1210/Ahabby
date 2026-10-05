@@ -1,0 +1,150 @@
+id = "github-copilot-cli"
+name = "GitHub Copilot CLI"
+description = "GitHub's terminal-native coding agent with native GitHub and MCP integration."
+tagline = "Copilot's agentic coding assistant in your terminal."
+website = "https://github.com/features/copilot/cli"
+docs = "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli"
+icon = "copilot"
+category = "cli"
+popular = true
+github = "github/copilot-cli"
+unverified = []
+notes = "All paths taken from the official Copilot CLI configuration-directory reference and install/MCP/skills guides on 2026-10-05. Copilot CLI evolves quickly; the ~/.copilot layout and command surface are moving targets, re-check the reference on upgrade."
+
+[binaries]
+names = ["copilot"]
+version_args = ["--version"]
+
+# SOURCE: https://docs.npmjs.com/cli/v9/configuring-npm/folders (checked 2026-10-05)
+# SOURCE: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "Primary user-level Copilot CLI configuration (JSONC): model, permissions, hooks, sidebar and other preferences."
+format = "json"
+path = { windows = "${USERPROFILE}/.copilot/settings.json", macos = "${HOME}/.copilot/settings.json", linux = "${HOME}/.copilot/settings.json" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[configs]]
+id = "mcp-config"
+label = "mcp-config.json"
+description = "User-level MCP server definitions, available in every session."
+format = "json"
+path = { windows = "${USERPROFILE}/.copilot/mcp-config.json", macos = "${HOME}/.copilot/mcp-config.json", linux = "${HOME}/.copilot/mcp-config.json" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[configs]]
+id = "lsp"
+label = "lsp-config.json"
+description = "User-level Language Server Protocol server definitions."
+format = "json"
+path = { windows = "${USERPROFILE}/.copilot/lsp-config.json", macos = "${HOME}/.copilot/lsp-config.json", linux = "${HOME}/.copilot/lsp-config.json" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[configs]]
+id = "permissions"
+label = "permissions-config.json"
+description = "Saved tool and directory permission decisions, keyed by project location; editable but prefer managing it through the CLI."
+format = "json"
+path = { windows = "${USERPROFILE}/.copilot/permissions-config.json", macos = "${HOME}/.copilot/permissions-config.json", linux = "${HOME}/.copilot/permissions-config.json" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Personal skills, one folder per skill containing a SKILL.md with YAML frontmatter."
+path = { windows = "${USERPROFILE}/.copilot/skills", macos = "${HOME}/.copilot/skills", linux = "${HOME}/.copilot/skills" }
+
+# SOURCE: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers (checked 2026-10-05)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+description = "MCP servers live under the top-level mcpServers object; local servers use command/args and remote servers use url with type http or sse."
+path = { windows = "${USERPROFILE}/.copilot/mcp-config.json", macos = "${HOME}/.copilot/mcp-config.json", linux = "${HOME}/.copilot/mcp-config.json" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[other]]
+id = "instructions"
+kind = "instructions"
+label = "copilot-instructions.md"
+description = "Personal custom instructions applied to every session."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.copilot/copilot-instructions.md", macos = "${HOME}/.copilot/copilot-instructions.md", linux = "${HOME}/.copilot/copilot-instructions.md" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[other]]
+id = "instructions-dir"
+kind = "instructions"
+label = "Personal instructions"
+description = "Additional personal *.instructions.md files loaded alongside copilot-instructions.md."
+format = "markdown"
+glob = "*.instructions.md"
+path = { windows = "${USERPROFILE}/.copilot/instructions", macos = "${HOME}/.copilot/instructions", linux = "${HOME}/.copilot/instructions" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Custom agents"
+description = "Personal custom agent definitions stored as *.agent.md files."
+format = "markdown"
+glob = "*.agent.md"
+path = { windows = "${USERPROFILE}/.copilot/agents", macos = "${HOME}/.copilot/agents", linux = "${HOME}/.copilot/agents" }
+
+# SOURCE: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference (checked 2026-10-05)
+[[other]]
+id = "hooks"
+kind = "hooks"
+label = "User hooks"
+description = "User-level hook scripts applied to every session."
+format = "text"
+glob = "*"
+path = { windows = "${USERPROFILE}/.copilot/hooks", macos = "${HOME}/.copilot/hooks", linux = "${HOME}/.copilot/hooks" }
+
+# SOURCE: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @github/copilot"
+update_command = "npm install -g @github/copilot@latest"
+uninstall_command = "npm uninstall -g @github/copilot"
+docs_url = "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli"
+requires = ["node >= 22"]
+priority = 0
+
+# SOURCE: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli (checked 2026-10-05)
+[[methods]]
+id = "winget"
+manager = "winget"
+os = ["windows"]
+command = "winget install GitHub.Copilot"
+update_command = "winget upgrade GitHub.Copilot"
+uninstall_command = "winget uninstall GitHub.Copilot"
+docs_url = "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli"
+priority = 1
+
+# SOURCE: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install --cask copilot-cli"
+update_command = "brew upgrade --cask copilot-cli"
+uninstall_command = "brew uninstall --cask copilot-cli"
+docs_url = "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli"
+priority = 1
+
+# SOURCE: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli (checked 2026-10-05)
+[[methods]]
+id = "script"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://gh.io/copilot-install | bash"
+docs_url = "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli"
+priority = 2

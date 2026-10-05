@@ -1,0 +1,181 @@
+# Claude Code — the flagship entry of the catalog.
+#
+# This manifest also uses the one specialised adapter that exists in Ahabby
+# (`adapter = "claude"`): Claude Code keeps MCP servers in two places, and skills installed
+# by the plugin manager must not be deletable. See `ARCHITECTURE.md`.
+#
+# Sources (all checked 2026-10-05):
+#   https://code.claude.com/docs/en/setup.md
+#   https://code.claude.com/docs/en/settings.md
+#   https://code.claude.com/docs/en/claude-directory.md
+#   https://code.claude.com/docs/en/mcp-quickstart.md
+#   https://code.claude.com/docs/en/skills.md
+#   https://code.claude.com/docs/en/sub-agents.md
+#   https://code.claude.com/docs/en/memory.md
+#   https://code.claude.com/docs/en/cli-reference.md
+
+id = "claude-code"
+name = "Claude Code"
+description = "Anthropic's terminal coding agent: settings, skills, sub-agents and MCP servers."
+tagline = "Anthropic's agentic coding tool for the terminal"
+website = "https://claude.com/claude-code"
+docs = "https://code.claude.com/docs"
+icon = "claude"
+category = "cli"
+popular = true
+github = "anthropics/claude-code"
+adapter = "claude"
+unverified = ["other[1].path"]
+notes = """Paths confirmed against code.claude.com/docs on 2026-10-05.
+`~/.claude.json` is app state written by the CLI (sign-in session, per-project trust,
+user-scope MCP servers): Ahabby lists it read-only and never hand-edits it, but removing an
+MCP server from it is allowed because that edit is structural, validated and backed up.
+`CLAUDE_CONFIG_DIR` can relocate the whole `~/.claude` layout; Ahabby only reads the default.
+Linux apt/dnf/apk methods need sudo and several steps, so they are not automated here —
+the docs link is offered instead."""
+
+[binaries]
+names = ["claude"]
+version_args = ["--version"]
+version_extract = "semver"
+
+# The native installer puts the binary in ~/.local/bin; npm installs go to the npm prefix.
+# SOURCE: https://code.claude.com/docs/en/setup.md (uninstall instructions name ~/.local/bin)
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin", "${APPDATA}/npm"]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://code.claude.com/docs/en/settings.md#settings-files-and-who-they-affect
+[[configs]]
+id = "user-settings"
+label = "User settings"
+description = "Personal settings, applied to every project."
+format = "json"
+path = { windows = "${USERPROFILE}/.claude/settings.json", macos = "${HOME}/.claude/settings.json", linux = "${HOME}/.claude/settings.json" }
+
+# SOURCE: https://code.claude.com/docs/en/settings.md (the "fifth file"),
+#         https://code.claude.com/docs/en/claude-directory.md
+[[configs]]
+id = "app-state"
+label = "App state (incl. user MCP servers)"
+description = "Session state written by Claude Code. Read-only here: use the MCP tab to remove a server."
+format = "json"
+editable = false
+path = { windows = "${USERPROFILE}/.claude.json", macos = "${HOME}/.claude.json", linux = "${HOME}/.claude.json" }
+
+# SOURCE: https://code.claude.com/docs/en/skills.md (Locations: personal skills)
+[skills]
+format = "skillMd"
+glob = "**/SKILL.md"
+path = { windows = "${USERPROFILE}/.claude/skills", macos = "${HOME}/.claude/skills", linux = "${HOME}/.claude/skills" }
+description = "Personal skills, `~/.claude/skills/<name>/SKILL.md`."
+
+# SOURCE: https://code.claude.com/docs/en/mcp-quickstart.md#find-your-configuration-on-disk
+#         (user scope = ~/.claude.json, key `mcpServers`)
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+path = { windows = "${USERPROFILE}/.claude.json", macos = "${HOME}/.claude.json", linux = "${HOME}/.claude.json" }
+description = "User-scope MCP servers. The adapter also reads (but never writes) mcpServers in settings.json."
+
+# SOURCE: https://code.claude.com/docs/en/memory.md#choose-where-to-put-claude-md-files
+[[other]]
+id = "user-memory"
+kind = "instructions"
+label = "CLAUDE.md"
+format = "markdown"
+path = { windows = "${USERPROFILE}/.claude/CLAUDE.md", macos = "${HOME}/.claude/CLAUDE.md", linux = "${HOME}/.claude/CLAUDE.md" }
+
+# SOURCE: https://code.claude.com/docs/en/claude-directory.md — AGENTS.md is accepted as an
+# alternative instructions file, but the docs do not state the user-scope location clearly.
+[[other]]
+id = "user-agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+format = "markdown"
+path = { windows = "${USERPROFILE}/.claude/AGENTS.md", macos = "${HOME}/.claude/AGENTS.md", linux = "${HOME}/.claude/AGENTS.md" }
+
+# SOURCE: https://code.claude.com/docs/en/sub-agents.md#choose-the-subagent-scope
+[[other]]
+id = "subagents"
+kind = "subagents"
+label = "Sub-agents"
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.claude/agents", macos = "${HOME}/.claude/agents", linux = "${HOME}/.claude/agents" }
+
+# SOURCE: https://code.claude.com/docs/en/claude-directory.md (global commands/)
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom commands"
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.claude/commands", macos = "${HOME}/.claude/commands", linux = "${HOME}/.claude/commands" }
+
+# SOURCE: https://code.claude.com/docs/en/memory.md#user-level-rules
+[[other]]
+id = "rules"
+kind = "rules"
+label = "User rules"
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.claude/rules", macos = "${HOME}/.claude/rules", linux = "${HOME}/.claude/rules" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://code.claude.com/docs/en/setup.md#install-claude-code
+
+[[methods]]
+id = "native-installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://claude.ai/install.sh | bash"
+update_command = "claude update"
+note = "Official native installer; Claude Code then updates itself in the background. Uninstall is a documented manual step (`rm -rf ~/.local/share/claude`), so Ahabby does not offer it."
+docs_url = "https://code.claude.com/docs/en/setup"
+requires = ["curl"]
+priority = 0
+
+[[methods]]
+id = "native-installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://claude.ai/install.ps1 | iex"
+update_command = "claude update"
+note = "Official PowerShell installer. Uninstall is a documented manual step, so Ahabby does not offer it."
+docs_url = "https://code.claude.com/docs/en/setup"
+requires = ["PowerShell 5.1+"]
+priority = 0
+
+[[methods]]
+id = "winget"
+manager = "winget"
+os = ["windows"]
+command = "winget install Anthropic.ClaudeCode"
+update_command = "winget upgrade Anthropic.ClaudeCode"
+uninstall_command = "winget uninstall Anthropic.ClaudeCode"
+docs_url = "https://code.claude.com/docs/en/setup"
+priority = 1
+
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install --cask claude-code"
+update_command = "brew upgrade claude-code"
+uninstall_command = "brew uninstall --cask claude-code"
+docs_url = "https://code.claude.com/docs/en/setup"
+priority = 1
+
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @anthropic-ai/claude-code"
+update_command = "npm install -g @anthropic-ai/claude-code@latest"
+uninstall_command = "npm uninstall -g @anthropic-ai/claude-code"
+note = "The docs advise against `npm update -g`; Ahabby reinstalls the package at @latest instead."
+docs_url = "https://code.claude.com/docs/en/setup"
+requires = ["node >= 18"]
+priority = 2

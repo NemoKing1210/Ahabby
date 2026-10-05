@@ -1,0 +1,129 @@
+id = "opencode"
+name = "OpenCode"
+description = "Open-source AI coding agent for the terminal, configured through a single JSON file."
+tagline = "Open-source coding agent with one JSON config."
+website = "https://opencode.ai"
+docs = "https://opencode.ai/docs/"
+icon = "opencode"
+category = "cli"
+popular = true
+github = "anomalyco/opencode"
+unverified = []
+notes = "Global paths, MCP shape, skills, rules, agents and commands verified against the official docs (config, mcp-servers, skills, rules, agents, commands, troubleshooting) and the anomalyco/opencode install script on 2026-10-05. The repository was renamed from sst/opencode to anomalyco/opencode; GitHub redirects the old slug."
+
+[binaries]
+names = ["opencode"]
+version_args = ["--version"]
+help_args = ["--help"]
+
+# SOURCE: https://docs.npmjs.com/cli/v9/configuring-npm/folders (checked 2026-10-05)
+# SOURCE: https://docs.brew.sh/FAQ (checked 2026-10-05)
+# SOURCE: https://github.com/anomalyco/opencode/blob/dev/install (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["${HOME}/.opencode/bin", "/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.opencode/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+
+# SOURCE: https://opencode.ai/docs/config/ (checked 2026-10-05)
+# SOURCE: https://opencode.ai/docs/troubleshooting/ (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "opencode.json"
+description = "Global OpenCode configuration: providers, models, agents, permissions, instructions and MCP servers."
+format = "jsonc"
+glob = "opencode.json*"
+path = { windows = "${USERPROFILE}/.config/opencode", macos = "${HOME}/.config/opencode", linux = "${HOME}/.config/opencode" }
+
+# SOURCE: https://opencode.ai/docs/config/ (checked 2026-10-05)
+[[configs]]
+id = "tui"
+label = "tui.json"
+description = "TUI-only settings such as keybinds and theme, kept separate from the main config."
+format = "jsonc"
+glob = "tui.json*"
+path = { windows = "${USERPROFILE}/.config/opencode", macos = "${HOME}/.config/opencode", linux = "${HOME}/.config/opencode" }
+
+# SOURCE: https://opencode.ai/docs/skills/ (checked 2026-10-05)
+[skills]
+format = "skillMd"
+description = "Global skills, one folder per skill containing a SKILL.md with YAML frontmatter."
+path = { windows = "${USERPROFILE}/.config/opencode/skills", macos = "${HOME}/.config/opencode/skills", linux = "${HOME}/.config/opencode/skills" }
+
+# SOURCE: https://opencode.ai/docs/mcp-servers/ (checked 2026-10-05)
+[mcp]
+format = "jsonc"
+glob = "opencode.json*"
+key_path = ["mcp"]
+shared_with_config = true
+description = "MCP servers live under the top-level `mcp` object of opencode.json / opencode.jsonc; every entry sets type = \"local\" or \"remote\"."
+path = { windows = "${USERPROFILE}/.config/opencode", macos = "${HOME}/.config/opencode", linux = "${HOME}/.config/opencode" }
+
+# SOURCE: https://opencode.ai/docs/rules/ (checked 2026-10-05)
+[[other]]
+id = "instructions"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global rules applied to every session, layered with project AGENTS.md files."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.config/opencode/AGENTS.md", macos = "${HOME}/.config/opencode/AGENTS.md", linux = "${HOME}/.config/opencode/AGENTS.md" }
+
+# SOURCE: https://opencode.ai/docs/agents/ (checked 2026-10-05)
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Custom agents"
+description = "Markdown agent definitions; the file name becomes the agent name."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.config/opencode/agents", macos = "${HOME}/.config/opencode/agents", linux = "${HOME}/.config/opencode/agents" }
+
+# SOURCE: https://opencode.ai/docs/commands/ (checked 2026-10-05)
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom commands"
+description = "Markdown command templates; the file name becomes the slash command."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.config/opencode/commands", macos = "${HOME}/.config/opencode/commands", linux = "${HOME}/.config/opencode/commands" }
+
+# SOURCE: https://opencode.ai/docs/ (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g opencode-ai"
+update_command = "npm install -g opencode-ai@latest"
+uninstall_command = "npm uninstall -g opencode-ai"
+priority = 0
+
+# SOURCE: https://opencode.ai/docs/ (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install anomalyco/tap/opencode"
+update_command = "brew upgrade opencode"
+uninstall_command = "brew uninstall opencode"
+docs_url = "https://opencode.ai/docs/"
+priority = 1
+
+# SOURCE: https://opencode.ai/docs/ (checked 2026-10-05)
+[[methods]]
+id = "scoop"
+manager = "scoop"
+os = ["windows"]
+command = "scoop install opencode"
+update_command = "scoop update opencode"
+uninstall_command = "scoop uninstall opencode"
+docs_url = "https://opencode.ai/docs/"
+priority = 1
+
+# SOURCE: https://opencode.ai/docs/ (checked 2026-10-05)
+# SOURCE: https://github.com/anomalyco/opencode/blob/dev/install (checked 2026-10-05)
+[[methods]]
+id = "script"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://opencode.ai/install | bash"
+docs_url = "https://opencode.ai/docs/"
+priority = 2

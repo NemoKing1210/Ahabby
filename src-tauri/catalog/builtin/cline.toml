@@ -1,0 +1,140 @@
+id = "cline"
+name = "Cline"
+description = "Autonomous coding agent for VS Code and other IDEs, with a terminal CLI."
+tagline = "Plan and act on your codebase from the IDE, with every tool call approved."
+website = "https://cline.bot"
+docs = "https://docs.cline.bot/"
+icon = "cline"
+category = "extension"
+popular = true
+github = "cline/cline"
+unverified = ["configs.vscode-globalstorage-mcp.path", "other.global-rules-documents.path"]
+notes = "Verified 2026-10-05. Cline is primarily the VS Code extension 'saoudrizwan.claude-dev' (marketplace id confirmed), but since 3.x it also ships an official CLI ('cline', npm package 'cline') and stores shared global state under ~/.cline/ for IDE, CLI and SDK alike. Unverified entries: (1) the legacy VS Code globalStorage file is where older extension versions kept MCP settings, but current Cline docs only document ~/.cline/data/settings/cline_mcp_settings.json, so the globalStorage path needs a real-machine check; (2) on Windows the Documents\\Cline\\Rules location may live under a OneDrive folder, which Cline resolves from the OneDrive environment variables, not necessarily %USERPROFILE%\\Documents. Workspace rules are declared relative to the repository root."
+
+[binaries]
+names = ["cline"]
+# SOURCE: https://docs.cline.bot/cli/cli-reference (checked 2026-10-05)
+version_args = ["--version"]
+help_args = ["--help"]
+
+[[search_paths]]
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-05)
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+[[configs]]
+id = "global-settings"
+label = "global-settings.json"
+description = "Global Cline settings, shared by the IDE extension, the CLI and the SDK."
+format = "json"
+# SOURCE: https://docs.cline.bot/getting-started/config (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.cline/data/settings/global-settings.json", macos = "${HOME}/.cline/data/settings/global-settings.json", linux = "${HOME}/.cline/data/settings/global-settings.json" }
+
+[[configs]]
+id = "providers"
+label = "providers.json"
+description = "API keys and provider configuration for every Cline application."
+format = "json"
+# SOURCE: https://docs.cline.bot/getting-started/config (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.cline/data/settings/providers.json", macos = "${HOME}/.cline/data/settings/providers.json", linux = "${HOME}/.cline/data/settings/providers.json" }
+
+[[configs]]
+id = "mcp-settings"
+label = "cline_mcp_settings.json"
+description = "Global MCP server definitions (name -> server map under 'mcpServers')."
+format = "json"
+# SOURCE: https://docs.cline.bot/getting-started/config (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.cline/data/settings/cline_mcp_settings.json", macos = "${HOME}/.cline/data/settings/cline_mcp_settings.json", linux = "${HOME}/.cline/data/settings/cline_mcp_settings.json" }
+
+[[configs]]
+id = "vscode-globalstorage-mcp"
+label = "cline_mcp_settings.json (VS Code globalStorage)"
+description = "Legacy VS Code globalStorage copy of the Cline MCP settings, used by older extension versions."
+format = "json"
+# SOURCE: https://docs.cline.bot/mcp/mcp-overview (checked 2026-10-05)
+# UNVERIFIED: the extension's MCP settings file exists per the docs, but its VS Code globalStorage
+# location (extension id saoudrizwan.claude-dev) is not documented on docs.cline.bot.
+path = { windows = "${APPDATA}/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json", macos = "${HOME}/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json", linux = "${HOME}/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json" }
+
+[[configs]]
+id = "cli-mcp"
+label = ".cline/mcp.json (CLI)"
+description = "MCP server definitions for the Cline CLI."
+format = "json"
+# SOURCE: https://docs.cline.bot/mcp/mcp-overview (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.cline/mcp.json", macos = "${HOME}/.cline/mcp.json", linux = "${HOME}/.cline/mcp.json" }
+
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "MCP servers are stored under the 'mcpServers' key of the global Cline settings file."
+shared_with_config = true
+# SOURCE: https://docs.cline.bot/getting-started/config (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.cline/data/settings/cline_mcp_settings.json", macos = "${HOME}/.cline/data/settings/cline_mcp_settings.json", linux = "${HOME}/.cline/data/settings/cline_mcp_settings.json" }
+
+[skills]
+format = "skillMd"
+description = "Global skills; each is a directory containing a SKILL.md with YAML frontmatter."
+# SOURCE: https://docs.cline.bot/customization/skills (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.cline/skills", macos = "${HOME}/.cline/skills", linux = "${HOME}/.cline/skills" }
+
+[[other]]
+id = "global-rules"
+kind = "rules"
+label = "Global rules"
+description = "User-level rules applied in every project."
+format = "markdown"
+glob = "**/*.md"
+# SOURCE: https://docs.cline.bot/getting-started/config (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.cline/rules", macos = "${HOME}/.cline/rules", linux = "${HOME}/.cline/rules" }
+
+[[other]]
+id = "global-rules-documents"
+kind = "rules"
+label = "Rules (Documents/Cline/Rules)"
+description = "Additional global rules directory searched for compatibility; on Windows it may be relocated under OneDrive."
+format = "markdown"
+glob = "**/*.md"
+# SOURCE: https://docs.cline.bot/customization/cline-rules (checked 2026-10-05)
+# UNVERIFIED: the docs list Documents\Cline\Rules for Windows but resolve it through the OneDrive
+# environment variables, so %USERPROFILE%\Documents is only the common case.
+path = { windows = "${USERPROFILE}/Documents/Cline/Rules", macos = "${HOME}/Documents/Cline/Rules", linux = "${HOME}/Documents/Cline/Rules" }
+
+[[other]]
+id = "global-agents"
+kind = "instructions"
+label = "~/.agents/AGENTS.md"
+description = "Cross-tool global agent instructions in the AGENTS.md format."
+format = "markdown"
+# SOURCE: https://docs.cline.bot/customization/cline-rules (checked 2026-10-05)
+path = { windows = "${USERPROFILE}/.agents/AGENTS.md", macos = "${HOME}/.agents/AGENTS.md", linux = "${HOME}/.agents/AGENTS.md" }
+
+[[other]]
+id = "workspace-rules"
+kind = "rules"
+label = ".clinerules"
+description = "Workspace rules at the project root ('.clinerules/' or '.cline/rules/'); project-scoped, so the path is relative to the repository."
+format = "markdown"
+glob = "**/*.md"
+# SOURCE: https://docs.cline.bot/customization/cline-rules (checked 2026-10-05)
+path = { windows = ".clinerules", macos = ".clinerules", linux = ".clinerules" }
+
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g cline"
+update_command = "npm install -g cline@latest"
+uninstall_command = "npm uninstall -g cline"
+docs_url = "https://docs.cline.bot/getting-started/installing-cline"
+note = "Installs the Cline CLI; the IDE extension is installed separately from the marketplace."
+requires = ["node >= 20"]
+priority = 0
+
+[[methods]]
+id = "vscode-extension"
+manager = "manual"
+command = "Install the 'Cline' extension (saoudrizwan.claude-dev) from the VS Code Marketplace"
+docs_url = "https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev"
+note = "Also available on Open VSX for VSCodium and Windsurf, and as a JetBrains plugin."
+priority = 1

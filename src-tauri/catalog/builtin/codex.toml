@@ -1,0 +1,87 @@
+id = "codex"
+name = "OpenAI Codex CLI"
+description = "OpenAI's terminal coding agent that can inspect, edit, and run code in your repository."
+tagline = "OpenAI's local coding agent for the terminal."
+website = "https://developers.openai.com/codex"
+docs = "https://developers.openai.com/codex"
+icon = "codex"
+category = "cli"
+popular = true
+github = "openai/codex"
+unverified = []
+notes = "Paths and commands confirmed against the official OpenAI Codex docs and the openai/codex repository on 2026-10-05."
+
+[binaries]
+names = ["codex"]
+version_args = ["--version"]
+help_args = ["--help"]
+
+# SOURCE: https://docs.npmjs.com/cli/v9/configuring-npm/folders (checked 2026-10-05)
+# SOURCE: https://docs.brew.sh/FAQ (checked 2026-10-05)
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["/usr/local/bin"]
+
+# SOURCE: https://developers.openai.com/codex/local-config (checked 2026-10-05)
+[[configs]]
+id = "config"
+label = "config.toml"
+description = "User-level Codex configuration: models, approval policy, sandbox, features and MCP servers."
+format = "toml"
+path = { windows = "${USERPROFILE}/.codex/config.toml", macos = "${HOME}/.codex/config.toml", linux = "${HOME}/.codex/config.toml" }
+
+# SOURCE: https://developers.openai.com/codex/mcp (checked 2026-10-05)
+[mcp]
+format = "toml"
+key_path = ["mcp_servers"]
+shared_with_config = true
+description = "MCP servers live in [mcp_servers.<name>] tables of the same config.toml."
+path = { windows = "${USERPROFILE}/.codex/config.toml", macos = "${HOME}/.codex/config.toml", linux = "${HOME}/.codex/config.toml" }
+
+# SOURCE: https://developers.openai.com/codex/agent-configuration/agents-md (checked 2026-10-05)
+[[other]]
+id = "instructions"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global instruction file in the Codex home directory, layered before project AGENTS.md files."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.codex/AGENTS.md", macos = "${HOME}/.codex/AGENTS.md", linux = "${HOME}/.codex/AGENTS.md" }
+
+# SOURCE: https://github.com/openai/codex (checked 2026-10-05)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @openai/codex"
+update_command = "npm install -g @openai/codex@latest"
+uninstall_command = "npm uninstall -g @openai/codex"
+priority = 0
+
+# SOURCE: https://github.com/openai/codex (checked 2026-10-05)
+[[methods]]
+id = "brew"
+manager = "brew"
+os = ["macos", "linux"]
+command = "brew install --cask codex"
+update_command = "brew upgrade --cask codex"
+uninstall_command = "brew uninstall --cask codex"
+docs_url = "https://github.com/openai/codex"
+priority = 1
+
+# SOURCE: https://github.com/openai/codex (checked 2026-10-05)
+[[methods]]
+id = "script"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+docs_url = "https://github.com/openai/codex"
+priority = 2
+
+# SOURCE: https://github.com/openai/codex (checked 2026-10-05)
+[[methods]]
+id = "script-windows"
+manager = "script"
+os = ["windows"]
+command = "powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\""
+docs_url = "https://github.com/openai/codex"
+priority = 2

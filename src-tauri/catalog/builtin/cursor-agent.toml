@@ -1,0 +1,83 @@
+id = "cursor-agent"
+name = "Cursor CLI"
+description = "Cursor's terminal coding agent, sharing MCP servers, skills and rules with the Cursor editor."
+tagline = "Cursor's coding agent in your terminal."
+website = "https://cursor.com/cli"
+docs = "https://cursor.com/docs/cli/overview"
+icon = "cursor"
+category = "cli"
+popular = true
+github = "cursor/cursor"
+unverified = ["other.subagents.path"]
+notes = """Binary names agent and cursor-agent verified from the official installer script (both symlinks are created).
+Global config and MCP paths taken from the Cursor CLI docs on 2026-10-05.
+mcp.json is JSONC: real installations contain commented-out servers, so the manifest declares jsonc
+and Ahabby edits it by splicing the removed member out, keeping every comment.
+`~/.cursor/skills-cursor` (Cursor-managed built-in skills, tracked by its own manifest file) is
+deliberately not listed: it belongs to the tool, not to the user. Project-scoped AGENTS.md and
+.cursor/rules are out of scope for a global-only v1. cursor/cursor is the issue tracker and publishes no CLI releases."""
+
+[binaries]
+names = ["agent", "cursor-agent"]
+version_args = ["--version"]
+help_args = ["--help"]
+
+# SOURCE: https://cursor.com/install (checked 2026-10-05)
+# SOURCE: https://cursor.com/install?win32=true (checked 2026-10-05)
+[[search_paths]]
+windows = ["${LOCALAPPDATA}/cursor-agent"]
+macos = ["${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin"]
+
+# SOURCE: https://cursor.com/docs/cli/reference/configuration (checked 2026-10-05)
+[[configs]]
+id = "cli-config"
+label = "cli-config.json"
+description = "Global Cursor CLI settings: model, permissions, approval mode, sandbox, notifications and display."
+format = "json"
+path = { windows = "${USERPROFILE}/.cursor/cli-config.json", macos = "${HOME}/.cursor/cli-config.json", linux = "${HOME}/.cursor/cli-config.json" }
+
+# SOURCE: https://cursor.com/help/customization/skills (checked 2026-10-05)
+[skills]
+format = "skillMd"
+# `{skills,skills-cursor}` keeps the walk precise: only these two directories are searched.
+glob = "*/SKILL.md"
+description = "Personal skills, one folder per skill containing a SKILL.md."
+path = { windows = "${USERPROFILE}/.cursor/skills", macos = "${HOME}/.cursor/skills", linux = "${HOME}/.cursor/skills" }
+
+# SOURCE: https://cursor.com/docs/mcp (checked 2026-10-05)
+# SOURCE: https://cursor.com/docs/cli/mcp (checked 2026-10-05)
+[mcp]
+format = "jsonc"
+key_path = ["mcpServers"]
+description = "Global MCP servers under the top-level mcpServers object; the CLI and editor share this file. JSONC: comments and trailing commas are preserved."
+path = { windows = "${USERPROFILE}/.cursor/mcp.json", macos = "${HOME}/.cursor/mcp.json", linux = "${HOME}/.cursor/mcp.json" }
+
+# Observed on a real install: ~/.cursor/agents holds the CLI's sub-agent definitions.
+# Not described in the current docs, hence `unverified`.
+[[other]]
+id = "subagents"
+kind = "subagents"
+label = "Sub-agents"
+description = "Sub-agent definitions of the Cursor CLI."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.cursor/agents", macos = "${HOME}/.cursor/agents", linux = "${HOME}/.cursor/agents" }
+
+# SOURCE: https://cursor.com/docs/cli/installation (checked 2026-10-05)
+[[methods]]
+id = "script"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl https://cursor.com/install -fsS | bash"
+docs_url = "https://cursor.com/docs/cli/installation"
+priority = 0
+
+# SOURCE: https://cursor.com/docs/cli/installation (checked 2026-10-05)
+[[methods]]
+id = "script-windows"
+manager = "script"
+os = ["windows"]
+command = "irm 'https://cursor.com/install?win32=true' | iex"
+docs_url = "https://cursor.com/docs/cli/installation"
+priority = 0
