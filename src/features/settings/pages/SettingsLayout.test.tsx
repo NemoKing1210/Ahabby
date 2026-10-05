@@ -1,13 +1,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { I18nextProvider } from 'react-i18next'
+import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipc } from '@/shared/api/ipc'
 import type { Settings } from '@/shared/bindings/Settings'
-import { renderWithProviders } from '@/test/render'
+import { initI18n } from '@/shared/i18n'
+import { TooltipProvider } from '@/shared/ui/Tooltip'
 
-import { SettingsPage } from './SettingsPage'
+import { settingsRoutes } from '../routes'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -16,6 +19,7 @@ vi.mock('@/shared/api/ipc', () => ({
     listPackageManagers: vi.fn(),
     userCatalogDir: vi.fn(),
     backupRoot: vi.fn(),
+    listTerminals: vi.fn(),
     revealPath: vi.fn(),
     setWindowTheme: vi.fn(),
   },
@@ -47,20 +51,29 @@ function settings(overrides: Partial<Settings> = {}): Settings {
 /** The stylesheet `appearanceApplier` installs for a non-default accent. */
 const accentStyles = () => document.getElementById('ah-accent-styles')?.textContent ?? ''
 
-async function openSettings(data = settings()) {
+async function openSettings(data = settings(), route = '/settings/appearance') {
   vi.mocked(ipc.getSettings).mockResolvedValue(data)
   vi.mocked(ipc.listPackageManagers).mockResolvedValue([])
   vi.mocked(ipc.userCatalogDir).mockResolvedValue('/catalog')
   vi.mocked(ipc.backupRoot).mockResolvedValue('/backups')
+  vi.mocked(ipc.listTerminals).mockResolvedValue({ options: [], defaultCwd: '/home' })
   vi.mocked(ipc.saveSettings).mockImplementation((next: Settings) => Promise.resolve(next))
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  renderWithProviders(
+  const router = createMemoryRouter(settingsRoutes, { initialEntries: [route] })
+  render(
     <QueryClientProvider client={client}>
-      <SettingsPage />
+      <I18nextProvider i18n={initI18n('en')}>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
+      </I18nextProvider>
     </QueryClientProvider>,
   )
-  await screen.findByRole('heading', { name: 'Settings' })
+  await screen.findByRole('heading', { level: 1, name: 'Settings' })
+  // The subpage paints through its own transition, so a bare `getBy*` right after this would be
+  // a race — every test starts on the appearance area.
+  await screen.findByRole('heading', { level: 2, name: 'Appearance' })
   return data
 }
 
@@ -80,7 +93,46 @@ afterEach(() => {
   document.documentElement.classList.remove('dark')
 })
 
-describe('SettingsPage appearance', () => {
+describe('Settings layout', () => {
+  it('opens the first area when the settings path is bare', async () => {
+    await openSettings(settings(), '/settings')
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Appearance' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Terminal' })).toHaveAttribute(
+      'href',
+      '/settings/terminal',
+    )
+  })
+
+  it('moves between areas and keeps the unsaved draft', async () => {
+    await openSettings()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Violet' }))
+    await userEvent.click(screen.getByRole('link', { name: 'Network' }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Network' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('link', { name: 'Appearance' }))
+    expect(await screen.findByRole('button', { name: 'Violet', pressed: true })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(ipc.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ accent: 'violet' }))
+    })
+  })
+
+  it('drops the draft when the changes are discarded', async () => {
+    await openSettings(settings({ accent: 'violet' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Teal' }))
+    expect(screen.getByRole('button', { name: 'Teal', pressed: true })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+    expect(screen.getByRole('button', { name: 'Violet', pressed: true })).toBeInTheDocument()
+    expect(ipc.saveSettings).not.toHaveBeenCalled()
+  })
+})
+
+describe('Settings appearance', () => {
   it('shows the saved choices', async () => {
     await openSettings(settings({ accent: 'violet', interfaceScale: 110, fontFamily: 'serif' }))
 

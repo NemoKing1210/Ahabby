@@ -52,7 +52,7 @@ export function AgentPage() {
         title={t('agent.notFound')}
         action={
           <Button variant="secondary" asChild>
-            <Link to="/">{t('agent.backToList')}</Link>
+            <Link to="/agents">{t('agent.backToList')}</Link>
           </Button>
         }
       />
@@ -65,7 +65,7 @@ export function AgentPage() {
   return (
     <div className="flex flex-col gap-6">
       <Link
-        to="/"
+        to="/agents"
         className="text-muted hover:text-foreground flex w-fit items-center gap-1.5 text-[0.75rem]"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
@@ -204,7 +204,7 @@ export function AgentPage() {
       {removeOpen ? (
         <RemoveAgentDialog
           agent={agent}
-          onRemoved={() => navigate('/')}
+          onRemoved={() => navigate('/agents')}
           onClose={() => setRemoveOpen(false)}
           onUninstall={() => setInstallAction('uninstall')}
         />

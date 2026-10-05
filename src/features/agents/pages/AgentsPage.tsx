@@ -30,6 +30,7 @@ import {
   type AgentFilterState,
   type AgentScope,
 } from '../components/AgentFilters'
+import { orderByFavorite } from '../lib/favorites'
 
 const EMPTY_FILTER: AgentFilterState = { query: '', scope: 'all', facets: new Set() }
 
@@ -76,27 +77,22 @@ export function AgentsPage() {
   )
 
   // Favourites come first in each section, in the order the user pinned them; the rest keep
-  // the scan order.
-  const favoriteIndex = useMemo(
-    () => new Map(favoriteIds.map((id, index) => [id, index])),
-    [favoriteIds],
-  )
+  // the scan order (`orderByFavorite` is shared with the home page's roster).
+  const favorites = useMemo(() => new Set(favoriteIds), [favoriteIds])
 
   const { installed, available } = useMemo(() => {
     const matching = searched.filter((agent) => agentMatchesFacets(agent, filters.facets))
-    const pinnedFirst = (agents: Agent[]) =>
-      [...agents].sort((left, right) => {
-        const leftIndex = favoriteIndex.get(left.id)
-        const rightIndex = favoriteIndex.get(right.id)
-        if (leftIndex === undefined) return rightIndex === undefined ? 0 : 1
-        if (rightIndex === undefined) return -1
-        return leftIndex - rightIndex
-      })
     return {
-      installed: pinnedFirst(matching.filter((agent) => agent.status === 'installed')),
-      available: pinnedFirst(matching.filter((agent) => agent.status !== 'installed')),
+      installed: orderByFavorite(
+        matching.filter((agent) => agent.status === 'installed'),
+        favoriteIds,
+      ),
+      available: orderByFavorite(
+        matching.filter((agent) => agent.status !== 'installed'),
+        favoriteIds,
+      ),
     }
-  }, [searched, filters.facets, favoriteIndex])
+  }, [searched, filters.facets, favoriteIds])
 
   const query = filters.query.trim()
   const dirty = query.length > 0 || filters.scope !== 'all' || filters.facets.size > 0
@@ -199,10 +195,10 @@ export function AgentsPage() {
                     agent={agent}
                     refreshing={scanning.has(agent.id)}
                     landed={landed.has(agent.id)}
-                    favorite={favoriteIndex.has(agent.id)}
+                    favorite={favorites.has(agent.id)}
                     onToggleFavorite={(target) =>
                       toggleFavorite.mutate(
-                        { agentId: target.id, favorite: !favoriteIndex.has(target.id) },
+                        { agentId: target.id, favorite: !favorites.has(target.id) },
                         { onError: (mutationError) => toastAppError(mutationError) },
                       )
                     }

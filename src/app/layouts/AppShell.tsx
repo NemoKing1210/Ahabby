@@ -11,6 +11,7 @@ import {
 
 import {
   Boxes,
+  House,
   Library,
   PanelLeftClose,
   PanelLeftOpen,
@@ -47,7 +48,8 @@ import { NewTerminalDialog } from '@/features/terminal/components/NewTerminalDia
 import { useTerminalStore } from '@/features/terminal/store'
 
 const NAV_ITEMS = [
-  { to: '/', labelKey: 'nav.agents', icon: Boxes, end: true },
+  { to: '/', labelKey: 'nav.home', icon: House, end: true },
+  { to: '/agents', labelKey: 'nav.agents', icon: Boxes, end: false },
   { to: '/library', labelKey: 'nav.library', icon: Library, end: false },
   { to: '/settings', labelKey: 'nav.settings', icon: SettingsIcon, end: false },
 ] as const
@@ -68,7 +70,15 @@ const TerminalDock = lazy(async () => {
  *
  * `mode="wait"` finishes the outgoing screen before the next one paints, so the two never
  * overlap, and the scroll container is returned to the top once the old screen is gone.
+ *
+ * Settings is one screen with a sub-route per area, so it is keyed by its section rather than
+ * by the full path: remounting the settings layout on every tab would throw away the unsaved
+ * draft it holds and re-run its live preview. Its own outlet animates between the areas.
  */
+function transitionKey(pathname: string) {
+  return pathname.startsWith('/settings') ? '/settings' : pathname
+}
+
 function PageTransition({ scrollRef }: { scrollRef: RefObject<HTMLElement | null> }) {
   const outlet = useOutlet()
   const location = useLocation()
@@ -81,7 +91,7 @@ function PageTransition({ scrollRef }: { scrollRef: RefObject<HTMLElement | null
       onExitComplete={() => scrollRef.current?.scrollTo({ top: 0 })}
     >
       <motion.div
-        key={location.pathname}
+        key={transitionKey(location.pathname)}
         initial={slide.initial}
         animate={slide.animate}
         exit={slide.exit}
@@ -185,7 +195,7 @@ export function AppShell() {
     })
   }, [report, favoriteIds])
   const navCounts: Record<string, number | undefined> = {
-    '/': report?.installed,
+    '/agents': report?.installed,
     '/library': library
       ? library.stats.skills + library.stats.mcpServers + library.stats.other
       : undefined,
