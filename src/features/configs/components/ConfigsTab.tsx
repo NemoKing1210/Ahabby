@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FileCode2, Pencil, Save } from 'lucide-react'
+import { FileCode2, Pencil, Plus } from 'lucide-react'
 
 import type { ConfigFile } from '@/shared/bindings/ConfigFile'
+import { cn } from '@/shared/lib/cn'
 import { formatBytes, formatRelative } from '@/shared/lib/format'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
@@ -23,18 +24,31 @@ export function ConfigsTab({ agentId, configs }: { agentId: string; configs: Con
     return <EmptyState title={t('configs.none')} hint={t('configs.noneHint')} />
   }
 
+  // Files that do not exist yet are listed after the ones that do — nothing to act on is never
+  // in the way of something that is.
+  const ordered = [
+    ...configs.filter((config) => config.exists),
+    ...configs.filter((config) => !config.exists),
+  ]
+
   return (
     <>
       <AnimatedList>
-        {configs.map((config) => (
-          <Card key={`${config.id}-${config.path}`} className="p-4">
+        {ordered.map((config) => (
+          <Card
+            key={`${config.id}-${config.path}`}
+            className={cn(
+              'p-4',
+              !config.exists && 'border-border-strong bg-surface-2/40 border-dashed',
+            )}
+          >
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-foreground text-sm">{config.label}</span>
                     <Badge tone="outline">{config.format}</Badge>
-                    {config.exists ? null : <Badge tone="neutral">{t('configs.missing')}</Badge>}
+                    {config.exists ? null : <Badge tone="accent">{t('configs.missing')}</Badge>}
                     {config.editable ? null : <Badge tone="neutral">{t('common.readOnly')}</Badge>}
                   </div>
                   {config.description ? (
@@ -52,15 +66,27 @@ export function ConfigsTab({ agentId, configs }: { agentId: string; configs: Con
                     <FileCode2 className="size-3.5" aria-hidden />
                     {t('configs.view')}
                   </Button>
-                  <Tooltip content={config.editable ? t('configs.edit') : t('configs.notEditable')}>
+                  <Tooltip
+                    content={
+                      config.editable
+                        ? config.exists
+                          ? t('configs.edit')
+                          : t('configs.createHint')
+                        : t('configs.notEditable')
+                    }
+                  >
                     <Button
-                      variant="secondary"
+                      variant={config.exists ? 'secondary' : 'primary'}
                       size="sm"
                       disabled={!config.editable}
                       onClick={() => setTarget({ config, editable: true })}
                     >
-                      <Pencil className="size-3.5" aria-hidden />
-                      {t('configs.edit')}
+                      {config.exists ? (
+                        <Pencil className="size-3.5" aria-hidden />
+                      ) : (
+                        <Plus className="size-3.5" aria-hidden />
+                      )}
+                      {config.exists ? t('configs.edit') : t('configs.create')}
                     </Button>
                   </Tooltip>
                 </div>
@@ -81,7 +107,7 @@ export function ConfigsTab({ agentId, configs }: { agentId: string; configs: Con
                   </>
                 ) : (
                   <span className="flex items-center gap-1">
-                    <Save className="size-3" aria-hidden />
+                    <Plus className="size-3" aria-hidden />
                     {t('configs.missing')}
                   </span>
                 )}

@@ -9,6 +9,7 @@ import {
   FolderTree,
   MessageSquare,
   Pencil,
+  Plus,
   Scale,
   Terminal,
   Webhook,
@@ -17,6 +18,7 @@ import {
 
 import type { OtherKind } from '@/shared/bindings/OtherKind'
 import type { OtherResource } from '@/shared/bindings/OtherResource'
+import { cn } from '@/shared/lib/cn'
 import { formatBytes } from '@/shared/lib/format'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
@@ -67,6 +69,7 @@ function ResourceCard({
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const content = resource.content
+  const missing = !resource.exists
   const hasBody = resource.exists && (content !== undefined || resource.isDirectory)
   const body = !content ? null : resource.format === 'markdown' ? (
     <Markdown source={content} />
@@ -75,7 +78,12 @@ function ResourceCard({
   )
 
   return (
-    <Card className="ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color] duration-150">
+    <Card
+      className={cn(
+        'ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color] duration-150',
+        missing && 'border-border-strong bg-surface-2/40 border-dashed',
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -101,14 +109,22 @@ function ResourceCard({
               {resource.itemCount ?? 0}
             </Badge>
           ) : null}
-          {!resource.exists ? <Badge tone="neutral">{t('configs.missing')}</Badge> : null}
+          {missing ? <Badge tone="accent">{t('configs.missing')}</Badge> : null}
           {resource.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {onEdit && !resource.isDirectory ? (
-            <Button variant="ghost" size="sm" onClick={() => onEdit(resource)}>
-              <Pencil className="size-3.5" aria-hidden />
-              {t('configs.edit')}
+            <Button
+              variant={missing ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => onEdit(resource)}
+            >
+              {missing ? (
+                <Plus className="size-3.5" aria-hidden />
+              ) : (
+                <Pencil className="size-3.5" aria-hidden />
+              )}
+              {missing ? t('configs.create') : t('configs.edit')}
             </Button>
           ) : null}
           <Timestamp
@@ -149,10 +165,17 @@ export function OtherTab({
     return <EmptyState title={t('library.empty')} hint={t('library.emptyHint')} />
   }
 
-  const groups = OTHER_KIND_ORDER.map((kind) => ({
-    kind,
-    items: resources.filter((resource) => resource.kind === kind),
-  })).filter((group) => group.items.length > 0)
+  // Inside a group, files that do not exist yet come last — same rule as the configs list.
+  const groups = OTHER_KIND_ORDER.map((kind) => {
+    const items = resources.filter((resource) => resource.kind === kind)
+    return {
+      kind,
+      items: [
+        ...items.filter((resource) => resource.exists),
+        ...items.filter((resource) => !resource.exists),
+      ],
+    }
+  }).filter((group) => group.items.length > 0)
 
   return (
     <>

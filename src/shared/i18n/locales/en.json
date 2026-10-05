@@ -208,6 +208,8 @@
     "modified": "Modified",
     "view": "View",
     "edit": "Edit",
+    "create": "Create",
+    "createHint": "Create this file on disk",
     "notEditable": "This file is declared read-only by the manifest.",
     "truncated": "The file is too large to edit here ({{size}}). Open it in your editor instead."
   },
