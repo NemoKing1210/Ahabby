@@ -139,6 +139,16 @@ Only do this when the manifest cannot describe the layout — see `ARCHITECTURE.
 specialisation exists today. Try to make the general `ManifestAdapter` handle the new shape first; MCP
 normalisation in `adapters/mcp_parse.rs` exists for precisely that reason.
 
+## Icons
+
+`app-icon.png` in the repository root is the source of the platform icons. After changing it, run:
+
+```bash
+npx tauri icon app-icon.png && rm -rf src-tauri/icons/android src-tauri/icons/ios
+```
+
+(only the desktop icons are kept; the mobile ones are not used).
+
 ## How to add a Tauri command
 
 1. Service function in `src-tauri/src/services/` (testable without Tauri, no `AppHandle` unless a
