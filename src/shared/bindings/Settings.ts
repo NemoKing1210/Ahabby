@@ -5,6 +5,7 @@ import type { HiddenAgent } from "./HiddenAgent";
 import type { Language } from "./Language";
 import type { MonoFont } from "./MonoFont";
 import type { ProxyMode } from "./ProxyMode";
+import type { TerminalTheme } from "./TerminalTheme";
 import type { Theme } from "./Theme";
 
 export type Settings = { language: Language, theme: Theme, 
@@ -72,4 +73,8 @@ favoriteAgents: Array<string>,
  * id of an external terminal from `platform::terminals` (checked against the table here,
  * so a hand-edited file cannot smuggle in an unknown program).
  */
-terminal: string, };
+terminal: string, 
+/**
+ * Colours of the built-in terminal.
+ */
+terminalTheme: TerminalTheme, };

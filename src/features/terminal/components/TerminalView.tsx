@@ -27,6 +27,8 @@ import {
 import { Input } from '@/shared/ui/Input'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
+import { useSettings } from '@/features/settings/api/hooks'
+
 import type { TerminalTab } from '../store'
 import { registerTerminal, unregisterTerminal } from '../lib/session'
 import { terminalFont, terminalTheme } from '../lib/theme'
@@ -67,6 +69,11 @@ export function TerminalView({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<{ index: number; count: number } | null>(null)
   const sessionId = session.sessionId
+  // The colour scheme is a saved setting; `useSettings` is backed by the query cache the settings
+  // page writes on save, so changing it repaints every open tab (and every new one) without a
+  // restart. A missing answer (the query has not resolved yet) means the default scheme.
+  const { data: settings } = useSettings()
+  const scheme = settings?.terminalTheme ?? 'auto'
   const fit = useCallback(() => {
     // `fit` on a zero-sized element would resize the terminal to nonsense; that happens while the
     // page is laying out, when the window is minimised, and whenever the dock is collapsed.
@@ -75,17 +82,21 @@ export function TerminalView({
     fitRef.current?.fit()
   }, [])
 
-  /** Re-read the design tokens and repaint: theme, accent and font can change while we are open. */
+  /** Re-read the tokens and repaint: theme, accent, scheme and font can change while we are open. */
   const applyLook = useCallback(() => {
     const term = termRef.current
     if (!term) return
     const font = terminalFont()
-    term.options.theme = terminalTheme()
+    term.options.theme = terminalTheme(scheme)
     term.options.fontFamily = font.fontFamily
     term.options.fontSize = font.fontSize
     // A different font means different cell sizes, so the grid has to be recomputed.
     fit()
-  }, [fit])
+  }, [fit, scheme])
+
+  // The observer below outlives this render, so it must not close over a stale `applyLook` — it
+  // would happily put the previous scheme back the next time the app theme changed.
+  const applyLookRef = useRef(applyLook)
 
   useEffect(() => {
     const host = hostRef.current
@@ -100,7 +111,7 @@ export function TerminalView({
       macOptionIsMeta: true,
       // A terminal is a scrollback, not a document: keep a generous history, like a desktop one.
       scrollback: 10_000,
-      theme: terminalTheme(),
+      theme: terminalTheme(scheme),
     })
     const fitAddon = new FitAddon()
     const search = new SearchAddon()
@@ -135,7 +146,7 @@ export function TerminalView({
     const observer = new ResizeObserver(() => fit())
     observer.observe(host)
     // The theme and appearance appliers write to `documentElement` outside React.
-    const appearance = new MutationObserver(() => applyLook())
+    const appearance = new MutationObserver(() => applyLookRef.current())
     appearance.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['class', 'style', 'data-theme'],
@@ -157,6 +168,13 @@ export function TerminalView({
     // the callbacks (which only ever touch refs).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
+
+  // Repaints the moment the terminal exists and again whenever the look changes — the colour
+  // scheme (a saved setting) or the font scale (which changes `applyLook`'s identity).
+  useEffect(() => {
+    applyLookRef.current = applyLook
+    applyLook()
+  }, [applyLook])
 
   useEffect(() => {
     if (!active || !focusable) {

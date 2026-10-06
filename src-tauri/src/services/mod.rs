@@ -16,6 +16,8 @@ pub use installer::{JobOutcome, JobOutputEvent, JobRunner, JobSink, StreamKind};
 pub use library::aggregate;
 pub use scan_cache::ScanCache;
 pub use scanner::{ScanReport, ScanSink, Scanner};
-pub use settings::{AccentColor, FontFamily, Language, MonoFont, Settings, SettingsService, Theme};
+pub use settings::{
+    AccentColor, FontFamily, Language, MonoFont, Settings, SettingsService, TerminalTheme, Theme,
+};
 pub use terminal::{TerminalManager, TerminalRequest, TerminalSink};
 pub use version_checker::{ReleaseSource, VersionChecker};

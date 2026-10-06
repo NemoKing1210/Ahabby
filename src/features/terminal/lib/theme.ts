@@ -1,15 +1,21 @@
 /**
- * The terminal's look, read from the app's design tokens.
+ * The terminal's look.
  *
  * xterm paints into a canvas, so it cannot use `var(--…)` the way the rest of the interface does:
  * the resolved token values are read from `documentElement` and handed to the terminal as literal
- * colours. Background, foreground, cursor and selection therefore follow the theme *and* the
- * accent the user picked; the 16 ANSI colours come from the palette those tokens describe (they
- * are what a program asks for when it wants "green", not an accent), with a light and a dark
- * variant so neither has unreadable defaults.
+ * colours. That is what the `auto` scheme does — background, foreground, cursor and selection
+ * follow the theme *and* the accent the user picked, and the 16 ANSI colours come from the palette
+ * those tokens describe (they are what a program asks for when it wants "green", not an accent),
+ * with a light and a dark variant so neither has unreadable defaults.
+ *
+ * Any other scheme is a fixed palette from `themes.ts`, chosen in Settings and painted as-is.
  */
 
 import type { ITheme } from '@xterm/xterm'
+
+import type { TerminalTheme } from '@/shared/bindings/TerminalTheme'
+
+import { presetTheme, withAlpha } from './themes'
 
 /** Dark-mode ANSI colours, matching the warm token palette in `globals.css`. */
 const DARK_ANSI = {
@@ -60,24 +66,18 @@ function token(styles: CSSStyleDeclaration, name: string, fallback: string): str
   return styles.getPropertyValue(name).trim() || fallback
 }
 
-/** `#rgb` / `#rrggbb` → `rgb(… / alpha)`; `undefined` when the value is not a hex. */
-export function withAlpha(color: string, alpha: number): string | undefined {
-  const hex = color.trim().replace(/^#/, '')
-  const full =
-    hex.length === 3
-      ? hex
-          .split('')
-          .map((digit) => digit + digit)
-          .join('')
-      : hex
-  if (!/^[0-9a-fA-F]{6}$/.test(full)) return undefined
-  const r = Number.parseInt(full.slice(0, 2), 16)
-  const g = Number.parseInt(full.slice(2, 4), 16)
-  const b = Number.parseInt(full.slice(4, 6), 16)
-  return `rgb(${r} ${g} ${b} / ${alpha})`
+/**
+ * The palette to paint with: the chosen scheme, or — for `auto` — the resolved design tokens.
+ */
+export function terminalTheme(
+  scheme: TerminalTheme = 'auto',
+  root: HTMLElement = document.documentElement,
+): ITheme {
+  return presetTheme(scheme) ?? autoTheme(root)
 }
 
-export function terminalTheme(root: HTMLElement = document.documentElement): ITheme {
+/** The `auto` scheme: the interface's own colours, re-read from the design tokens. */
+function autoTheme(root: HTMLElement): ITheme {
   const dark = isDarkTheme(root)
   const styles = getComputedStyle(root)
   const background = token(styles, '--ah-background', dark ? '#1f1e1d' : '#faf9f5')

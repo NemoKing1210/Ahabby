@@ -108,6 +108,7 @@ const SETTINGS: Settings = {
   proxyMode: 'none',
   proxyUrl: null,
   terminal: 'builtin',
+  terminalTheme: 'auto',
   hiddenAgents: [],
   favoriteAgents: ['codex'],
 }

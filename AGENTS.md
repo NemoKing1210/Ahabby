@@ -205,7 +205,10 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   truth for the backend sessions (anything it does not know is closed on startup), and `app/providers.tsx`
   routes `terminal://output` into it, buffering the bytes of a tab whose terminal is not mounted yet. The xterm
   theme is read from the design tokens (`lib/theme.ts`) because a canvas cannot use `var(--…)`; ANSI colours
-  come from the token palette with a light and a dark variant.
+  come from the token palette with a light and a dark variant. `Settings::terminal_theme` can replace that with
+  a fixed scheme (`lib/themes.ts` holds the palettes, keyed by the ids the Rust enum validates): `TerminalView`
+  reads it from the settings query, so a save repaints every open tab, and the same resolver paints the
+  Settings preview.
 - **Run in terminal**: every entry point (agent page, card, context menu, and the sidebar's favourite rows —
   a hover action beside the agent, plus a one-item menu on the row itself so the collapsed rail has it too)
   calls the same `useRunAgentInTerminal` hook, which follows `Settings::terminal`: the built-in terminal opens

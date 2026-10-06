@@ -78,6 +78,30 @@ pub enum MonoFont {
     System,
 }
 
+/// Colour scheme painted by the built-in terminal.
+///
+/// `Auto` follows the rest of the interface — the app theme, the accent and the design tokens —
+/// while every other variant names a fixed palette. The list is what *validates* the setting: the
+/// frontend owns the hexes (`src/features/terminal/lib/themes.ts`) but only for the ids declared
+/// here, so a hand-edited file cannot ask for a scheme nobody can paint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub enum TerminalTheme {
+    #[default]
+    Auto,
+    OneDark,
+    Dracula,
+    Nord,
+    Gruvbox,
+    TokyoNight,
+    Catppuccin,
+    SolarizedDark,
+    SolarizedLight,
+    OneLight,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export, export_to = "../../src/shared/bindings/")]
@@ -119,6 +143,8 @@ pub struct Settings {
     /// id of an external terminal from `platform::terminals` (checked against the table here,
     /// so a hand-edited file cannot smuggle in an unknown program).
     pub terminal: String,
+    /// Colours of the built-in terminal.
+    pub terminal_theme: TerminalTheme,
 }
 
 fn is_hex_color(value: &str) -> bool {
@@ -155,6 +181,7 @@ impl Default for Settings {
             hidden_agents: Vec::new(),
             favorite_agents: Vec::new(),
             terminal: crate::platform::terminals::BUILTIN_ID.to_string(),
+            terminal_theme: TerminalTheme::Auto,
         }
     }
 }
@@ -321,6 +348,7 @@ mod tests {
         assert_eq!(settings.mono_font, MonoFont::Jetbrains);
         assert!(settings.favorite_agents.is_empty());
         assert_eq!(settings.terminal, "builtin");
+        assert_eq!(settings.terminal_theme, TerminalTheme::Auto);
     }
 
     #[test]
@@ -338,6 +366,36 @@ mod tests {
 
         settings.terminal = String::new();
         assert_eq!(settings.sanitized().terminal, "builtin");
+    }
+
+    #[test]
+    fn the_terminal_theme_round_trips_by_its_kebab_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        let mut settings = service.get();
+        settings.terminal_theme = TerminalTheme::TokyoNight;
+        service.save(settings).unwrap();
+
+        let raw = std::fs::read_to_string(service.path()).unwrap();
+        assert!(
+            raw.contains("\"terminalTheme\": \"tokyo-night\""),
+            "the stored value is the id the frontend knows: {raw}"
+        );
+        assert_eq!(
+            SettingsService::load(dir.path()).get().terminal_theme,
+            TerminalTheme::TokyoNight
+        );
+
+        // A missing key (an older file) keeps the default rather than failing the whole file.
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"language":"ru","terminalTheme":"solarized-light"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            SettingsService::load(dir.path()).get().terminal_theme,
+            TerminalTheme::SolarizedLight
+        );
     }
 
     #[test]

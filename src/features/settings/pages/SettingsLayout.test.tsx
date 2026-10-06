@@ -42,6 +42,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     proxyMode: 'none',
     proxyUrl: null,
     terminal: 'builtin',
+    terminalTheme: 'auto',
     hiddenAgents: [],
     favoriteAgents: [],
     ...overrides,
