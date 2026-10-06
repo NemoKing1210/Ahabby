@@ -11,9 +11,11 @@
       window opens blank. `src/app/splash.ts` fades it out once the app has painted.
 
       It is inline because a splash cannot wait for its own stylesheet. The palette mirrors
-      `globals.css` (and the letter, `src-tauri/icons`): colours come from the real tokens with
-      the light values as `var()` fallbacks, so the fallbacks only cover the instant before the
-      stylesheet lands — after that the tokens win and the splash follows the pinned theme.
+      `globals.css`: colours come from the real tokens with the light values as `var()`
+      fallbacks, so the fallbacks only cover the instant before the stylesheet lands — after
+      that the tokens win and the splash follows the pinned theme. The mark is the exception:
+      it keeps the brand colour (`--s-logo`, the same letter as `src-tauri/icons`) whatever
+      accent the user picked.
     -->
     <style>
       html {
@@ -30,8 +32,7 @@
       #ah-splash {
         --s-bg: var(--ah-background, #faf9f5);
         --s-fg: var(--ah-foreground, #141413);
-        --s-track: var(--ah-border, #e8e6dc);
-        --s-accent: var(--ah-accent, #d97757);
+        --s-logo: #d97757;
         --s-tile: #1f1e1d;
         --s-ring: rgb(20 20 19 / 0);
         --s-elevation: 0 18px 44px -20px rgb(20 20 19 / 0.45);
@@ -67,7 +68,6 @@
         #ah-splash {
           --s-bg: var(--ah-background, #1f1e1d);
           --s-fg: var(--ah-foreground, #faf9f5);
-          --s-track: var(--ah-border, #3a3935);
           --s-tile: #2c2b29;
           --s-ring: rgb(250 249 245 / 0.08);
           --s-elevation: 0 18px 44px -20px rgb(0 0 0 / 0.6);
@@ -131,7 +131,7 @@
 
       #ah-splash .ah-splash__letter {
         fill: none;
-        stroke: var(--s-accent);
+        stroke: var(--s-logo);
         stroke-width: 10;
         stroke-linecap: butt;
         stroke-linejoin: miter;
@@ -160,27 +160,6 @@
         line-height: 1;
         color: var(--s-fg);
         animation: ah-splash-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) 110ms both;
-      }
-
-      #ah-splash .ah-splash__bar {
-        position: relative;
-        width: 148px;
-        height: 3px;
-        border-radius: 999px;
-        background-color: var(--s-track);
-        overflow: hidden;
-        animation: ah-splash-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms both;
-      }
-
-      #ah-splash .ah-splash__bar span {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: 38%;
-        border-radius: inherit;
-        background: linear-gradient(90deg, transparent, var(--s-accent));
-        animation: ah-splash-slide 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
       }
 
       #ah-splash[data-state='leaving'] {
@@ -242,15 +221,6 @@
         }
       }
 
-      @keyframes ah-splash-slide {
-        from {
-          transform: translateX(-105%);
-        }
-        to {
-          transform: translateX(305%);
-        }
-      }
-
       @media (prefers-reduced-motion: reduce) {
         #ah-splash,
         #ah-splash * {
@@ -278,7 +248,6 @@
           <span class="ah-splash__sheen"></span>
         </div>
         <div class="ah-splash__word">Ahabby</div>
-        <div class="ah-splash__bar" aria-hidden="true"><span></span></div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
