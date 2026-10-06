@@ -5,6 +5,14 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1] - 2026-10-06
+
+### Changed
+
+- A button that is working on something now shows a spinner instead of the "…" that followed its label
+  (Save, Rescan, Reveal, Restart, Run and the other pending actions), and the trailing ellipsis is gone
+  from the loading labels that already carried a spinner (Loading, Validating, Refreshing, Waiting for output).
+
 ## [0.24.0] - 2026-10-06
 
 ### Added

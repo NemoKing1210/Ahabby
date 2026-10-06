@@ -135,7 +135,7 @@ export function CreateSkillDialog({
           <Button variant="ghost" onClick={onClose} disabled={create.isPending}>
             {t('common.cancel')}
           </Button>
-          <Button variant="primary" onClick={submit} disabled={!valid || create.isPending}>
+          <Button variant="primary" onClick={submit} disabled={!valid} loading={create.isPending}>
             {t('skills.createSubmit')}
           </Button>
         </div>

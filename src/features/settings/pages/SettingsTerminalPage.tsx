@@ -216,13 +216,10 @@ export function SettingsTerminalPage() {
               variant="ghost"
               size="sm"
               className="px-0"
-              disabled={terminals.isFetching}
+              loading={terminals.isFetching}
               onClick={() => void terminals.refetch()}
             >
-              <RefreshCw
-                className={cn('size-3.5', terminals.isFetching && 'animate-spin')}
-                aria-hidden
-              />
+              {terminals.isFetching ? null : <RefreshCw className="size-3.5" aria-hidden />}
               {t('settings.terminalRefresh')}
             </Button>
             {terminalMissing ? (

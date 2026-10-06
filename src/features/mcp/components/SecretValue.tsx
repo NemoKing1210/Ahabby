@@ -44,7 +44,7 @@ export function SecretValue({
         variant="ghost"
         size="icon-sm"
         aria-label={shown ? t('mcp.hide') : t('mcp.reveal')}
-        disabled={reveal.isPending}
+        loading={reveal.isPending}
         onClick={() => {
           if (shown) {
             setShown(null)
@@ -59,7 +59,11 @@ export function SecretValue({
           )
         }}
       >
-        {shown ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        {reveal.isPending ? null : shown ? (
+          <EyeOff className="size-3.5" />
+        ) : (
+          <Eye className="size-3.5" />
+        )}
       </Button>
     </div>
   )

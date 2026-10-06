@@ -116,12 +116,9 @@ export function ProjectsPage() {
             <Plus className="size-3.5" aria-hidden />
             {t('projects.addFolder')}
           </Button>
-          <Button variant="secondary" disabled={rescan.isScanning} onClick={rescan.rescan}>
-            <RefreshCw
-              className={rescan.isScanning ? 'size-3.5 animate-spin' : 'size-3.5'}
-              aria-hidden
-            />
-            {rescan.isScanning ? t('library.rescanning') : t('library.rescan')}
+          <Button variant="secondary" onClick={rescan.rescan} loading={rescan.isScanning}>
+            {rescan.isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
+            {t('library.rescan')}
           </Button>
         </div>
       </PageHeader>

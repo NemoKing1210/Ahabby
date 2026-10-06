@@ -58,7 +58,8 @@ export function NewTerminalDialog({
             </Button>
             <Button
               variant="primary"
-              disabled={!selected || launch.isPending || cwd.trim().length === 0}
+              disabled={!selected || cwd.trim().length === 0}
+              loading={launch.isPending}
               onClick={() => {
                 if (!selected) return
                 launch.mutate(
@@ -73,7 +74,7 @@ export function NewTerminalDialog({
                 )
               }}
             >
-              <Play className="size-3.5" aria-hidden />
+              {launch.isPending ? null : <Play className="size-3.5" aria-hidden />}
               {t('terminal.open')}
             </Button>
           </>

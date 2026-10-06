@@ -55,9 +55,9 @@ export function ConfirmDialog({
           <Button
             variant={tone === 'danger' ? 'danger' : 'primary'}
             onClick={onConfirm}
-            disabled={busy}
+            loading={busy}
           >
-            {busy ? t('common.saving') : (confirmLabel ?? t('common.confirm'))}
+            {confirmLabel ?? t('common.confirm')}
           </Button>
         </div>
       </DialogContent>

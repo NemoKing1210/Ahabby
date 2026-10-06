@@ -73,9 +73,8 @@ export function InstallDialog({
             </Button>
             <Button
               variant="primary"
-              disabled={
-                !plan.data || !plan.data.managerAvailable || run.isPending || jobId !== null
-              }
+              disabled={!plan.data || !plan.data.managerAvailable || jobId !== null}
+              loading={run.isPending}
               onClick={() => {
                 if (!plan.data) return
                 run.mutate(
@@ -92,7 +91,7 @@ export function InstallDialog({
                 )
               }}
             >
-              <Play className="size-3.5" aria-hidden />
+              {run.isPending ? null : <Play className="size-3.5" aria-hidden />}
               {t('install.run')}
             </Button>
           </>

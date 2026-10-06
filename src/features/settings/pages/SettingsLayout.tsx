@@ -148,9 +148,9 @@ export function SettingsLayout() {
                 {t('common.discard')}
               </Button>
             ) : null}
-            <Button variant="primary" disabled={!dirty || save.isPending} onClick={onSave}>
-              <Save className="size-3.5" aria-hidden />
-              {save.isPending ? t('common.saving') : t('common.save')}
+            <Button variant="primary" disabled={!dirty} onClick={onSave} loading={save.isPending}>
+              {save.isPending ? null : <Save className="size-3.5" aria-hidden />}
+              {t('common.save')}
             </Button>
           </div>
         </PageHeader>

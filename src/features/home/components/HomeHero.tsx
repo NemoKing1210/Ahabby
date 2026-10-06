@@ -99,9 +99,9 @@ export function HomeHero({ report }: { report: ScanReport | undefined }) {
             {isScanning ? <Spinner className="size-3" /> : null}
             {scanLine}
           </p>
-          <Button variant="secondary" size="sm" disabled={isScanning} onClick={rescan}>
-            <RefreshCw className={isScanning ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden />
-            {isScanning ? t('agents.rescanning') : t('agents.rescan')}
+          <Button variant="secondary" size="sm" onClick={rescan} loading={isScanning}>
+            {isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
+            {t('agents.rescan')}
           </Button>
         </div>
       </div>

@@ -302,24 +302,26 @@ export function DocumentEditorDialog({
                   <Button
                     variant="secondary"
                     disabled={!dirty || !editable || baseSha256 === undefined || !inSync}
+                    loading={preview.isPending}
                     onClick={() => {
                       if (baseSha256 === undefined) return
                       setShowDiff(true)
                       runPreview(value, baseSha256)
                     }}
                   >
-                    {preview.isPending ? (
-                      <Spinner />
-                    ) : (
-                      <ShieldAlert className="size-3.5" aria-hidden />
-                    )}
+                    {preview.isPending ? null : <ShieldAlert className="size-3.5" aria-hidden />}
                     {t('editor.preview')}
                   </Button>
                 </span>
               </Tooltip>
-              <Button variant="primary" disabled={!canSave} onClick={submit}>
-                <Save className="size-3.5" aria-hidden />
-                {save.isPending ? t('common.saving') : t('common.save')}
+              <Button
+                variant="primary"
+                disabled={!canSave}
+                onClick={submit}
+                loading={save.isPending}
+              >
+                {save.isPending ? null : <Save className="size-3.5" aria-hidden />}
+                {t('common.save')}
               </Button>
             </>
           }

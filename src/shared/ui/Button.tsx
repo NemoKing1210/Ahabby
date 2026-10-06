@@ -4,6 +4,8 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
 import { cn } from '@/shared/lib/cn'
 
+import { Spinner } from './Primitives'
+
 const buttonStyles = cva(
   'inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-medium transition-[color,background-color,border-color,scale] duration-150 ease-warm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
   {
@@ -32,12 +34,41 @@ export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonStyles> {
   /** Render the single child element instead of a `<button>` (e.g. a router link). */
   asChild?: boolean
+  /** An action is in flight: show a spinner and block the button. */
+  loading?: boolean
   children?: ReactNode
 }
 
-export function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
-  const Component = asChild ? Slot : 'button'
-  return <Component className={cn(buttonStyles({ variant, size }), className)} {...props} />
+export function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  loading = false,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
+  const classes = cn(buttonStyles({ variant, size }), className)
+  // `Slot` accepts one child element, so the spinner only wraps ordinary buttons.
+  if (asChild) {
+    return (
+      <Slot className={classes} {...(loading || disabled ? { disabled: true } : {})} {...props}>
+        {children}
+      </Slot>
+    )
+  }
+  return (
+    <button
+      className={classes}
+      aria-busy={loading || undefined}
+      disabled={loading || disabled}
+      {...props}
+    >
+      {loading ? <Spinner /> : null}
+      {children}
+    </button>
+  )
 }
 
 export { buttonStyles }

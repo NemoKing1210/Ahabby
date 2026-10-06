@@ -13,7 +13,6 @@ import {
 } from '@/shared/ui/Dialog'
 import { FormField } from '@/shared/ui/FormField'
 import { Input } from '@/shared/ui/Input'
-import { Spinner } from '@/shared/ui/Primitives'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { useAddProjectFolder, usePickProjectFolder } from '../api/hooks'
@@ -86,8 +85,8 @@ export function AddProjectFolderDialog({ onClose }: { onClose: () => void }) {
                   if (event.key === 'Enter') submit()
                 }}
               />
-              <Button variant="secondary" disabled={pick.isPending} onClick={choose}>
-                {pick.isPending ? <Spinner /> : <FolderSearch className="size-3.5" aria-hidden />}
+              <Button variant="secondary" onClick={choose} loading={pick.isPending}>
+                {pick.isPending ? null : <FolderSearch className="size-3.5" aria-hidden />}
                 {t('projects.chooseFolder')}
               </Button>
             </div>
@@ -97,7 +96,7 @@ export function AddProjectFolderDialog({ onClose }: { onClose: () => void }) {
           <Button variant="ghost" onClick={onClose} disabled={add.isPending}>
             {t('common.cancel')}
           </Button>
-          <Button variant="primary" onClick={submit} disabled={!trimmed || add.isPending}>
+          <Button variant="primary" onClick={submit} disabled={!trimmed} loading={add.isPending}>
             {t('projects.addSubmit')}
           </Button>
         </div>

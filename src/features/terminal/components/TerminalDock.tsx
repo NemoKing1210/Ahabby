@@ -206,7 +206,7 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={restart.isPending}
+                loading={restart.isPending}
                 onClick={() =>
                   restart.mutate(
                     { agentId: active.agentId, cwd: active.cwd },
@@ -220,7 +220,7 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
                   )
                 }
               >
-                <RotateCcw className="size-3.5" aria-hidden />
+                {restart.isPending ? null : <RotateCcw className="size-3.5" aria-hidden />}
                 {t('terminal.restart')}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => closeTerminal(active.sessionId)}>

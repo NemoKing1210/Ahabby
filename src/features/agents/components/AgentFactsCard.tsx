@@ -89,7 +89,7 @@ function FactRow({ agentId, fact }: { agentId: string; fact: ConfigFact }) {
             variant="ghost"
             size="icon-sm"
             aria-label={shown ? t('agent.facts.hide') : t('agent.facts.show')}
-            disabled={reveal.isPending}
+            loading={reveal.isPending}
             onClick={() => {
               if (shown) {
                 setShown(null)
@@ -104,7 +104,11 @@ function FactRow({ agentId, fact }: { agentId: string; fact: ConfigFact }) {
               )
             }}
           >
-            {shown ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            {reveal.isPending ? null : shown ? (
+              <EyeOff className="size-3.5" />
+            ) : (
+              <Eye className="size-3.5" />
+            )}
           </Button>
         ) : null}
 

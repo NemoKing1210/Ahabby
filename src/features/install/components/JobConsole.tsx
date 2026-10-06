@@ -51,10 +51,10 @@ export function JobConsole({ jobId, className }: { jobId: string; className?: st
           <Button
             variant="ghost"
             size="sm"
-            disabled={cancel.isPending}
+            loading={cancel.isPending}
             onClick={() => setConfirmingCancel(true)}
           >
-            <StopCircle className="size-3.5" aria-hidden />
+            {cancel.isPending ? null : <StopCircle className="size-3.5" aria-hidden />}
             {t('install.cancel')}
           </Button>
         ) : (

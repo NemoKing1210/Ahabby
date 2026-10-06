@@ -391,13 +391,11 @@ export function AppShell() {
               size="sm"
               className={cn('w-full', collapsed && 'justify-center px-0')}
               aria-label={collapsed ? t('agents.rescan') : undefined}
-              disabled={isScanning}
               onClick={rescan}
+              loading={isScanning}
             >
-              {isScanning ? <Spinner /> : <RefreshCw className="size-3.5" aria-hidden />}
-              {collapsed ? null : (
-                <span>{isScanning ? t('agents.rescanning') : t('agents.rescan')}</span>
-              )}
+              {isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
+              {collapsed ? null : <span>{t('agents.rescan')}</span>}
             </Button>
           </Tooltip>
         </div>

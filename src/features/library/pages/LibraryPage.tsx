@@ -460,12 +460,9 @@ export function LibraryPage() {
             {scanned ? ` · ${t('library.lastScan', { when: scanned })}` : null}
           </p>
         </div>
-        <Button variant="secondary" disabled={rescan.isScanning} onClick={rescan.rescan}>
-          <RefreshCw
-            className={rescan.isScanning ? 'size-3.5 animate-spin' : 'size-3.5'}
-            aria-hidden
-          />
-          {rescan.isScanning ? t('library.rescanning') : t('library.rescan')}
+        <Button variant="secondary" onClick={rescan.rescan} loading={rescan.isScanning}>
+          {rescan.isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
+          {t('library.rescan')}
         </Button>
       </PageHeader>
 

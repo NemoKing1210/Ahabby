@@ -38,7 +38,7 @@ export function SettingsHiddenPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={restore.isPending}
+                  loading={restore.isPending}
                   onClick={() =>
                     restore.mutate(agent.id, {
                       onSuccess: () =>
@@ -47,7 +47,7 @@ export function SettingsHiddenPage() {
                     })
                   }
                 >
-                  <Undo2 className="size-3.5" aria-hidden />
+                  {restore.isPending ? null : <Undo2 className="size-3.5" aria-hidden />}
                   {t('settings.restoreAgent')}
                 </Button>
               </li>
