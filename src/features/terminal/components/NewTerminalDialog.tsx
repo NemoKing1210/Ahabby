@@ -17,6 +17,7 @@ import { EmptyState } from '@/shared/ui/EmptyState'
 import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
 import { toastAppError } from '@/shared/ui/Toast'
+import { agentOption } from '@/shared/ui/agentOptions'
 
 import { useAgents } from '@/features/agents/api/queries'
 
@@ -94,7 +95,10 @@ export function NewTerminalDialog({
                   ariaLabel={t('terminal.agent')}
                   value={agentId}
                   onValueChange={setAgentId}
-                  options={installed.map((agent) => ({ value: agent.id, label: agent.name }))}
+                  className="w-full"
+                  options={installed.map((agent) =>
+                    agentOption(agent, { description: agent.version?.raw }),
+                  )}
                 />
               </div>
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Layers } from 'lucide-react'
 
 import { cn } from '@/shared/lib/cn'
@@ -22,6 +23,21 @@ const SIZES = {
 
 const TILE =
   'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/10 dark:border-white/10'
+
+/**
+ * The icon slot of a picker row that stands for no agent ("all"): a neutral tile of the same
+ * size as an `xs` `AgentIcon`, so the column of agent logos stays straight.
+ */
+export function NeutralTile({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(TILE, 'border-border bg-surface-2 text-muted', SIZES.xs.tile, className)}
+    >
+      {children}
+    </span>
+  )
+}
 
 function initials(name: string): string {
   const letters = name
