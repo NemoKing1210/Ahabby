@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -278,5 +278,22 @@ describe('LibraryPage', () => {
     const global = within(container).getByRole('button', { name: 'global' })
     expect(within(global).getByText(/^Modified /)).toBeTruthy()
     expect(within(global).queryByText(/^Created /)).toBeNull()
+  })
+
+  it('offers a context menu on an "Other" resource card', async () => {
+    const user = userEvent.setup()
+    const view = renderPage()
+    const { container } = view
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    await user.click(within(container).getByRole('tab', { name: /^Other/ }))
+    fireEvent.contextMenu(within(container).getByText('CLAUDE.md'), { clientX: 40, clientY: 60 })
+
+    const menu = within(await screen.findByRole('menu'))
+    expect(menu.getByRole('menuitem', { name: 'Edit' })).toBeTruthy()
+    expect(menu.getByRole('menuitem', { name: 'Copy path' })).toBeTruthy()
+    expect(menu.getByRole('menuitem', { name: 'Show in file manager' })).toBeTruthy()
+
+    view.unmount()
   })
 })

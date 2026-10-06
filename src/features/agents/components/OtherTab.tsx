@@ -35,6 +35,8 @@ import { Timestamp } from '@/shared/ui/Timestamp'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 
+import { OtherResourceContextMenu } from './OtherResourceContextMenu'
+
 /** Display order of the kinds, shared with the Library toolbar's kind filter. */
 export const OTHER_KIND_ORDER: OtherKind[] = [
   'instructions',
@@ -78,74 +80,82 @@ function ResourceCard({
   )
 
   return (
-    <Card
-      className={cn(
-        'ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color] duration-150',
-        missing && 'border-border-strong bg-surface-2/40 border-dashed',
-      )}
+    <OtherResourceContextMenu
+      resource={resource}
+      expanded={expanded}
+      hasBody={hasBody}
+      onToggleExpanded={() => setExpanded((value) => !value)}
+      onEdit={onEdit}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="text-foreground hover:text-accent-strong flex items-center gap-1.5 text-sm"
-            onClick={() => setExpanded((value) => !value)}
-            aria-expanded={expanded}
-            disabled={!hasBody}
-          >
-            {hasBody ? (
-              expanded ? (
-                <ChevronDown className="size-3.5" aria-hidden />
-              ) : (
-                <ChevronRight className="size-3.5" aria-hidden />
-              )
-            ) : null}
-            {resource.label}
-          </button>
-          {showAgent ? <AgentTag agent={resource.agent} /> : null}
-          {resource.isDirectory ? (
-            <Badge tone="outline">
-              <FolderTree className="size-3" aria-hidden />
-              {resource.itemCount ?? 0}
-            </Badge>
-          ) : null}
-          {missing ? <Badge tone="accent">{t('configs.missing')}</Badge> : null}
-          {resource.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {onEdit && !resource.isDirectory ? (
-            <Button
-              variant={missing ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => onEdit(resource)}
+      <Card
+        className={cn(
+          'ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color] duration-150',
+          missing && 'border-border-strong bg-surface-2/40 border-dashed',
+        )}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="text-foreground hover:text-accent-strong flex items-center gap-1.5 text-sm"
+              onClick={() => setExpanded((value) => !value)}
+              aria-expanded={expanded}
+              disabled={!hasBody}
             >
-              {missing ? (
-                <Plus className="size-3.5" aria-hidden />
-              ) : (
-                <Pencil className="size-3.5" aria-hidden />
-              )}
-              {missing ? t('configs.create') : t('configs.edit')}
-            </Button>
-          ) : null}
-          <Timestamp
-            createdMs={resource.createdMs}
-            modifiedMs={resource.modifiedMs}
-            className="text-faint text-[0.6875rem]"
-          />
-          <span className="text-faint text-[0.6875rem]">
-            {formatBytes(resource.sizeBytes) ?? ''}
-          </span>
+              {hasBody ? (
+                expanded ? (
+                  <ChevronDown className="size-3.5" aria-hidden />
+                ) : (
+                  <ChevronRight className="size-3.5" aria-hidden />
+                )
+              ) : null}
+              {resource.label}
+            </button>
+            {showAgent ? <AgentTag agent={resource.agent} /> : null}
+            {resource.isDirectory ? (
+              <Badge tone="outline">
+                <FolderTree className="size-3" aria-hidden />
+                {resource.itemCount ?? 0}
+              </Badge>
+            ) : null}
+            {missing ? <Badge tone="accent">{t('configs.missing')}</Badge> : null}
+            {resource.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {onEdit && !resource.isDirectory ? (
+              <Button
+                variant={missing ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => onEdit(resource)}
+              >
+                {missing ? (
+                  <Plus className="size-3.5" aria-hidden />
+                ) : (
+                  <Pencil className="size-3.5" aria-hidden />
+                )}
+                {missing ? t('configs.create') : t('configs.edit')}
+              </Button>
+            ) : null}
+            <Timestamp
+              createdMs={resource.createdMs}
+              modifiedMs={resource.modifiedMs}
+              className="text-faint text-[0.6875rem]"
+            />
+            <span className="text-faint text-[0.6875rem]">
+              {formatBytes(resource.sizeBytes) ?? ''}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {resource.description ? (
-        <p className="text-muted max-w-prose text-[0.75rem]">{resource.description}</p>
-      ) : null}
+        {resource.description ? (
+          <p className="text-muted max-w-prose text-[0.75rem]">{resource.description}</p>
+        ) : null}
 
-      <PathRow path={resource.path} />
+        <PathRow path={resource.path} />
 
-      <Reveal open={expanded && body !== null}>{body}</Reveal>
-    </Card>
+        <Reveal open={expanded && body !== null}>{body}</Reveal>
+      </Card>
+    </OtherResourceContextMenu>
   )
 }
 

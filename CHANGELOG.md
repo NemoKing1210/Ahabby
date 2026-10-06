@@ -5,6 +5,12 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 2026-10-06
+
+### Added
+
+- Right-click menus on library and project cards, matching the agent cards: open, edit or switch off a skill, open or remove an MCP server, expand or edit a document, and open, run in or reveal a project — each with copy and reveal path actions
+
 ## [0.24.1] - 2026-10-06
 
 ### Changed

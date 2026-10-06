@@ -14,6 +14,7 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useRevealPath } from '@/features/agents/api/queries'
 
+import { ProjectContextMenu } from './ProjectContextMenu'
 import { RunInProjectDialog } from './RunInProjectDialog'
 
 /**
@@ -48,72 +49,76 @@ export function ProjectCard({ project }: { project: Project }) {
   ].filter((entry) => entry.count > 0)
 
   return (
-    <Card className="group ease-warm hover:border-border-strong transition-[border-color,translate] duration-150 hover:-translate-y-px">
-      <div className="flex items-start gap-4 p-4">
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label={project.name}
-          onClick={(event) => {
-            // The path row's copy/reveal buttons live inside the body; a click there must not
-            // also open the project.
-            if ((event.target as HTMLElement).closest('button')) return
-            open()
-          }}
-          onKeyDown={activate}
-          className="focus-visible:outline-ring flex min-w-0 flex-1 cursor-pointer flex-col gap-1.5 rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          <span className="group-hover:text-accent-strong text-foreground font-serif text-[0.9375rem]">
-            {project.name}
-          </span>
+    <ProjectContextMenu project={project} onRun={() => setRunOpen(true)}>
+      <Card className="group ease-warm hover:border-border-strong transition-[border-color,translate] duration-150 hover:-translate-y-px">
+        <div className="flex items-start gap-4 p-4">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label={project.name}
+            onClick={(event) => {
+              // The path row's copy/reveal buttons live inside the body; a click there must not
+              // also open the project.
+              if ((event.target as HTMLElement).closest('button')) return
+              open()
+            }}
+            onKeyDown={activate}
+            className="focus-visible:outline-ring flex min-w-0 flex-1 cursor-pointer flex-col gap-1.5 rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <span className="group-hover:text-accent-strong text-foreground font-serif text-[0.9375rem]">
+              {project.name}
+            </span>
 
-          <PathRow path={project.root} className="max-w-xl" />
+            <PathRow path={project.root} className="max-w-xl" />
 
-          {counts.length > 0 || changed ? (
-            <div className="text-faint flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5 text-[0.75rem]">
-              {counts.map((entry) => (
-                <Badge key={entry.key} tone="neutral">
-                  <entry.icon className="size-3" aria-hidden />
-                  {t(`agents.card.${entry.key}`, { count: entry.count })}
-                </Badge>
-              ))}
-              {changed ? (
-                <span>
-                  {t('library.modified')} {changed}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
+            {counts.length > 0 || changed ? (
+              <div className="text-faint flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5 text-[0.75rem]">
+                {counts.map((entry) => (
+                  <Badge key={entry.key} tone="neutral">
+                    <entry.icon className="size-3" aria-hidden />
+                    {t(`agents.card.${entry.key}`, { count: entry.count })}
+                  </Badge>
+                ))}
+                {changed ? (
+                  <span>
+                    {t('library.modified')} {changed}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Tooltip content={t('projects.runHere')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('projects.runHere')}
+                onClick={() => setRunOpen(true)}
+              >
+                <TerminalIcon className="size-3.5" />
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('projects.reveal')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('projects.reveal')}
+                onClick={() => reveal.mutate(project.root, { onError: toastAppError })}
+              >
+                <FolderOpen className="size-3.5" />
+              </Button>
+            </Tooltip>
+            <Button variant="secondary" size="sm" onClick={open}>
+              {t('common.open')}
+            </Button>
+          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Tooltip content={t('projects.runHere')}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('projects.runHere')}
-              onClick={() => setRunOpen(true)}
-            >
-              <TerminalIcon className="size-3.5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('projects.reveal')}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('projects.reveal')}
-              onClick={() => reveal.mutate(project.root, { onError: toastAppError })}
-            >
-              <FolderOpen className="size-3.5" />
-            </Button>
-          </Tooltip>
-          <Button variant="secondary" size="sm" onClick={open}>
-            {t('common.open')}
-          </Button>
-        </div>
-      </div>
-
-      {runOpen ? <RunInProjectDialog project={project} onClose={() => setRunOpen(false)} /> : null}
-    </Card>
+        {runOpen ? (
+          <RunInProjectDialog project={project} onClose={() => setRunOpen(false)} />
+        ) : null}
+      </Card>
+    </ProjectContextMenu>
   )
 }

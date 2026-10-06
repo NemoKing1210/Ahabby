@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -173,5 +173,23 @@ describe('ProjectsPage', () => {
     await user.click(dialog.getByRole('button', { name: 'Add folder' }))
 
     expect(ipc.addProjectFolder).toHaveBeenCalledWith('/tmp/picked')
+  })
+
+  it('offers reveal and removal on the folder card menu', async () => {
+    vi.mocked(ipc.cachedAgents).mockResolvedValue(
+      report([project('project:a', 'alpha', [])], [FOLDER]),
+    )
+
+    const { container } = renderPage()
+    await within(container).findByText('code')
+
+    fireEvent.contextMenu(within(container).getByText('code'), { clientX: 40, clientY: 60 })
+    const menu = within(await screen.findByRole('menu'))
+    expect(menu.getByRole('menuitem', { name: 'Show in file manager' })).toBeTruthy()
+
+    fireEvent.click(menu.getByRole('menuitem', { name: 'Remove' }))
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Remove /home/me/code?' })).toBeTruthy()
   })
 })

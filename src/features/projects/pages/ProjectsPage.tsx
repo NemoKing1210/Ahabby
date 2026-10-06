@@ -23,6 +23,7 @@ import { useRemoveProjectFolder } from '../api/hooks'
 import { useProjects } from '../api/queries'
 import { AddProjectFolderDialog } from '../components/AddProjectFolderDialog'
 import { ProjectCard } from '../components/ProjectCard'
+import { ProjectFolderContextMenu } from '../components/ProjectFolderContextMenu'
 
 /** One added folder, its projects and the two bits of state that can be wrong with it. */
 function FolderRow({
@@ -39,46 +40,48 @@ function FolderRow({
   const label = fileName(directory) || directory
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <FolderGit2 className="text-faint size-4 shrink-0" aria-hidden />
-        <span className="text-foreground font-serif text-[0.9375rem]">{label}</span>
-        {!status.exists ? (
-          <Tooltip content={t('projects.missingHint')}>
-            <Badge tone="warning">{t('projects.missing')}</Badge>
+    <ProjectFolderContextMenu status={status} onRemove={onRemove}>
+      <Card className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <FolderGit2 className="text-faint size-4 shrink-0" aria-hidden />
+          <span className="text-foreground font-serif text-[0.9375rem]">{label}</span>
+          {!status.exists ? (
+            <Tooltip content={t('projects.missingHint')}>
+              <Badge tone="warning">{t('projects.missing')}</Badge>
+            </Tooltip>
+          ) : null}
+          <Badge tone="neutral">{t('projects.projectCount', { count: projects.length })}</Badge>
+          <Tooltip content={t('projects.remove')}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="ml-auto"
+              aria-label={t('projects.remove')}
+              onClick={() => onRemove(status)}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
           </Tooltip>
-        ) : null}
-        <Badge tone="neutral">{t('projects.projectCount', { count: projects.length })}</Badge>
-        <Tooltip content={t('projects.remove')}>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="ml-auto"
-            aria-label={t('projects.remove')}
-            onClick={() => onRemove(status)}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </Tooltip>
-      </div>
-
-      <PathRow path={directory} />
-
-      {status.problem ? <p className="text-muted text-[0.75rem]">{status.problem}</p> : null}
-
-      {projects.length > 0 ? (
-        <AnimatedList>
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </AnimatedList>
-      ) : status.exists ? (
-        <div className="border-border bg-surface-2/40 rounded-lg border border-dashed px-4 py-6 text-center">
-          <p className="text-foreground font-serif text-sm">{t('projects.folderEmpty')}</p>
-          <p className="text-muted text-[0.8125rem]">{t('projects.folderEmptyHint')}</p>
         </div>
-      ) : null}
-    </Card>
+
+        <PathRow path={directory} />
+
+        {status.problem ? <p className="text-muted text-[0.75rem]">{status.problem}</p> : null}
+
+        {projects.length > 0 ? (
+          <AnimatedList>
+            {projects.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+          </AnimatedList>
+        ) : status.exists ? (
+          <div className="border-border bg-surface-2/40 rounded-lg border border-dashed px-4 py-6 text-center">
+            <p className="text-foreground font-serif text-sm">{t('projects.folderEmpty')}</p>
+            <p className="text-muted text-[0.8125rem]">{t('projects.folderEmptyHint')}</p>
+          </div>
+        ) : null}
+      </Card>
+    </ProjectFolderContextMenu>
   )
 }
 
