@@ -28,7 +28,7 @@ pub use registry::AdapterRegistry;
 
 use crate::domain::{
     AgentManifest, AgentRef, ConfigFile, Detection, InstallAction, InstallPlan, Manager, McpServer,
-    OsPathMap, OtherResource, Skill, Version,
+    McpServerDraft, OsPathMap, OtherResource, Skill, SkillDraft, Version,
 };
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
@@ -92,6 +92,31 @@ pub trait AgentAdapter: Send + Sync {
         server: &McpServer,
         enabled: bool,
     ) -> Result<()>;
+
+    /// Writes a new skill of the user's own into the skills directory the manifest declares.
+    ///
+    /// Only a declarative manifest can do this: an adapter that reads skills but has no
+    /// declarative directory to write into refuses instead of guessing a location.
+    async fn create_skill(&self, _ctx: &PlatformContext, _draft: &SkillDraft) -> Result<Skill> {
+        Err(AppError::NotSupported(format!(
+            "{} does not support creating skills from Ahabby",
+            self.manifest().name
+        )))
+    }
+
+    /// Adds a new server to the MCP config file the manifest declares.
+    ///
+    /// Like [`AgentAdapter::create_skill`], this needs a declarative MCP spec to be possible.
+    async fn create_mcp_server(
+        &self,
+        _ctx: &PlatformContext,
+        _draft: &McpServerDraft,
+    ) -> Result<McpServer> {
+        Err(AppError::NotSupported(format!(
+            "{} does not support adding MCP servers from Ahabby",
+            self.manifest().name
+        )))
+    }
 
     /// Resolve an install/update/uninstall command for this machine.
     async fn install_plan(

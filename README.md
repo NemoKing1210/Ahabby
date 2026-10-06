@@ -45,6 +45,11 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
   config files, skills, rules and other resources, and MCP servers.
 - **Groups everything in a Library view:** every skill (with its `SKILL.md` frontmatter and rendered body),
   every MCP server (transport, command/URL, which agents use it) and every other resource.
+- **Creates your own skills and MCP servers:** a form on an agent's page or in the Library writes `SKILL.md`
+  into the skills directory that agent declares, or adds a server to its MCP config — local
+  (`command`/`args`/`env`) or remote (`url`/`headers`) — in the file's own format, leaving everything else in
+  it untouched. In the Library you also pick the owner: one agent, or the shared `~/.agents` surface every
+  installed agent reads.
 - **Edits configs safely:** validate → diff → timestamped backup → atomic write, and a refusal to overwrite
   a file that changed on disk since you opened it.
 - **Runs installs and updates with a visible command:** streamed output, cancellable, and only commands that

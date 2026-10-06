@@ -351,6 +351,101 @@ fn yaml_mapping_mut<'a>(
     cursor.as_mapping_mut()
 }
 
+/// Insert a new member at `key_path` with `value`, creating the containers it needs.
+///
+/// Unlike [`move_entry`] the member does not exist yet, so there is nothing to preserve about
+/// it: JSON/JSONC keeps every other byte (comments included) and lays the value out like the
+/// object around it, TOML and YAML are re-serialized through their own editors.
+///
+/// * `Err(AppError::InvalidInput)` — a member already exists at `key_path`.
+/// * `Err(AppError::NotSupported)` — Markdown/Text.
+pub fn insert_entry(
+    format: ConfigFormat,
+    content: &str,
+    key_path: &[String],
+    value: &Value,
+) -> Result<String> {
+    if key_path.is_empty() {
+        return Err(AppError::InvalidInput(
+            "an empty key path cannot hold a member".to_string(),
+        ));
+    }
+    match format {
+        ConfigFormat::Json | ConfigFormat::Jsonc => insert_json(content, key_path, value),
+        ConfigFormat::Toml => insert_toml(content, key_path, value),
+        ConfigFormat::Yaml => insert_yaml(content, key_path, value),
+        ConfigFormat::Markdown | ConfigFormat::Text => Err(AppError::NotSupported(
+            "this format does not hold structured data".to_string(),
+        )),
+    }
+}
+
+fn insert_json(content: &str, key_path: &[String], value: &Value) -> Result<String> {
+    if super::jsonc::has_member(content, key_path) {
+        return Err(occupied(key_path));
+    }
+    match super::jsonc::insert_new_member(content, key_path, value) {
+        Ok(Some(updated)) => Ok(updated),
+        Ok(None) => Err(AppError::invalid_format(
+            "json",
+            "<memory>",
+            "the document has no object that can hold the member",
+        )),
+        Err(message) => Err(AppError::invalid_format("json", "<memory>", message)),
+    }
+}
+
+fn insert_toml(content: &str, key_path: &[String], value: &Value) -> Result<String> {
+    let (container, name) = key_path.split_at(key_path.len() - 1);
+    let name = &name[0];
+
+    let mut document: toml_edit::DocumentMut =
+        content.parse().map_err(|error: toml_edit::TomlError| {
+            AppError::invalid_format("toml", "<memory>", error.to_string())
+        })?;
+    if toml_item(&document, key_path).is_some() {
+        return Err(occupied(key_path));
+    }
+
+    // The entry is a whole object, so it is serialized as a document and inserted as a table:
+    // TOML renders it as `[container.name]` with its own sub-tables (`[container.name.env]`).
+    let entry = toml_edit::ser::to_document(value)
+        .map_err(|error| AppError::invalid_format("toml", "<memory>", error.to_string()))?;
+    let item = toml_edit::Item::Table(entry.as_table().clone());
+
+    let destination = toml_table_mut(document.as_table_mut(), container)?;
+    let _ = destination.insert(name, item);
+    Ok(document.to_string())
+}
+
+fn insert_yaml(content: &str, key_path: &[String], value: &Value) -> Result<String> {
+    let (container, name) = key_path.split_at(key_path.len() - 1);
+    let name = name[0].clone();
+
+    let mut document: serde_yaml::Value = if content.trim().is_empty() {
+        serde_yaml::Value::Mapping(serde_yaml::Mapping::new())
+    } else {
+        serde_yaml::from_str(content)
+            .map_err(|error| AppError::invalid_format("yaml", "<memory>", error.to_string()))?
+    };
+    if document.is_null() {
+        document = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+    }
+    if yaml_get(&document, key_path).is_some() {
+        return Err(occupied(key_path));
+    }
+
+    let entry = serde_yaml::to_value(value)
+        .map_err(|error| AppError::other(format!("cannot encode the entry as YAML: {error}")))?;
+    let destination = yaml_mapping_mut(&mut document, container).ok_or_else(|| {
+        AppError::invalid_format("yaml", "<memory>", "the destination is not a mapping")
+    })?;
+    let _ = destination.insert(serde_yaml::Value::String(name), entry);
+
+    serde_yaml::to_string(&document)
+        .map_err(|error| AppError::other(format!("cannot serialize YAML: {error}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -771,5 +866,109 @@ command = "npx"
         assert!(move_entry(ConfigFormat::Json, "{}", &["a".into()], &[]).is_err());
         assert!(move_entry(ConfigFormat::Markdown, "# hi", &["a".into()], &["b".into()]).is_err());
         assert!(move_entry(ConfigFormat::Text, "hi", &["a".into()], &["b".into()]).is_err());
+    }
+
+    #[test]
+    fn insert_writes_into_every_structured_format() {
+        let entry = serde_json::json!({
+            "command": "npx",
+            "args": ["-y", "server"],
+            "env": { "TOKEN": "x" },
+        });
+
+        let json = insert_entry(
+            ConfigFormat::Json,
+            "{\n  \"mcpServers\": {\n    \"github\": { \"command\": \"npx\" }\n  }\n}\n",
+            &["mcpServers".into(), "other".into()],
+            &entry,
+        )
+        .unwrap();
+        validate(ConfigFormat::Json, &json, "x").unwrap();
+        assert!(json.contains("github"), "existing entries survive");
+
+        let toml = insert_entry(
+            ConfigFormat::Toml,
+            "# keep me\nmodel = \"gpt-5\"\n\n[mcp_servers.github]\ncommand = \"npx\"\n",
+            &["mcp_servers".into(), "other".into()],
+            &entry,
+        )
+        .unwrap();
+        validate(ConfigFormat::Toml, &toml, "x").unwrap();
+        assert!(toml.contains("# keep me"));
+        assert!(toml.contains("[mcp_servers.github]"));
+
+        let yaml = insert_entry(
+            ConfigFormat::Yaml,
+            "mcpServers:\n  github:\n    command: npx\n",
+            &["mcpServers".into(), "other".into()],
+            &entry,
+        )
+        .unwrap();
+        validate(ConfigFormat::Yaml, &yaml, "x").unwrap();
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(parsed["mcpServers"]["github"]["command"], "npx");
+        assert_eq!(parsed["mcpServers"]["other"]["args"][1], "server");
+    }
+
+    #[test]
+    fn insert_creates_the_containers_of_an_empty_document() {
+        let entry = serde_json::json!({ "command": "npx" });
+
+        let toml = insert_entry(
+            ConfigFormat::Toml,
+            "",
+            &["mcp_servers".into(), "github".into()],
+            &entry,
+        )
+        .unwrap();
+        let parsed: toml_edit::DocumentMut = toml.parse().unwrap();
+        assert_eq!(
+            parsed["mcp_servers"]["github"]["command"].as_str(),
+            Some("npx")
+        );
+
+        let yaml = insert_entry(
+            ConfigFormat::Yaml,
+            "{}",
+            &["mcpServers".into(), "github".into()],
+            &entry,
+        )
+        .unwrap();
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(parsed["mcpServers"]["github"]["command"], "npx");
+    }
+
+    #[test]
+    fn insert_refuses_a_taken_name_and_an_unstructured_format() {
+        let error = insert_entry(
+            ConfigFormat::Json,
+            "{\n  \"mcpServers\": {\n    \"github\": {}\n  }\n}\n",
+            &["mcpServers".into(), "github".into()],
+            &serde_json::json!({ "command": "npx" }),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "invalid_input");
+
+        let error = insert_entry(
+            ConfigFormat::Toml,
+            "[mcp_servers.github]\ncommand = \"npx\"\n",
+            &["mcp_servers".into(), "github".into()],
+            &serde_json::json!({ "command": "npx" }),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "invalid_input");
+
+        assert!(insert_entry(ConfigFormat::Json, "{}", &[], &serde_json::json!({})).is_err());
+        assert_eq!(
+            insert_entry(
+                ConfigFormat::Markdown,
+                "# hi",
+                &["a".into()],
+                &serde_json::json!({}),
+            )
+            .unwrap_err()
+            .code(),
+            "not_supported",
+        );
     }
 }

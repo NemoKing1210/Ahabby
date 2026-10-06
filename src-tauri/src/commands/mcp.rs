@@ -2,7 +2,7 @@
 
 use tauri::State;
 
-use crate::domain::{secrets, McpServer};
+use crate::domain::{secrets, McpServer, McpServerDraft};
 use crate::error::{AppError, Result};
 use crate::state::AppState;
 
@@ -14,6 +14,26 @@ pub async fn list_agent_mcp_servers(
     agent_id: String,
 ) -> Result<Vec<McpServer>> {
     Ok(state.agent(&agent_id)?.mcp_servers)
+}
+
+/// Add a server to the MCP config file the manifest declares.
+///
+/// Like [`create_skill`](crate::commands::skills::create_skill), `agent_id` is any owner the
+/// scan knows — a real agent or the reserved shared surface. The entry is written at the
+/// `name -> server` position the reader uses, in the manifest's own format, so the new server
+/// is a full entry from the next scan on.
+#[tauri::command]
+pub async fn create_mcp_server(
+    state: State<'_, AppState>,
+    agent_id: String,
+    draft: McpServerDraft,
+) -> Result<MutationResult<McpServer>> {
+    let adapter = state.adapter(&agent_id)?;
+    let context = state.platform_context();
+    let server = adapter.create_mcp_server(&context, &draft).await?;
+
+    let report = state.scan().await;
+    Ok(MutationResult::new(server, report))
 }
 
 /// Remove an MCP server from the config file that declares it.

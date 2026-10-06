@@ -8,6 +8,13 @@ import type { AgentRef } from '@/shared/bindings/AgentRef'
  */
 export const SHARED_OWNER_ID = 'shared'
 
+/**
+ * The shared surface as an owner reference, for pickers that offer "shared" next to the real
+ * agents (the creation forms). The name is a placeholder: it is always shown through
+ * `library.shared`, translated.
+ */
+export const SHARED_OWNER: AgentRef = { id: SHARED_OWNER_ID, name: 'Shared', icon: null }
+
 /** `true` when the owner is the agent-neutral shared surface rather than one real agent. */
 export function isSharedOwner(id: string): boolean {
   return id === SHARED_OWNER_ID

@@ -57,6 +57,7 @@ path = { windows = "${USERPROFILE}/.continue/config.ts", macos = "${HOME}/.conti
 [mcp]
 format = "yaml"
 key_path = ["mcpServers"]
+entry_shape = "list"
 description = "MCP servers declared in the user config.yaml under 'mcpServers' (a list of named servers)."
 shared_with_config = true
 # SOURCE: https://docs.continue.dev/reference (checked 2026-10-05)

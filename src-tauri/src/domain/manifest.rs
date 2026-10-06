@@ -245,6 +245,28 @@ pub struct SkillSpec {
     pub description: Option<String>,
 }
 
+/// The shape of one entry in an agent's MCP config.
+///
+/// Ahabby reads every family of shapes it knows (`adapters::mcp_parse`), but *writing* needs to
+/// know which one an agent expects — a wrong shape is a config the agent rejects, not a server
+/// it ignores. Only the agents that differ from the shared convention declare this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub enum McpEntryShape {
+    /// `{ "command": "npx", "args": [...], "env": {...} }`, or `{ "type": "http", "url": ..., "headers": {...} }`
+    /// for a remote server — what most agents use (Claude Code, Cursor, Cline, Zed, …).
+    #[default]
+    Command,
+    /// opencode: `{ "type": "local", "command": ["npx", ...], "environment": {...} }`, or
+    /// `{ "type": "remote", "url": ..., "headers": ... }`.
+    Local,
+    /// The agent keeps its servers in a list (`goose`'s `extensions`, Continue's `mcpServers`,
+    /// gptme's `[[mcp.servers]]`). Ahabby reads those entries but never adds one: writing the
+    /// list's own grammar is not something a manifest can describe.
+    List,
+}
+
 /// Where an agent keeps its MCP servers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -260,6 +282,9 @@ pub struct McpSpec {
     /// e.g. `["mcpServers"]` or `["mcp_servers"]`.
     #[serde(alias = "key_path")]
     pub key_path: Vec<String>,
+    /// Shape of one entry, for the agents that differ from the shared convention.
+    #[serde(default, alias = "entry_shape")]
+    pub entry_shape: McpEntryShape,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// `true` when the document is also listed as a config file (common case).

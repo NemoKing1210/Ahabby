@@ -66,6 +66,7 @@ path = { windows = "${USERPROFILE}/.agents/skills", macos = "${HOME}/.agents/ski
 [mcp]
 format = "yaml"
 key_path = ["extensions"]
+entry_shape = "list"
 shared_with_config = true
 description = "MCP servers are the `extensions` list of config.yaml."
 path = { windows = "${APPDATA}/Block/goose/config/config.yaml", macos = "${HOME}/.config/goose/config.yaml", linux = "${HOME}/.config/goose/config.yaml" }

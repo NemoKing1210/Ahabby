@@ -4,6 +4,7 @@ import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
 import type { Library } from '@/shared/bindings/Library'
 import type { McpServer } from '@/shared/bindings/McpServer'
+import type { McpServerDraft } from '@/shared/bindings/McpServerDraft'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
 
 /** The switch of one server, flipped. */
@@ -22,6 +23,24 @@ function reportWithServer(report: ScanReport, serverId: string, enabled: boolean
     })),
     shared: { ...report.shared, mcpServers: servers(report.shared.mcpServers) },
   }
+}
+
+/**
+ * Adds a server to the MCP config file of the owner — a scanned agent or the shared surface.
+ *
+ * The entry is written in the standard shape (`command`/`args`/`env` or `type: http` with
+ * `url`/`headers`), so it is a normal, switchable server on the next scan.
+ */
+export function useCreateMcpServer() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { agentId: string; draft: McpServerDraft }) =>
+      ipc.createMcpServer(vars.agentId, vars.draft),
+    onSuccess: (result) => {
+      client.setQueryData(queryKeys.agents(), result.report)
+      void client.invalidateQueries({ queryKey: queryKeys.library() })
+    },
+  })
 }
 
 export function useDeleteMcpServer() {

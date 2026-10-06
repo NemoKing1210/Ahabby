@@ -65,6 +65,7 @@ path = { windows = "${USERPROFILE}/.config/gptme/skills", macos = "${HOME}/.conf
 [mcp]
 format = "toml"
 key_path = ["mcp", "servers"]
+entry_shape = "list"
 shared_with_config = true
 description = "Servers are declared as [[mcp.servers]] entries in config.toml."
 path = { windows = "${USERPROFILE}/.config/gptme/config.toml", macos = "${HOME}/.config/gptme/config.toml", linux = "${HOME}/.config/gptme/config.toml" }

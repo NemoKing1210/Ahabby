@@ -19,6 +19,7 @@ import type { InstallPlan } from '@/shared/bindings/InstallPlan'
 import type { Library } from '@/shared/bindings/Library'
 import type { McpRemoval } from '@/shared/bindings/McpRemoval'
 import type { McpServer } from '@/shared/bindings/McpServer'
+import type { McpServerDraft } from '@/shared/bindings/McpServerDraft'
 import type { McpToggle } from '@/shared/bindings/McpToggle'
 import type { MutationResult } from '@/shared/bindings/MutationResult'
 import type { PackageManagerInfo } from '@/shared/bindings/PackageManagerInfo'
@@ -27,6 +28,7 @@ import type { SaveResult } from '@/shared/bindings/SaveResult'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { Settings } from '@/shared/bindings/Settings'
 import type { Skill } from '@/shared/bindings/Skill'
+import type { SkillDraft } from '@/shared/bindings/SkillDraft'
 import type { SkillRemoval } from '@/shared/bindings/SkillRemoval'
 import type { SkillToggle } from '@/shared/bindings/SkillToggle'
 import type { TerminalCatalog } from '@/shared/bindings/TerminalCatalog'
@@ -68,6 +70,8 @@ export const ipc = {
   // --- library ------------------------------------------------------------------------
   listLibrary: () => invoke<Library>('list_library'),
   listAgentSkills: (agentId: string) => invoke<Skill[]>('list_agent_skills', { agentId }),
+  createSkill: (agentId: string, draft: SkillDraft) =>
+    invoke<MutationResult<Skill>>('create_skill', { agentId, draft }),
   deleteSkill: (agentId: string, skillId: string, confirm: boolean) =>
     invoke<MutationResult<SkillRemoval>>('delete_skill', { agentId, skillId, confirm }),
   setSkillEnabled: (agentId: string, skillId: string, enabled: boolean) =>
@@ -76,6 +80,8 @@ export const ipc = {
   // --- mcp ----------------------------------------------------------------------------
   listAgentMcpServers: (agentId: string) =>
     invoke<McpServer[]>('list_agent_mcp_servers', { agentId }),
+  createMcpServer: (agentId: string, draft: McpServerDraft) =>
+    invoke<MutationResult<McpServer>>('create_mcp_server', { agentId, draft }),
   deleteMcpServer: (agentId: string, serverId: string, confirm: boolean) =>
     invoke<MutationResult<McpRemoval>>('delete_mcp_server', { agentId, serverId, confirm }),
   setMcpServerEnabled: (agentId: string, serverId: string, enabled: boolean) =>

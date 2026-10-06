@@ -182,10 +182,19 @@ export function AgentPage() {
           <ConfigsTab agentId={agent.id} configs={agent.configs} />
         </TabsContent>
         <TabsContent value="skills">
-          <SkillsTab agentId={agent.id} skills={agent.skills} />
+          <SkillsTab
+            agentId={agent.id}
+            skills={agent.skills}
+            owner={installed ? { id: agent.id, name: agent.name, icon: agent.icon } : null}
+          />
         </TabsContent>
         <TabsContent value="mcp">
-          <McpTab agentId={agent.id} servers={agent.mcpServers} configs={agent.configs} />
+          <McpTab
+            agentId={agent.id}
+            servers={agent.mcpServers}
+            configs={agent.configs}
+            owner={installed ? { id: agent.id, name: agent.name, icon: agent.icon } : null}
+          />
         </TabsContent>
         <TabsContent value="other">
           <OtherTab resources={agent.other} />

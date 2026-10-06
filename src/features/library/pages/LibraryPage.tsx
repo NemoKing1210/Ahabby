@@ -1,13 +1,13 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Boxes, Plug, RefreshCw, Server, Sparkles, type LucideIcon } from 'lucide-react'
+import { Boxes, Plug, Plus, RefreshCw, Server, Sparkles, type LucideIcon } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { Skill } from '@/shared/bindings/Skill'
 import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
 import { formatRelative } from '@/shared/lib/format'
-import { isSharedOwner, ownerName } from '@/shared/lib/owners'
+import { isSharedOwner, ownerName, SHARED_OWNER } from '@/shared/lib/owners'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
@@ -20,13 +20,17 @@ import { SkeletonList } from '@/shared/ui/Primitives'
 import { SectionHeader } from '@/shared/ui/SectionHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 import { toast, toastAppError } from '@/shared/ui/Toast'
+import { anyAgentOption, ownerOption } from '@/shared/ui/agentOptions'
 
 import { useScanRefresh } from '@/features/agents/api/scan'
+import { useAgents } from '@/features/agents/api/queries'
 import { OTHER_KIND_ORDER, OtherTab } from '@/features/agents/components/OtherTab'
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { useDeleteMcpServer, useSetMcpServerEnabled } from '@/features/mcp/api/hooks'
+import { CreateMcpServerDialog } from '@/features/mcp/components/CreateMcpServerDialog'
 import { McpCard } from '@/features/mcp/components/McpCard'
 import { useDeleteSkill, useSetSkillEnabled } from '@/features/skills/api/hooks'
+import { CreateSkillDialog } from '@/features/skills/components/CreateSkillDialog'
 import { SkillCard } from '@/features/skills/components/SkillCard'
 import { SkillDetailDialog } from '@/features/skills/components/SkillDetailDialog'
 
@@ -154,6 +158,7 @@ function LibrarySections<T extends { id: string }>({
 export function LibraryPage() {
   const { t, i18n } = useTranslation()
   const { data, isLoading, error, refetch } = useLibrary()
+  const agents = useAgents()
   const rescan = useScanRefresh()
   const removeSkill = useDeleteSkill()
   const removeServer = useDeleteMcpServer()
@@ -172,6 +177,21 @@ export function LibraryPage() {
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteSkillTarget, setDeleteSkillTarget] = useState<Skill | null>(null)
   const [deleteServerTarget, setDeleteServerTarget] = useState<McpTarget | null>(null)
+  // Which creation form is open; the owner is chosen inside it.
+  const [createTarget, setCreateTarget] = useState<LibraryTab | null>(null)
+
+  // Owners a new skill or server can belong to: the agent-neutral shared surface first (the
+  // general case, and the default), then every installed agent. A resource written for an
+  // agent that is not installed would not be scanned, so those are left out.
+  const owners = useMemo<AgentRef[]>(
+    () => [
+      SHARED_OWNER,
+      ...(agents.data?.agents ?? [])
+        .filter((agent) => agent.status === 'installed')
+        .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
+    ],
+    [agents.data],
+  )
 
   const toggleSkill = (skill: Skill, enabled: boolean) => {
     const owner = skill.agents[0]
@@ -327,13 +347,13 @@ export function LibraryPage() {
   for (const server of data.mcpServers) countAgent(server.agent)
   for (const resource of data.other) countAgent(resource.agent)
   const agentOptions = [
-    { value: 'all', label: t('common.all') },
+    anyAgentOption(
+      t('common.all'),
+      String(data.skills.length + data.mcpServers.length + data.other.length),
+    ),
     ...[...agentRefs.values()]
       .sort((a, b) => ownerName(a, sharedLabel).localeCompare(ownerName(b, sharedLabel)))
-      .map((agent) => ({
-        value: agent.id,
-        label: `${ownerName(agent, sharedLabel)} (${agentCounts.get(agent.id) ?? 0})`,
-      })),
+      .map((agent) => ownerOption(agent, sharedLabel, String(agentCounts.get(agent.id) ?? 0))),
   ]
 
   const dirty =
@@ -359,7 +379,7 @@ export function LibraryPage() {
    * What an empty tab says: a search that found nothing, filters that dead-ended, or a
    * category that is genuinely empty on this machine.
    */
-  const emptyTab = (title: string, hint: string, icon?: LucideIcon) => {
+  const emptyTab = (title: string, hint: string, icon?: LucideIcon, action?: ReactNode) => {
     if (trimmed.length > 0) {
       return (
         <EmptyState
@@ -371,7 +391,7 @@ export function LibraryPage() {
     }
     if (dirty)
       return <EmptyState title={t('library.filteredEmpty')} action={clearAction} icon={icon} />
-    return <EmptyState title={title} hint={hint} icon={icon} />
+    return <EmptyState title={title} hint={hint} icon={icon} action={action} />
   }
 
   const renderSkillSections = (groups: LibraryGroup<Skill>[]) => (
@@ -419,6 +439,15 @@ export function LibraryPage() {
 
   const scanned = formatRelative(data.scannedAtMs, i18n.language)
   const editOwner = editTarget?.agents[0]
+
+  // The button above the list follows the active tab: the library has one creation form per
+  // resource kind, and "Other" documents are not creatable.
+  const createAction = (target: 'skills' | 'mcp') => (
+    <Button variant="secondary" size="sm" onClick={() => setCreateTarget(target)}>
+      <Plus className="size-3.5" aria-hidden />
+      {target === 'skills' ? t('skills.create') : t('mcp.create')}
+    </Button>
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -479,30 +508,38 @@ export function LibraryPage() {
       />
 
       <Tabs value={tab} onValueChange={switchTab} className="flex flex-col">
-        <TabsList>
-          <TabsTrigger value="skills">
-            {t('library.tabs.skills')}
-            {skillBadge > 0 ? <span className="text-faint ml-1.5">{skillBadge}</span> : null}
-          </TabsTrigger>
-          <TabsTrigger value="mcp">
-            {t('library.tabs.mcp')}
-            {serverBadge > 0 ? <span className="text-faint ml-1.5">{serverBadge}</span> : null}
-          </TabsTrigger>
-          <TabsTrigger value="other">
-            {t('library.tabs.other')}
-            {otherBadge > 0 ? <span className="text-faint ml-1.5">{otherBadge}</span> : null}
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabsList>
+            <TabsTrigger value="skills">
+              {t('library.tabs.skills')}
+              {skillBadge > 0 ? <span className="text-faint ml-1.5">{skillBadge}</span> : null}
+            </TabsTrigger>
+            <TabsTrigger value="mcp">
+              {t('library.tabs.mcp')}
+              {serverBadge > 0 ? <span className="text-faint ml-1.5">{serverBadge}</span> : null}
+            </TabsTrigger>
+            <TabsTrigger value="other">
+              {t('library.tabs.other')}
+              {otherBadge > 0 ? <span className="text-faint ml-1.5">{otherBadge}</span> : null}
+            </TabsTrigger>
+          </TabsList>
+          {tab === 'other' ? null : createAction(tab)}
+        </div>
 
         <TabsContent value="skills">
           {skills.length === 0
-            ? emptyTab(t('library.empty'), t('library.emptyHint'), Sparkles)
+            ? emptyTab(
+                t('library.empty'),
+                t('library.emptyHintCreate'),
+                Sparkles,
+                createAction('skills'),
+              )
             : renderSkillSections(sortGroups(groupSkills(skills, groupMode), sort, skillFields))}
         </TabsContent>
 
         <TabsContent value="mcp">
           {servers.length === 0
-            ? emptyTab(t('mcp.none'), t('mcp.noneHint'), Plug)
+            ? emptyTab(t('mcp.none'), t('mcp.noneHintCreate'), Plug, createAction('mcp'))
             : renderServerSections(
                 sortGroups(groupServers(servers, groupMode), sort, serverFields),
               )}
@@ -606,6 +643,14 @@ export function LibraryPage() {
           })
         }}
       />
+
+      {createTarget === 'skills' ? (
+        <CreateSkillDialog owners={owners} onClose={() => setCreateTarget(null)} />
+      ) : null}
+
+      {createTarget === 'mcp' ? (
+        <CreateMcpServerDialog owners={owners} onClose={() => setCreateTarget(null)} />
+      ) : null}
     </div>
   )
 }

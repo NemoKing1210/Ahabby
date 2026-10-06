@@ -5,6 +5,7 @@ import { queryKeys } from '@/shared/api/keys'
 import type { Library } from '@/shared/bindings/Library'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { Skill } from '@/shared/bindings/Skill'
+import type { SkillDraft } from '@/shared/bindings/SkillDraft'
 
 /** The switch of one skill, flipped. */
 function flipped(skill: Skill, skillId: string, enabled: boolean): Skill {
@@ -19,6 +20,24 @@ function reportWithSkill(report: ScanReport, skillId: string, enabled: boolean):
     agents: report.agents.map((agent) => ({ ...agent, skills: skills(agent.skills) })),
     shared: { ...report.shared, skills: skills(report.shared.skills) },
   }
+}
+
+/**
+ * Creates a skill of the user's own under the owner's skills directory.
+ *
+ * `agentId` is a scanned agent or the shared surface. The mutation answers with the whole
+ * fresh report, so the new card is on screen as soon as the write lands.
+ */
+export function useCreateSkill() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { agentId: string; draft: SkillDraft }) =>
+      ipc.createSkill(vars.agentId, vars.draft),
+    onSuccess: (result) => {
+      client.setQueryData(queryKeys.agents(), result.report)
+      void client.invalidateQueries({ queryKey: queryKeys.library() })
+    },
+  })
 }
 
 /**

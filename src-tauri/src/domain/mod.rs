@@ -30,16 +30,16 @@ pub use fact::{ConfigFact, FactKind};
 pub use library::{Library, LibraryStats};
 pub use manifest::{
     AgentManifest, BinarySpec, ConfigSpec, InstallMethodSpec, Manager, ManifestProblem,
-    ManifestSource, McpSpec, OsPathMap, OtherKind, OtherSpec, SearchPathSpec, Severity,
-    SkillFormat, SkillSpec, VersionExtract,
+    ManifestSource, McpEntryShape, McpSpec, OsPathMap, OtherKind, OtherSpec, SearchPathSpec,
+    Severity, SkillFormat, SkillSpec, VersionExtract,
 };
-pub use mcp::{EnvVar, McpServer, McpTransport};
+pub use mcp::{EnvVar, McpDraftTransport, McpKeyValue, McpServer, McpServerDraft, McpTransport};
 pub use os::Os;
 pub use proxy::{Proxy, ProxyMode};
 pub use resource::OtherResource;
 pub use scope::Scope;
 pub use shared::{SharedResources, SHARED_OWNER_ID};
-pub use skill::{FrontmatterEntry, Skill};
+pub use skill::{FrontmatterEntry, Skill, SkillDraft};
 pub use terminal::{
     TerminalCapability, TerminalCatalog, TerminalExit, TerminalKind, TerminalOption,
     TerminalOutput, TerminalSession,

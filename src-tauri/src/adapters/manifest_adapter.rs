@@ -8,8 +8,9 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 
 use crate::domain::{
-    AgentManifest, ConfigFile, ConfigSpec, Detection, InstallAction, InstallPlan, Manager,
-    McpServer, McpSpec, OtherResource, OtherSpec, Scope, Skill, SkillFormat, Version,
+    AgentManifest, ConfigFile, ConfigFormat, ConfigSpec, Detection, InstallAction, InstallPlan,
+    Manager, McpEntryShape, McpServer, McpServerDraft, McpSpec, OtherResource, OtherSpec, Scope,
+    Skill, SkillDraft, SkillFormat, Version,
 };
 use crate::error::{AppError, Result};
 use crate::platform::{self, PlatformContext};
@@ -104,6 +105,51 @@ fn mcp_entries(map: &serde_json::Value) -> Vec<(String, &serde_json::Value)> {
 
 pub struct ManifestAdapter {
     manifest: AgentManifest,
+}
+
+/// Directory name a new skill is stored under: derived from the display name, keeping letters
+/// and digits and turning every run of anything else into a single `-`.
+fn skill_slug(name: &str) -> String {
+    let mut slug = String::new();
+    let mut separator = false;
+    for character in name.chars() {
+        if character.is_alphanumeric() {
+            slug.extend(character.to_lowercase());
+            separator = false;
+        } else if !separator {
+            slug.push('-');
+            separator = true;
+        }
+    }
+    slug.trim_matches('-').to_string()
+}
+
+/// The `SKILL.md` a new skill is written as: YAML frontmatter, then the markdown body.
+fn render_skill(name: &str, description: Option<&str>, body: Option<&str>) -> String {
+    // `name` first: that is the order every `SKILL.md` in the wild uses, and serde_yaml only
+    // keeps field order for a struct — a map would be alphabetical.
+    let mut frontmatter = format!("name: {}\n", yaml_scalar(name));
+    if let Some(description) = description.map(str::trim).filter(|text| !text.is_empty()) {
+        frontmatter.push_str(&format!("description: {}\n", yaml_scalar(description)));
+    }
+    let body = body.unwrap_or("").trim();
+    format!("---\n{frontmatter}---\n\n{body}\n")
+}
+
+/// One YAML scalar, quoted when the text needs it (`a: b` must not become a mapping).
+fn yaml_scalar(value: &str) -> String {
+    serde_yaml::to_string(value)
+        .unwrap_or_else(|_| format!("{value:?}"))
+        .trim_end()
+        .to_string()
+}
+
+/// The content a config file starts with when Ahabby creates it to hold its first entry.
+fn empty_document(format: ConfigFormat) -> &'static str {
+    match format {
+        ConfigFormat::Json | ConfigFormat::Jsonc | ConfigFormat::Yaml => "{\n}\n",
+        ConfigFormat::Toml | ConfigFormat::Markdown | ConfigFormat::Text => "",
+    }
 }
 
 /// Files an MCP spec applies to: one path, or every file matching its glob.
@@ -426,6 +472,53 @@ impl ManifestAdapter {
         Ok(servers)
     }
 
+    /// The skills directory a new skill is written into, plus the format to read it back with.
+    ///
+    /// Refuses the agents that keep their instructions in a single markdown file: there is no
+    /// directory to create a skill in, and overwriting that file is not a skill creation.
+    fn writable_skills_root(&self, ctx: &PlatformContext) -> Result<(PathBuf, SkillFormat)> {
+        let spec = self.manifest.skills.as_ref().ok_or_else(|| {
+            AppError::NotSupported(format!(
+                "{} does not declare a skills directory",
+                self.manifest.name
+            ))
+        })?;
+        if matches!(spec.format, SkillFormat::MarkdownFile) {
+            return Err(AppError::NotSupported(format!(
+                "{} keeps its instructions in a single file, which cannot hold a new skill",
+                self.manifest.name
+            )));
+        }
+        let root = ctx.expand_map(&spec.path).ok_or_else(|| {
+            AppError::NotSupported(
+                "the skills directory of this agent does not resolve on this system".to_string(),
+            )
+        })?;
+        Ok((root, spec.format))
+    }
+
+    /// The config file a new server is written into: the file the spec already resolves to, or
+    /// the declared path when it does not exist yet.
+    ///
+    /// A glob spec with no match cannot be created from nothing — Ahabby would have to guess
+    /// the file name — so it is refused instead.
+    fn mcp_target_file(&self, ctx: &PlatformContext, spec: &McpSpec) -> Result<PathBuf> {
+        if let Some(path) = mcp_files(ctx, spec).into_iter().next() {
+            return Ok(path);
+        }
+        if spec.glob.is_some() {
+            return Err(AppError::NotSupported(format!(
+                "{} has no MCP config file yet; create one before adding servers",
+                self.manifest.name
+            )));
+        }
+        ctx.expand_map(&spec.path).ok_or_else(|| {
+            AppError::NotSupported(
+                "the MCP config path of this agent does not resolve on this system".to_string(),
+            )
+        })
+    }
+
     fn other_resource(&self, spec: &OtherSpec, path: PathBuf, label: String) -> OtherResource {
         let metadata = std::fs::metadata(&path).ok();
         let is_directory = metadata.as_ref().is_some_and(std::fs::Metadata::is_dir);
@@ -738,6 +831,128 @@ impl AgentAdapter for ManifestAdapter {
         doc_edit::validate(spec.format, &updated, &server.source_config)?;
         platform::write_atomic(&target, &updated, Some(&ctx.backup_root))?;
         Ok(())
+    }
+
+    /// Write a new skill as `<skills dir>/<slug>/SKILL.md` with YAML frontmatter.
+    ///
+    /// This is the layout every skills-declaring manifest in the catalog reads, so the new
+    /// skill is a first-class one from the moment it appears on disk: switchable, editable and
+    /// deletable like any scanned skill.
+    async fn create_skill(&self, ctx: &PlatformContext, draft: &SkillDraft) -> Result<Skill> {
+        let (root, format) = self.writable_skills_root(ctx)?;
+        let name = draft.name.trim();
+        if name.is_empty() {
+            return Err(AppError::InvalidInput("a skill needs a name".to_string()));
+        }
+        let slug = skill_slug(name);
+        if slug.is_empty() {
+            return Err(AppError::InvalidInput(
+                "the skill name must contain at least one letter or digit".to_string(),
+            ));
+        }
+
+        let directory = root.join(slug);
+        if directory.exists() {
+            return Err(AppError::InvalidInput(format!(
+                "{} already exists",
+                directory.display()
+            )));
+        }
+
+        let entry = directory.join("SKILL.md");
+        let content = render_skill(name, draft.description.as_deref(), draft.content.as_deref());
+        platform::write_atomic(&entry, &content, Some(&ctx.backup_root))?;
+
+        let unverified = is_unverified(&self.manifest, "skills.path");
+        self.skill_from_directory(&directory, format, unverified)
+            .ok_or_else(|| {
+                AppError::other("the skill was written but could not be read back".to_string())
+            })
+    }
+
+    /// Add a server to the MCP config file the manifest declares, at the `name -> server`
+    /// position the reader uses.
+    ///
+    /// The missing file and the missing containers are created; an existing file keeps every
+    /// comment and every byte that is not the new entry.
+    async fn create_mcp_server(
+        &self,
+        ctx: &PlatformContext,
+        draft: &McpServerDraft,
+    ) -> Result<McpServer> {
+        let spec = self.manifest.mcp.as_ref().ok_or_else(|| {
+            AppError::NotSupported(format!(
+                "{} does not declare an MCP config file",
+                self.manifest.name
+            ))
+        })?;
+        let name = draft.name.trim();
+        if name.is_empty() {
+            return Err(AppError::InvalidInput("a server needs a name".to_string()));
+        }
+
+        let target = self.mcp_target_file(ctx, spec)?;
+        let source_config = target.to_string_lossy().to_string();
+        let content = if target.is_file() {
+            platform::read_text(&target)?
+        } else {
+            empty_document(spec.format).to_string()
+        };
+
+        // The container has to be a map keyed by name. An agent that keeps its servers in a
+        // list (`goose`'s `extensions`, Continue's `mcpServers`, gptme's `[[mcp.servers]]`)
+        // declares that shape in its manifest and is refused here, instead of getting an entry
+        // no agent would read.
+        if matches!(spec.entry_shape, McpEntryShape::List) {
+            return Err(AppError::NotSupported(format!(
+                "{} keeps its MCP servers in a list, which Ahabby can read but not extend",
+                self.manifest.name
+            )));
+        }
+        // Belt and braces: a manifest that forgets to declare a list container would otherwise
+        // have a map written into it.
+        let document = mcp_parse::document_to_value(spec.format, &content)?;
+        if matches!(
+            mcp_parse::value_at(&document, &spec.key_path),
+            Some(serde_json::Value::Array(_))
+        ) {
+            return Err(AppError::NotSupported(format!(
+                "{} stores its MCP servers as a list, which Ahabby cannot add to",
+                self.manifest.name
+            )));
+        }
+        // A name that is already taken — on or off — would silently shadow an existing entry
+        // once the scan reads the file back.
+        let mut containers = vec![spec.key_path.clone()];
+        containers.extend(doc_edit::disabled_container(&spec.key_path));
+        for container in containers {
+            let taken = mcp_parse::value_at(&document, &container)
+                .and_then(serde_json::Value::as_object)
+                .is_some_and(|object| object.contains_key(name));
+            if taken {
+                return Err(AppError::InvalidInput(format!(
+                    "'{name}' is already defined in {source_config}"
+                )));
+            }
+        }
+
+        let mut key_path = spec.key_path.clone();
+        key_path.push(name.to_string());
+        let updated = doc_edit::insert_entry(
+            spec.format,
+            &content,
+            &key_path,
+            &draft.transport.to_entry(spec.entry_shape),
+        )?;
+        doc_edit::validate(spec.format, &updated, &source_config)?;
+        platform::write_atomic(&target, &updated, Some(&ctx.backup_root))?;
+
+        self.read_mcp_file(spec, &target)?
+            .into_iter()
+            .find(|server| server.name == name)
+            .ok_or_else(|| {
+                AppError::other("the server was written but could not be read back".to_string())
+            })
     }
 
     async fn install_plan(

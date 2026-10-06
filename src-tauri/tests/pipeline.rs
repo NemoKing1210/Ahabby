@@ -10,7 +10,10 @@ use std::path::{Path, PathBuf};
 
 use ahabby_lib::adapters::doc_edit;
 use ahabby_lib::catalog;
-use ahabby_lib::domain::{AgentStatus, ConfigFormat, InstallAction, Manager, Os, Severity};
+use ahabby_lib::domain::{
+    AgentStatus, ConfigFormat, InstallAction, Manager, McpDraftTransport, McpKeyValue,
+    McpServerDraft, Os, Severity, SkillDraft,
+};
 use ahabby_lib::platform::PlatformContext;
 use ahabby_lib::services::{self, aggregate, Scanner};
 use ahabby_lib::state::resolve_document;
@@ -721,6 +724,371 @@ async fn switching_an_mcp_server_off_in_jsonc_keeps_every_comment() {
         .find(|server| server.name == "linear")
         .unwrap();
     assert!(linear.enabled, "the entry is readable where it was before");
+}
+
+/// A new skill is written as `<skills dir>/<slug>/SKILL.md`, so it is switched on by default
+/// and behaves like any scanned skill from the next scan on.
+#[tokio::test]
+async fn creating_a_skill_writes_a_ready_skill_md() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+
+    let skill = adapter
+        .create_skill(
+            &context,
+            &SkillDraft {
+                name: "Release Notes".into(),
+                description: Some("Summarise a release".into()),
+                content: Some("# Release Notes\n\nRead the git log.".into()),
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(skill.name, "Release Notes");
+    assert!(skill.enabled);
+    assert!(skill.removable);
+    let entry = fixture
+        .home
+        .join(".pipeline")
+        .join("skills")
+        .join("release-notes")
+        .join("SKILL.md");
+    assert_eq!(
+        skill.entry_path.as_deref(),
+        Some(entry.to_string_lossy().as_ref())
+    );
+    let text = fs::read_to_string(&entry).unwrap();
+    assert!(text.starts_with("---\nname: Release Notes\ndescription: Summarise a release\n---\n"));
+    assert!(text.contains("Read the git log."));
+
+    // It is a first-class skill of the scan immediately: switched on, editable, deletable.
+    let scanned = adapter.list_skills(&context).await.unwrap();
+    let created = scanned
+        .iter()
+        .find(|candidate| candidate.name == "Release Notes")
+        .expect("the new skill is scanned");
+    assert!(created.enabled);
+    assert!(created.removable);
+
+    // The same name again is refused instead of overwriting the user's work.
+    let error = adapter
+        .create_skill(
+            &context,
+            &SkillDraft {
+                name: "release notes".into(),
+                description: None,
+                content: None,
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "invalid_input");
+
+    // A name with nothing usable in it has no directory to create.
+    let error = adapter
+        .create_skill(
+            &context,
+            &SkillDraft {
+                name: "   ".into(),
+                description: None,
+                content: None,
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "invalid_input");
+}
+
+/// An agent whose skills are a single markdown file has no directory to add a skill to.
+#[tokio::test]
+async fn creating_a_skill_is_refused_for_a_single_file_agent() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+
+    let single_file = MANIFEST.replace("format = \"skillMd\"", "format = \"markdownFile\"");
+    let adapter = ahabby_lib::adapters::registry::create(
+        toml_edit::de::from_str(&single_file).expect("markdownFile variant of the fixture"),
+    );
+    let context = fixture.context();
+
+    let error = adapter
+        .create_skill(
+            &context,
+            &SkillDraft {
+                name: "anything".into(),
+                description: None,
+                content: None,
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "not_supported");
+}
+
+/// Adding a server keeps every other byte of the config, and the new entry is immediately a
+/// normal, switchable one.
+#[tokio::test]
+async fn creating_an_mcp_server_keeps_the_rest_of_the_config() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+    let path = fixture.settings_json();
+
+    let server = adapter
+        .create_mcp_server(
+            &context,
+            &McpServerDraft {
+                name: "sentry".into(),
+                transport: McpDraftTransport::Stdio {
+                    command: "npx".into(),
+                    args: vec!["-y".into(), "@sentry/mcp".into()],
+                    env: vec![McpKeyValue {
+                        key: "SENTRY_TOKEN".into(),
+                        value: "sntrys_do_not_leak_me".into(),
+                    }],
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(server.name, "sentry");
+    assert!(server.enabled);
+    assert!(server.removable);
+    assert_eq!(server.transport.label(), "stdio");
+    assert!(server.has_secrets);
+    assert_eq!(server.env[0].value, None, "the scan still masks secrets");
+    assert!(!server.raw.contains("sntrys_do_not_leak_me"));
+
+    let updated = fs::read_to_string(&path).unwrap();
+    doc_edit::validate(ConfigFormat::Json, &updated, "test").unwrap();
+    assert!(updated.contains("\"sentry\""));
+    assert!(updated.contains("\"github\""), "other servers survive");
+    assert!(updated.contains("\"linear\""), "other servers survive");
+    assert!(
+        updated.contains("\"theme\": \"dark\""),
+        "unrelated keys survive"
+    );
+    assert_eq!(
+        services::list_backups(&context.backup_root, &path)
+            .unwrap()
+            .len(),
+        1,
+        "the write is backed up"
+    );
+
+    // A name that is already taken — on or off — is refused, never shadowed.
+    let taken = || McpServerDraft {
+        name: "github".into(),
+        transport: McpDraftTransport::Stdio {
+            command: "npx".into(),
+            args: Vec::new(),
+            env: Vec::new(),
+        },
+    };
+    let error = adapter
+        .create_mcp_server(&context, &taken())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "invalid_input");
+
+    let servers = adapter.list_mcp_servers(&context).await.unwrap();
+    let created = servers
+        .iter()
+        .find(|candidate| candidate.name == "sentry")
+        .unwrap()
+        .clone();
+    adapter
+        .set_mcp_server_enabled(&context, &created, false)
+        .await
+        .unwrap();
+    let error = adapter
+        .create_mcp_server(&context, &taken())
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.code(),
+        "invalid_input",
+        "a disabled name is taken too"
+    );
+}
+
+/// The first server of an agent whose config file does not exist yet creates that file.
+#[tokio::test]
+async fn creating_an_mcp_server_creates_a_missing_config_file() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+    let path = fixture.settings_json();
+    assert!(!path.exists());
+
+    let server = adapter
+        .create_mcp_server(
+            &context,
+            &McpServerDraft {
+                name: "linear".into(),
+                transport: McpDraftTransport::Http {
+                    url: "https://mcp.linear.app/mcp".into(),
+                    headers: vec![McpKeyValue {
+                        key: "Authorization".into(),
+                        value: "Bearer token".into(),
+                    }],
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(server.transport.label(), "http");
+    assert_eq!(server.source_config, path.to_string_lossy());
+    let updated = fs::read_to_string(&path).unwrap();
+    doc_edit::validate(ConfigFormat::Json, &updated, "test").unwrap();
+    assert_eq!(adapter.list_mcp_servers(&context).await.unwrap().len(), 1);
+}
+
+/// An agent that keeps its servers in a list cannot be extended by writing a map: Ahabby says
+/// so instead of writing an entry the agent would never read.
+#[tokio::test]
+async fn creating_an_mcp_server_in_a_list_container_is_refused() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+
+    let agent_dir = fixture.home.join(".pipeline");
+    fs::create_dir_all(&agent_dir).unwrap();
+    fs::write(
+        fixture.settings_json(),
+        r#"{
+  "mcpServers": [
+    { "name": "linear", "url": "https://mcp.linear.app/sse", "type": "sse" }
+  ]
+}
+"#,
+    )
+    .unwrap();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+
+    let error = adapter
+        .create_mcp_server(
+            &context,
+            &McpServerDraft {
+                name: "github".into(),
+                transport: McpDraftTransport::Stdio {
+                    command: "npx".into(),
+                    args: Vec::new(),
+                    env: Vec::new(),
+                },
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "not_supported");
+}
+
+/// A manifest that declares its own entry shape gets exactly that shape.
+#[tokio::test]
+async fn creating_an_mcp_server_follows_the_declared_entry_shape() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+
+    let local = MANIFEST.replace(
+        "key_path = [\"mcpServers\"]",
+        "key_path = [\"mcpServers\"]\nentry_shape = \"local\"",
+    );
+    let adapter = ahabby_lib::adapters::registry::create(
+        toml_edit::de::from_str(&local).expect("local-shape variant of the fixture"),
+    );
+    let context = fixture.context();
+
+    let server = adapter
+        .create_mcp_server(
+            &context,
+            &McpServerDraft {
+                name: "everything".into(),
+                transport: McpDraftTransport::Stdio {
+                    command: "npx".into(),
+                    args: vec!["-y".into(), "server-everything".into()],
+                    env: vec![McpKeyValue {
+                        key: "TOKEN".into(),
+                        value: "x".into(),
+                    }],
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+    // opencode wants one command array and `environment`, and the reader normalises it back.
+    let value: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(fixture.settings_json()).unwrap()).unwrap();
+    let entry = &value["mcpServers"]["everything"];
+    assert_eq!(entry["type"], "local");
+    assert_eq!(entry["command"][0], "npx");
+    assert_eq!(entry["command"][2], "server-everything");
+    assert_eq!(entry["environment"]["TOKEN"], "x");
+    assert!(entry.get("args").is_none());
+    assert_eq!(server.transport.label(), "stdio");
+}
+
+/// An agent whose servers live in a list is refused outright — even before its config file
+/// exists, where the shape of the container cannot be read from disk.
+#[tokio::test]
+async fn creating_an_mcp_server_is_refused_for_a_declared_list() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+
+    let list = MANIFEST.replace(
+        "key_path = [\"mcpServers\"]",
+        "key_path = [\"mcpServers\"]\nentry_shape = \"list\"",
+    );
+    let adapter = ahabby_lib::adapters::registry::create(
+        toml_edit::de::from_str(&list).expect("list-shape variant of the fixture"),
+    );
+    let context = fixture.context();
+    assert!(!fixture.settings_json().exists());
+
+    let error = adapter
+        .create_mcp_server(
+            &context,
+            &McpServerDraft {
+                name: "github".into(),
+                transport: McpDraftTransport::Stdio {
+                    command: "npx".into(),
+                    args: Vec::new(),
+                    env: Vec::new(),
+                },
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "not_supported");
+    assert!(!fixture.settings_json().exists(), "nothing was written");
 }
 
 #[tokio::test]

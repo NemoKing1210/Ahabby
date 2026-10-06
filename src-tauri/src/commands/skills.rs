@@ -2,7 +2,7 @@
 
 use tauri::State;
 
-use crate::domain::{Library, Skill};
+use crate::domain::{Library, Skill, SkillDraft};
 use crate::error::Result;
 use crate::services;
 use crate::state::AppState;
@@ -23,6 +23,25 @@ pub async fn list_library(state: State<'_, AppState>) -> Result<Library> {
 #[tauri::command]
 pub async fn list_agent_skills(state: State<'_, AppState>, agent_id: String) -> Result<Vec<Skill>> {
     Ok(state.agent(&agent_id)?.skills)
+}
+
+/// Create a skill of the user's own under the skills directory the manifest declares.
+///
+/// `agent_id` is any owner the scan knows: a real agent id or the reserved shared surface.
+/// The skill is written as `<skills dir>/<slug>/SKILL.md`, so it is switched on by default and
+/// behaves like any scanned skill from the next scan on.
+#[tauri::command]
+pub async fn create_skill(
+    state: State<'_, AppState>,
+    agent_id: String,
+    draft: SkillDraft,
+) -> Result<MutationResult<Skill>> {
+    let adapter = state.adapter(&agent_id)?;
+    let context = state.platform_context();
+    let skill = adapter.create_skill(&context, &draft).await?;
+
+    let report = state.scan().await;
+    Ok(MutationResult::new(skill, report))
 }
 
 /// Delete a skill by moving its directory to the OS trash.

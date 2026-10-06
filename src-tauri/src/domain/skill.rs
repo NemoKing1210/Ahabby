@@ -66,6 +66,25 @@ impl Skill {
     }
 }
 
+/// What the frontend sends to create a skill of its own.
+///
+/// Ahabby writes the `SKILL.md` convention (`<skills dir>/<slug>/SKILL.md` with YAML
+/// frontmatter), which is what every skills-declaring manifest in the catalog uses. The
+/// directory is derived from `name`, so the name is the only required field.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct SkillDraft {
+    /// Human-readable name; also the `name` of the frontmatter.
+    pub name: String,
+    /// One-line summary the agents show next to the skill.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Markdown body, frontmatter excluded. `None` writes the frontmatter alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
 /// Short, stable, collision-resistant-enough hash used in ids.
 pub fn short_hash(value: &str) -> String {
     use sha2::{Digest, Sha256};

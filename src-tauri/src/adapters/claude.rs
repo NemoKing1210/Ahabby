@@ -48,6 +48,7 @@ impl ClaudeAdapter {
             },
             glob: None,
             key_path: vec!["mcpServers".to_string()],
+            entry_shape: crate::domain::McpEntryShape::Command,
             description: Some(
                 "MCP servers defined in settings.json (read-only: managed by the Claude Code CLI)"
                     .to_string(),
@@ -141,6 +142,24 @@ impl AgentAdapter for ClaudeAdapter {
         self.inner
             .set_mcp_server_enabled(ctx, server, enabled)
             .await
+    }
+
+    async fn create_skill(
+        &self,
+        ctx: &PlatformContext,
+        draft: &crate::domain::SkillDraft,
+    ) -> Result<Skill> {
+        self.inner.create_skill(ctx, draft).await
+    }
+
+    /// New servers go to the declared `~/.claude.json`; the read-only `settings.json` source
+    /// is never written, exactly like removal and the on/off switch.
+    async fn create_mcp_server(
+        &self,
+        ctx: &PlatformContext,
+        draft: &crate::domain::McpServerDraft,
+    ) -> Result<McpServer> {
+        self.inner.create_mcp_server(ctx, draft).await
     }
 
     async fn install_plan(

@@ -170,6 +170,62 @@ pub fn has_member(text: &str, key_path: &[String]) -> bool {
     scanner.member_value_span(key_path).is_some()
 }
 
+/// Insert a new member at `key_path` with `value`, preserving every other byte of the
+/// document and laying the value out like the object around it.
+///
+/// * `Err` — a member already exists at `key_path` (ask with [`has_member`] first to report
+///   that as its own error), or the document cannot be walked.
+/// * `Ok(Some(text))` — the updated document.
+///
+/// Plain JSON is a JSONC document without comments, so both formats share this path.
+pub fn insert_new_member(
+    text: &str,
+    key_path: &[String],
+    value: &serde_json::Value,
+) -> Result<Option<String>, String> {
+    if key_path.is_empty() {
+        return Err("an empty key path cannot hold a member".to_string());
+    }
+    if has_member(text, key_path) {
+        return Err(format!("a member already exists at {}", key_path.join(".")));
+    }
+    let (name, container) = key_path.split_last().expect("checked non-empty");
+    let key = serde_json::to_string(name).map_err(|error| error.to_string())?;
+    let pretty = serde_json::to_string_pretty(value).map_err(|error| error.to_string())?;
+
+    let Some((depth, (open, close))) = deepest_object(text, container) else {
+        return Err("the document has no object that can hold the member".to_string());
+    };
+    if !text[open..close].contains('\n') {
+        return insert_member(text, key_path, &format!("{key}: {}", one_line(&pretty)));
+    }
+
+    // The member's own lines sit one level deeper than the containers that hold it, which is
+    // exactly the indentation `insert_member` gives to the member's first line.
+    let child_indent = format!("{}  ", line_indent(text, close));
+    let key_indent = format!("{child_indent}{}", "  ".repeat(container.len() - depth));
+    let member = format!("{key}: {}", indent_after_first_line(&pretty, &key_indent));
+    insert_member(text, key_path, &member)
+}
+
+/// Collapse pretty-printed JSON onto one line, the way a single-line document is written.
+///
+/// A literal newline inside a string is escaped (`\n`) in the serialized text, so splitting on
+/// newlines can only ever cut between members.
+fn one_line(pretty: &str) -> String {
+    pretty
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Prefix every line but the first with `indent`.
+fn indent_after_first_line(text: &str, indent: &str) -> String {
+    text.replace('\n', &format!("\n{indent}"))
+}
+
 /// Byte range of a member (its key and value) inside the document.
 struct Scanner<'a> {
     text: &'a str,
@@ -1046,5 +1102,111 @@ mod tests {
         assert!(move_member("[1, 2]", &path(&["a"]), &path(&["b", "a"]))
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn inserts_into_an_existing_object_like_the_lines_around_it() {
+        let updated = insert_new_member(
+            CURSOR_LIKE,
+            &path(&["mcpServers", "Linear"]),
+            &serde_json::json!({ "url": "https://mcp.linear.app/mcp" }),
+        )
+        .unwrap()
+        .expect("the container exists");
+
+        assert_eq!(
+            updated,
+            r#"{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {}
+    },
+    "Figma": {
+      "url": "https://mcp.figma.com/mcp",
+      "headers": {}
+    },
+    "Linear": {
+      "url": "https://mcp.linear.app/mcp"
+    }
+    // "chrome-devtools": {
+    //   "command": "npx -y chrome-devtools-mcp@latest"
+    // }
+  },
+  "note": "keep me"
+}
+"#
+        );
+        validate(&updated).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&strip(&updated)).unwrap();
+        assert_eq!(
+            value["mcpServers"]["Linear"]["url"],
+            "https://mcp.linear.app/mcp"
+        );
+        assert_eq!(
+            value["mcpServers"]["Figma"]["url"],
+            "https://mcp.figma.com/mcp"
+        );
+        assert_eq!(value["note"], "keep me");
+    }
+
+    #[test]
+    fn inserts_nested_containers_into_an_empty_document() {
+        let updated = insert_new_member(
+            "{\n}\n",
+            &path(&["mcp", "servers", "github"]),
+            &serde_json::json!({ "command": "npx", "env": { "TOKEN": "x" } }),
+        )
+        .unwrap()
+        .expect("an empty object holds the member");
+
+        validate(&updated).unwrap();
+        assert_eq!(
+            updated,
+            r#"{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "npx",
+        "env": {
+          "TOKEN": "x"
+        }
+      }
+    }
+  }
+}
+"#
+        );
+    }
+
+    #[test]
+    fn inserts_into_a_single_line_document() {
+        let updated = insert_new_member(
+            r#"{ "mcpServers": { "a": 1 } }"#,
+            &path(&["mcpServers", "b"]),
+            &serde_json::json!({ "command": "npx" }),
+        )
+        .unwrap()
+        .expect("the container exists");
+
+        validate(&updated).unwrap();
+        assert_eq!(
+            updated,
+            r#"{ "mcpServers": { "a": 1, "b": { "command": "npx" } } }"#
+        );
+    }
+
+    #[test]
+    fn refuses_to_shadow_an_existing_member() {
+        let error = insert_new_member(
+            CURSOR_LIKE,
+            &path(&["mcpServers", "Figma"]),
+            &serde_json::json!({ "url": "https://example.com" }),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("already exists"),
+            "unexpected message: {error}"
+        );
     }
 }

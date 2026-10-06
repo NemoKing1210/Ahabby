@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plug } from 'lucide-react'
+import { Plug, Plus } from 'lucide-react'
 
+import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { ConfigFile } from '@/shared/bindings/ConfigFile'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
 import { ActivityChips } from '@/shared/ui/ActivityChips'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
+import { Button } from '@/shared/ui/Button'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { toast, toastAppError } from '@/shared/ui/Toast'
@@ -15,6 +17,7 @@ import { DocumentEditorDialog } from '@/features/editor/components/DocumentEdito
 import { configDocument, type EditorDocument } from '@/features/editor/model'
 
 import { useDeleteMcpServer, useSetMcpServerEnabled } from '../api/hooks'
+import { CreateMcpServerDialog } from './CreateMcpServerDialog'
 import { McpCard } from './McpCard'
 
 /**
@@ -23,16 +26,21 @@ import { McpCard } from './McpCard'
  * A server is only ever defined inside a real file, so the card also offers that file in the
  * editor — read-only when the manifest says so (the CLI-owned `settings.json` of Claude Code,
  * for instance). The entry itself still has to be edited as JSON.
+ *
+ * `owner` is present only when the agent can hold a new server (it is installed): the tab then
+ * offers adding one, in the config file the manifest declares.
  */
 export function McpTab({
   agentId,
   servers,
   configs,
+  owner,
 }: {
   agentId: string
   servers: McpServer[]
   /** Config files of the same agent, used to resolve each server's source file. */
   configs: ConfigFile[]
+  owner?: AgentRef | null
 }) {
   const { t } = useTranslation()
   const remove = useDeleteMcpServer()
@@ -40,6 +48,13 @@ export function McpTab({
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null)
   const [open, setOpen] = useState<EditorDocument | null>(null)
   const [activity, setActivity] = useState<ActivityFilter>('all')
+  const [createOpen, setCreateOpen] = useState(false)
+  const createButton = owner ? (
+    <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
+      <Plus className="size-3.5" aria-hidden />
+      {t('mcp.create')}
+    </Button>
+  ) : null
 
   // Every card carries a switch, so the list can be narrowed to what is on or off — the state
   // is on the scanned server itself, nothing to remember here.
@@ -63,13 +78,28 @@ export function McpTab({
   }
 
   if (servers.length === 0) {
-    return <EmptyState title={t('mcp.none')} hint={t('mcp.noneHint')} icon={Plug} />
+    return (
+      <>
+        <EmptyState
+          title={t('mcp.none')}
+          hint={owner ? t('mcp.noneHintCreate') : t('mcp.noneHint')}
+          icon={Plug}
+          action={createButton}
+        />
+        {createOpen && owner ? (
+          <CreateMcpServerDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+        ) : null}
+      </>
+    )
   }
 
   return (
     <>
       <div className="flex flex-col gap-3">
-        <ActivityChips items={servers} value={activity} onChange={setActivity} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ActivityChips items={servers} value={activity} onChange={setActivity} />
+          {createButton}
+        </div>
         {visible.length === 0 ? (
           <EmptyState
             title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}
@@ -92,6 +122,10 @@ export function McpTab({
           </AnimatedList>
         )}
       </div>
+
+      {createOpen && owner ? (
+        <CreateMcpServerDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+      ) : null}
 
       <ConfirmDialog
         open={deleteTarget !== null}

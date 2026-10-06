@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sparkles } from 'lucide-react'
+import { Plus, Sparkles } from 'lucide-react'
 
+import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Skill } from '@/shared/bindings/Skill'
 import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
 import { ActivityChips } from '@/shared/ui/ActivityChips'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
+import { Button } from '@/shared/ui/Button'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { toast, toastAppError } from '@/shared/ui/Toast'
@@ -13,11 +15,25 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 
 import { useDeleteSkill, useSetSkillEnabled } from '../api/hooks'
+import { CreateSkillDialog } from './CreateSkillDialog'
 import { SkillCard } from './SkillCard'
 import { SkillDetailDialog } from './SkillDetailDialog'
 
-/** Skills of one agent. Deletion always goes through a confirmation dialog first. */
-export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[] }) {
+/**
+ * Skills of one agent. Deletion always goes through a confirmation dialog first.
+ *
+ * `owner` is present only when the agent can hold a new skill (it is installed): the tab then
+ * offers creating one, in the manifest's own skills directory.
+ */
+export function SkillsTab({
+  agentId,
+  skills,
+  owner,
+}: {
+  agentId: string
+  skills: Skill[]
+  owner?: AgentRef | null
+}) {
   const { t } = useTranslation()
   const remove = useDeleteSkill()
   const toggle = useSetSkillEnabled()
@@ -28,6 +44,13 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null)
   const [activity, setActivity] = useState<ActivityFilter>('all')
+  const [createOpen, setCreateOpen] = useState(false)
+  const createButton = owner ? (
+    <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
+      <Plus className="size-3.5" aria-hidden />
+      {t('skills.create')}
+    </Button>
+  ) : null
 
   // Every card carries a switch, so the list can be narrowed to what is on or off — the state
   // is on the scanned skill itself, nothing to remember here.
@@ -48,13 +71,28 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
   }
 
   if (skills.length === 0) {
-    return <EmptyState title={t('skills.none')} hint={t('skills.noneHint')} icon={Sparkles} />
+    return (
+      <>
+        <EmptyState
+          title={t('skills.none')}
+          hint={owner ? t('skills.noneHintCreate') : t('skills.noneHint')}
+          icon={Sparkles}
+          action={createButton}
+        />
+        {createOpen && owner ? (
+          <CreateSkillDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+        ) : null}
+      </>
+    )
   }
 
   return (
     <>
       <div className="flex flex-col gap-3">
-        <ActivityChips items={skills} value={activity} onChange={setActivity} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ActivityChips items={skills} value={activity} onChange={setActivity} />
+          {createButton}
+        </div>
         {visible.length === 0 ? (
           <EmptyState
             title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}
@@ -77,6 +115,10 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
           </AnimatedList>
         )}
       </div>
+
+      {createOpen && owner ? (
+        <CreateSkillDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+      ) : null}
 
       <SkillDetailDialog
         skill={detail}

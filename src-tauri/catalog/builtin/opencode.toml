@@ -61,6 +61,7 @@ path = { windows = "${USERPROFILE}/.config/opencode/skills", macos = "${HOME}/.c
 format = "jsonc"
 glob = "opencode.json*"
 key_path = ["mcp"]
+entry_shape = "local"
 shared_with_config = true
 description = "MCP servers live under the top-level `mcp` object of opencode.json / opencode.jsonc; every entry sets type = \"local\" or \"remote\"."
 path = { windows = "${USERPROFILE}/.config/opencode", macos = "${HOME}/.config/opencode", linux = "${HOME}/.config/opencode" }
