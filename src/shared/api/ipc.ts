@@ -55,6 +55,9 @@ export const ipc = {
     invoke<MutationResult<SaveResult>>('save_config', { agentId, path, content, baseSha256 }),
   listBackups: (agentId: string, path: string) =>
     invoke<BackupEntry[]>('list_backups', { agentId, path }),
+  /** The masked value of a quick-info credential is all the scan exposes; this reads the real one. */
+  revealConfigFact: (agentId: string, path: string, key: string) =>
+    invoke<string>('reveal_config_fact', { agentId, path, key }),
   restoreBackup: (agentId: string, path: string, backupPath: string) =>
     invoke<MutationResult<SaveResult>>('restore_backup', { agentId, path, backupPath }),
   backupRoot: () => invoke<string>('backup_root'),

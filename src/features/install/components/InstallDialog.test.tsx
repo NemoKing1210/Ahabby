@@ -70,6 +70,7 @@ function agent(overrides: Partial<Agent> = {}): Agent {
     canUpdate: true,
     canUninstall: false,
     configs: [],
+    facts: [],
     skills: [],
     mcpServers: [],
     other: [],

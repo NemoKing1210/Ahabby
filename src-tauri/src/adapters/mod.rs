@@ -10,6 +10,7 @@
 //! agent-specific file layouts.
 
 pub mod claude;
+pub mod config_facts;
 pub mod doc_edit;
 pub mod frontmatter;
 pub mod jsonc;

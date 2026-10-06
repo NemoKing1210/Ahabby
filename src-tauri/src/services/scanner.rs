@@ -274,7 +274,10 @@ async fn scan_agent(
         );
 
         match configs {
-            Ok(configs) => agent.configs = configs,
+            Ok(configs) => {
+                agent.facts = crate::adapters::config_facts::extract(&configs);
+                agent.configs = configs;
+            }
             Err(error) => warnings.push(format!("configs: {error}")),
         }
         match skills {
@@ -346,6 +349,7 @@ fn skeleton_agent(manifest: &crate::domain::AgentManifest) -> Agent {
         can_update: false,
         can_uninstall: false,
         configs: Vec::new(),
+        facts: Vec::new(),
         skills: Vec::new(),
         mcp_servers: Vec::new(),
         other: Vec::new(),

@@ -49,6 +49,7 @@ macro_rules! handlers {
             commands::configs::restore_backup,
             commands::configs::backup_root,
             commands::configs::user_catalog_dir,
+            commands::configs::reveal_config_fact,
             commands::skills::list_library,
             commands::skills::list_agent_skills,
             commands::skills::delete_skill,

@@ -7,7 +7,7 @@ use super::mcp::McpServer;
 use super::resource::OtherResource;
 use super::skill::Skill;
 use super::version::Version;
-use super::{AgentManifest, Manager, Os};
+use super::{AgentManifest, ConfigFact, Manager, Os};
 
 /// Lightweight agent reference embedded in skills / MCP servers / configs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -200,6 +200,10 @@ pub struct Agent {
     /// so the agent can be really removed from disk instead of only hidden.
     pub can_uninstall: bool,
     pub configs: Vec<ConfigFile>,
+    /// Noteworthy values lifted out of those configs (model, provider, endpoint, tokens) —
+    /// the "quick info" panel of the agent's overview.
+    #[serde(default)]
+    pub facts: Vec<ConfigFact>,
     pub skills: Vec<Skill>,
     pub mcp_servers: Vec<McpServer>,
     pub other: Vec<OtherResource>,

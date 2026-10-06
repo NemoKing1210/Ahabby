@@ -8,6 +8,8 @@ use std::path::PathBuf;
 
 use tauri::State;
 
+use crate::adapters::mcp_parse;
+use crate::domain::secrets as domain_secrets;
 use crate::domain::{BackupEntry, ConfigSnapshot, DiffPreview, SaveResult};
 use crate::error::{AppError, Result};
 use crate::services;
@@ -114,4 +116,44 @@ pub async fn backup_root(state: State<'_, AppState>) -> Result<String> {
 #[tauri::command]
 pub async fn user_catalog_dir(state: State<'_, AppState>) -> Result<String> {
     Ok(state.user_catalog_dir().to_string_lossy().to_string())
+}
+
+/// Read one credential out of a config file the user explicitly asked to see.
+///
+/// The quick-info panel only ever receives a masked value, so this is the *only* way real
+/// secret text crosses the IPC boundary — and it is limited, like `reveal_mcp_secret`, to a
+/// single key that looks like a secret inside a document the scan already declared.
+#[tauri::command]
+pub async fn reveal_config_fact(
+    state: State<'_, AppState>,
+    agent_id: String,
+    path: String,
+    key: String,
+) -> Result<String> {
+    let target = state.document_target(&agent_id, &path)?;
+    if !target.format.is_structured() {
+        return Err(AppError::NotSupported(
+            "this format does not hold structured data".to_string(),
+        ));
+    }
+
+    let content = crate::platform::read_text(&target.path)?;
+    let document = mcp_parse::document_to_value(target.format, &content)?;
+    let segments: Vec<String> = key.split('.').map(str::to_string).collect();
+    let value = mcp_parse::value_at(&document, &segments)
+        .ok_or_else(|| AppError::NotFound(format!("{key} in {path}")))?;
+    let text = match value {
+        serde_json::Value::String(text) => text.clone(),
+        other => other.to_string(),
+    };
+
+    // The key must look like a secret, or the value itself must carry a credential (a proxy
+    // URL with a password): anything else is not something the quick-info panel ever masked.
+    let last = key.rsplit('.').next().unwrap_or_default();
+    if !domain_secrets::is_secret_key(last) && !domain_secrets::has_url_credentials(&text) {
+        return Err(AppError::InvalidInput(format!(
+            "'{key}' is not a secret field"
+        )));
+    }
+    Ok(text)
 }

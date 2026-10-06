@@ -6,6 +6,7 @@
 pub mod agent;
 pub mod catalog;
 pub mod config;
+pub mod fact;
 pub mod library;
 pub mod manifest;
 pub mod mcp;
@@ -25,6 +26,7 @@ pub use agent::{
 };
 pub use catalog::CatalogProblem;
 pub use config::{BackupEntry, ConfigFile, ConfigFormat, ConfigSnapshot, DiffPreview, SaveResult};
+pub use fact::{ConfigFact, FactKind};
 pub use library::{Library, LibraryStats};
 pub use manifest::{
     AgentManifest, BinarySpec, ConfigSpec, InstallMethodSpec, Manager, ManifestProblem,

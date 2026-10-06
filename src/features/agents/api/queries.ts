@@ -75,6 +75,17 @@ export function useOpenUrl() {
 }
 
 /**
+ * Reads exactly one credential the user asked to see. Quick info only ever receives masked
+ * values, so this is the single path that can bring the real text into the webview.
+ */
+export function useRevealConfigFact() {
+  return useMutation({
+    mutationFn: ({ agentId, path, key }: { agentId: string; path: string; key: string }) =>
+      ipc.revealConfigFact(agentId, path, key),
+  })
+}
+
+/**
  * Ids the user pinned as favourites, in the order they were added. Favourites live in
  * settings, so the sidebar, the agents list and the Settings page share one cache entry.
  *

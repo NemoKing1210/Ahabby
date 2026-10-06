@@ -65,6 +65,37 @@ pub fn mask_value(value: &str) -> String {
     }
 }
 
+/// Offsets of the credentials inside a URL that carries `user:password@` in its authority.
+///
+/// Returns `(start_of_userinfo, index_of_@)`. A URL whose authority has no password — or an
+/// `@` that is part of a path (`https://host/a@b`) — yields `None`.
+fn credential_span(value: &str) -> Option<(usize, usize)> {
+    let scheme_end = value.find("://")? + 3;
+    let authority = &value[scheme_end..];
+    let at = authority.find('@')?;
+    let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
+    if at >= authority_end || !authority[..at].contains(':') {
+        return None;
+    }
+    Some((scheme_end, scheme_end + at))
+}
+
+/// `true` when a URL embeds credentials (`scheme://user:password@host`).
+///
+/// A proxy is the usual case: its key name says nothing about a secret, but the value is one.
+pub fn has_url_credentials(value: &str) -> bool {
+    credential_span(value).is_some()
+}
+
+/// Mask the credentials of a URL, keeping scheme, host and port readable.
+pub fn mask_url_credentials(value: &str) -> String {
+    match credential_span(value) {
+        Some((start, at)) => format!("{}••••••{}", &value[..start], &value[at..]),
+        // Not a URL at all — fall back to masking the whole value.
+        None => mask_value(value),
+    }
+}
+
 /// Recursively redact secret-looking keys inside a JSON document.
 pub fn redact_json(value: &Value) -> Value {
     match value {
@@ -112,6 +143,23 @@ mod tests {
         assert_eq!(mask_value("short"), "•••••");
         assert_eq!(mask_value("sk-abcdef1234567890"), "sk-••••••90");
         assert!(!mask_value("sk-abcdef1234567890").contains("abcdef"));
+    }
+
+    #[test]
+    fn spots_and_masks_url_credentials() {
+        let proxy = "http://user:s3cr3t@proxy.example.com:8080";
+        assert!(has_url_credentials(proxy));
+        assert_eq!(
+            mask_url_credentials(proxy),
+            "http://••••••@proxy.example.com:8080"
+        );
+        assert!(!mask_url_credentials(proxy).contains("s3cr3t"));
+
+        // A bare host, a port or an `@` inside the path is not a credential.
+        assert!(!has_url_credentials("https://api.example.com/v1"));
+        assert!(!has_url_credentials("https://example.com/a@b"));
+        assert!(!has_url_credentials("http://proxy.example.com:8080"));
+        assert!(!has_url_credentials("gpt-5-codex"));
     }
 
     #[test]

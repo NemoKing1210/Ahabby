@@ -196,6 +196,22 @@
       "scanTime": "Scan took {{duration}}",
       "warnings": "Warnings"
     },
+    "facts": {
+      "title": "Quick info",
+      "hint": "Notable values read from this agent's config files.",
+      "kind": {
+        "model": "Default model",
+        "provider": "Provider",
+        "url": "Endpoint",
+        "proxy": "Proxy",
+        "secret": "Credential"
+      },
+      "show": "Reveal",
+      "hide": "Hide value",
+      "copy": "Copy value",
+      "open": "Open link",
+      "revealFailed": "Could not read that value"
+    },
     "notFound": "This agent is not in the catalog any more.",
     "notInstalledHint": "Ahabby knows how to manage this agent, but the executable is not on this machine."
   },

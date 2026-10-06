@@ -10,6 +10,8 @@ import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
 import { toastAppError } from '@/shared/ui/Toast'
 
+import { AgentFactsCard } from './AgentFactsCard'
+
 /**
  * "Overview": everything Ahabby knows about the agent, including which method it thinks was
  * used to install it and every command it is allowed to run.
@@ -99,6 +101,8 @@ export function OverviewTab({
             </div>
           ) : null}
         </Card>
+
+        <AgentFactsCard agent={agent} />
 
         <Card className="p-5">
           <dl className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">

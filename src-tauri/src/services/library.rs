@@ -229,6 +229,7 @@ mod tests {
             can_update: false,
             can_uninstall: false,
             configs: Vec::new(),
+            facts: Vec::new(),
             skills: Vec::new(),
             mcp_servers: Vec::new(),
             other: Vec::new(),

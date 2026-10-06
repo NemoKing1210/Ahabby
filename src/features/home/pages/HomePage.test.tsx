@@ -44,6 +44,7 @@ function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): Agent {
     canUpdate: false,
     canUninstall: false,
     configs: [],
+    facts: [],
     skills: [],
     mcpServers: [],
     other: [],
