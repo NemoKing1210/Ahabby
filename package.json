@@ -1,7 +1,7 @@
 {
   "name": "ahabby",
   "private": true,
-  "version": "0.19.0",
+  "version": "0.22.0",
   "type": "module",
   "description": "Ahabby — a control panel for AI coding agents installed on your machine.",
   "license": "MIT",

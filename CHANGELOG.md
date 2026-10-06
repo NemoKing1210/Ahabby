@@ -5,6 +5,51 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-10-06
+
+### Added
+
+- The built-in terminal has colour schemes: Settings → Terminal offers ten of them, each with a swatch and a
+  live preview of the palette, so the dock can be painted in Ahabby's own colours (which keep following the
+  app theme and accent) or in One Dark, Dracula, Tokyo Night, Catppuccin, Nord, Gruvbox, Solarized or One
+  Light — the choice applies to every open tab and to every tab opened later, without a restart
+
+## [0.21.0] - 2026-10-06
+
+### Added
+
+- Skills and MCP servers can be switched off without deleting anything: a skill's entry file is renamed to
+  `SKILL.md.disabled`, so the agent stops loading it while the skill itself stays on disk, and an MCP entry is
+  moved into a sibling `mcpServersDisabled` object of the same config file, where no agent looks for servers —
+  the switch is on the card, in the agent's own tabs and in the Library, and switching back restores exactly
+  the previous state (the entry keeps its place, its secrets stay masked, and the JSONC comments around it are
+  preserved)
+- A switched-off skill or server stays listed, marked as off, so the switch is always there to turn it back on
+  and nothing has to be remembered outside the app; every switch takes a timestamped backup first, and a
+  plugin-managed skill or a read-only MCP source is never touched
+- Every list that carries switches — the agent's Skills and MCP tabs and both Library tabs — can be narrowed
+  by activity (All / On / Off), with the number of resources behind each choice on the chip, so a
+  switched-off skill or server is found without reading the whole list; a chip that has nothing behind it
+  says so instead of looking like a filter that does nothing
+
+## [0.20.0] - 2026-10-06
+
+### Added
+
+- An agent's page now opens with "Quick info": the few values worth knowing at a glance, read from the
+  agent's own config files during the scan — the default model, the provider, an endpoint, a proxy and any
+  credentials, grouped by the file they came from
+- Quick info reads JSON, JSONC, TOML and YAML configs, plus the dotenv-shaped files agents keep next to them
+  (`.env`, `.sgptrc`), and skips everything that is a collection of like things (MCP servers, hooks, projects,
+  history) or too large to be a settings file
+- Detection covers the shapes the values actually come in: a default model hidden in a role map
+  (`modelRoles.default`), a provider or a model behind one more level (`model.name`), a proxy under any of its
+  names (`HTTP_PROXY`, `ALL_PROXY`, `PI_PROXY` — but not the `NO_PROXY` bypass list), and the same value
+  declared four times counted once
+- A credential in that panel stays masked — including the password inside a `user:password@host` proxy, whose
+  key name gives nothing away; revealing or copying the real value is a click that asks the backend for that
+  one key, so a token never sits in the interface on its own
+
 ## [0.19.0] - 2026-10-06
 
 ### Added
