@@ -35,6 +35,12 @@ createdMs?: number | null,
  */
 modifiedMs?: number | null, 
 /**
+ * `false` while the user has the skill switched off: its entry file is renamed to
+ * `<name>.disabled`, so the agent stops loading it while nothing is lost. The skill is
+ * still scanned so the UI can offer to switch it back on.
+ */
+enabled: boolean, 
+/**
  * `false` for skills Ahabby refuses to delete (e.g. a plugin-managed directory).
  */
 removable: boolean, 

@@ -2,12 +2,76 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
+import type { Library } from '@/shared/bindings/Library'
+import type { McpServer } from '@/shared/bindings/McpServer'
+import type { ScanReport } from '@/shared/bindings/ScanReport'
+
+/** The switch of one server, flipped. */
+function flipped(server: McpServer, serverId: string, enabled: boolean): McpServer {
+  return server.id === serverId ? { ...server, enabled } : server
+}
+
+/** The cached report with one server's switch already flipped, for the optimistic update. */
+function reportWithServer(report: ScanReport, serverId: string, enabled: boolean): ScanReport {
+  const servers = (list: McpServer[]) => list.map((server) => flipped(server, serverId, enabled))
+  return {
+    ...report,
+    agents: report.agents.map((agent) => ({
+      ...agent,
+      mcpServers: servers(agent.mcpServers),
+    })),
+    shared: { ...report.shared, mcpServers: servers(report.shared.mcpServers) },
+  }
+}
 
 export function useDeleteMcpServer() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (vars: { agentId: string; serverId: string }) =>
       ipc.deleteMcpServer(vars.agentId, vars.serverId, true),
+    onSuccess: (result) => {
+      client.setQueryData(queryKeys.agents(), result.report)
+      void client.invalidateQueries({ queryKey: queryKeys.library() })
+    },
+  })
+}
+
+/**
+ * Switches an MCP server on or off by moving its entry inside the same config file: nothing is
+ * deleted and the move is reversible from the UI.
+ *
+ * The answer carries a fresh scan, which the backend takes by asking every agent for its
+ * version — so the switch is moved in the cached views first and put back if the write is
+ * refused, instead of looking dead for the length of a scan.
+ */
+export function useSetMcpServerEnabled() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { agentId: string; serverId: string; enabled: boolean }) =>
+      ipc.setMcpServerEnabled(vars.agentId, vars.serverId, vars.enabled),
+    onMutate: (vars) => {
+      const report = client.getQueryData<ScanReport>(queryKeys.agents())
+      const library = client.getQueryData<Library>(queryKeys.library())
+      if (report) {
+        client.setQueryData(
+          queryKeys.agents(),
+          reportWithServer(report, vars.serverId, vars.enabled),
+        )
+      }
+      if (library) {
+        client.setQueryData(queryKeys.library(), {
+          ...library,
+          mcpServers: library.mcpServers.map((server) =>
+            flipped(server, vars.serverId, vars.enabled),
+          ),
+        })
+      }
+      return { report, library }
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.report) client.setQueryData(queryKeys.agents(), context.report)
+      if (context?.library) client.setQueryData(queryKeys.library(), context.library)
+    },
     onSuccess: (result) => {
       client.setQueryData(queryKeys.agents(), result.report)
       void client.invalidateQueries({ queryKey: queryKeys.library() })

@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::services;
 use crate::state::AppState;
 
-use super::{MutationResult, SkillRemoval};
+use super::{MutationResult, SkillRemoval, SkillToggle};
 
 /// Aggregated view across every installed agent.
 #[tauri::command]
@@ -49,6 +49,36 @@ pub async fn delete_skill(
             name: skill.name,
             path: skill.path,
             trashed: true,
+        },
+        report,
+    ))
+}
+
+/// Switch a skill on or off.
+///
+/// Off renames the entry file to `<name>.disabled`, which is enough for every agent, because
+/// they look a skill up by its exact file name; on renames it back. Nothing is written inside
+/// the file and nothing is deleted, so no confirmation is required — the switch itself undoes
+/// the operation.
+#[tauri::command]
+pub async fn set_skill_enabled(
+    state: State<'_, AppState>,
+    agent_id: String,
+    skill_id: String,
+    enabled: bool,
+) -> Result<MutationResult<SkillToggle>> {
+    let skill = state.skill(&agent_id, &skill_id)?;
+    let adapter = state.adapter(&agent_id)?;
+    let context = state.platform_context();
+    adapter.set_skill_enabled(&context, &skill, enabled).await?;
+
+    let report = state.scan().await;
+    Ok(MutationResult::new(
+        SkillToggle {
+            skill_id,
+            name: skill.name,
+            enabled,
+            path: skill.path,
         },
         report,
     ))

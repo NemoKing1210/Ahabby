@@ -5,6 +5,7 @@ import { Boxes, Plug, RefreshCw, Server, Sparkles, type LucideIcon } from 'lucid
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { Skill } from '@/shared/bindings/Skill'
+import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
 import { formatRelative } from '@/shared/lib/format'
 import { isSharedOwner, ownerName } from '@/shared/lib/owners'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
@@ -23,9 +24,9 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 import { useScanRefresh } from '@/features/agents/api/scan'
 import { OTHER_KIND_ORDER, OtherTab } from '@/features/agents/components/OtherTab'
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
-import { useDeleteMcpServer } from '@/features/mcp/api/hooks'
+import { useDeleteMcpServer, useSetMcpServerEnabled } from '@/features/mcp/api/hooks'
 import { McpCard } from '@/features/mcp/components/McpCard'
-import { useDeleteSkill } from '@/features/skills/api/hooks'
+import { useDeleteSkill, useSetSkillEnabled } from '@/features/skills/api/hooks'
 import { SkillCard } from '@/features/skills/components/SkillCard'
 import { SkillDetailDialog } from '@/features/skills/components/SkillDetailDialog'
 
@@ -156,28 +157,64 @@ export function LibraryPage() {
   const rescan = useScanRefresh()
   const removeSkill = useDeleteSkill()
   const removeServer = useDeleteMcpServer()
+  const setSkillEnabled = useSetSkillEnabled()
+  const setServerEnabled = useSetMcpServerEnabled()
 
   const [query, setQuery] = useState('')
   const [agentFilter, setAgentFilter] = useState('all')
   const [origin, setOrigin] = useState<LibraryOrigin>('all')
   const [sort, setSort] = useState<LibrarySort>('name')
   const [facet, setFacet] = useState('all')
+  const [activity, setActivity] = useState<ActivityFilter>('all')
   const [groupMode, setGroupMode] = useState<LibraryGroupMode>('name')
   const [tab, setTab] = useState<LibraryTab>('skills')
-  const [detail, setDetail] = useState<Skill | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteSkillTarget, setDeleteSkillTarget] = useState<Skill | null>(null)
   const [deleteServerTarget, setDeleteServerTarget] = useState<McpTarget | null>(null)
 
-  // Every tab has its own facets, so a refinement never survives a switch to another tab.
+  const toggleSkill = (skill: Skill, enabled: boolean) => {
+    const owner = skill.agents[0]
+    if (!owner) return
+    setSkillEnabled.mutate(
+      { agentId: owner.id, skillId: skill.id, enabled },
+      {
+        onSuccess: (result) => {
+          toast.success(
+            t(enabled ? 'skills.toggledOn' : 'skills.toggledOff', { name: result.data.name }),
+          )
+        },
+        onError: (error) => toastAppError(error),
+      },
+    )
+  }
+  const toggleServer = (server: McpServer, enabled: boolean) => {
+    setServerEnabled.mutate(
+      { agentId: server.agent.id, serverId: server.id, enabled },
+      {
+        onSuccess: (result) => {
+          toast.success(t(enabled ? 'mcp.toggledOn' : 'mcp.toggledOff', { name: result.data.name }))
+        },
+        onError: (error) => toastAppError(error),
+      },
+    )
+  }
+
+  // Every tab has its own facets and its own activity filter, so a refinement never survives a
+  // switch to another tab.
   const switchTab = (value: string) => {
     setTab(value as LibraryTab)
     setFacet('all')
+    setActivity('all')
   }
 
   if (isLoading && !data) return <SkeletonList rows={5} />
   if (error && !data) return <ErrorState error={error} onRetry={() => void refetch()} />
   if (!data) return null
+
+  // The dialog carries a switch, so it reads the live skill out of the library the mutation
+  // refreshes instead of holding a snapshot that would show a stale state.
+  const detail = data.skills.find((skill) => skill.id === detailId) ?? null
 
   const trimmed = query.trim()
   const needle = trimmed.toLowerCase()
@@ -221,14 +258,27 @@ export function LibraryPage() {
   )
 
   const skills = skillBase.filter(
-    (skill) => facet === 'all' || (facet === 'unverified' && skill.unverified),
+    (skill) =>
+      matchesActivity(skill.enabled, activity) &&
+      (facet === 'all' || (facet === 'unverified' && skill.unverified)),
   )
-  const servers = serverBase.filter((server) => facet === 'all' || server.transport.type === facet)
+  const servers = serverBase.filter(
+    (server) =>
+      matchesActivity(server.enabled, activity) &&
+      (facet === 'all' || server.transport.type === facet),
+  )
   const others = sortItems(
     otherBase.filter((resource) => facet === 'all' || resource.kind === facet),
     sort,
     resourceFields,
   )
+
+  // A tab badge is what that tab shows the moment it is opened. Switching tabs resets the facet
+  // and the activity filter, so the inactive tab's badge must not follow the active tab's
+  // refinement — otherwise narrowing one list looks like it emptied another.
+  const skillBadge = tab === 'skills' ? skills.length : skillBase.length
+  const serverBadge = tab === 'mcp' ? servers.length : serverBase.length
+  const otherBadge = tab === 'other' ? others.length : otherBase.length
 
   /**
    * Facet chips for the active tab. A choice with nothing behind it is noise, but the
@@ -286,12 +336,18 @@ export function LibraryPage() {
       })),
   ]
 
-  const dirty = trimmed.length > 0 || agentFilter !== 'all' || origin !== 'all' || facet !== 'all'
+  const dirty =
+    trimmed.length > 0 ||
+    agentFilter !== 'all' ||
+    origin !== 'all' ||
+    facet !== 'all' ||
+    activity !== 'all'
   const clear = () => {
     setQuery('')
     setAgentFilter('all')
     setOrigin('all')
     setFacet('all')
+    setActivity('all')
   }
   const clearAction = dirty ? (
     <Button variant="secondary" size="sm" onClick={clear}>
@@ -327,9 +383,11 @@ export function LibraryPage() {
         <SkillCard
           skill={skill}
           agents={groupMode === 'name' ? skill.agents : undefined}
-          onOpen={setDetail}
+          onOpen={(skill) => setDetailId(skill.id)}
           onEdit={setEditTarget}
           onDelete={setDeleteSkillTarget}
+          onToggle={toggleSkill}
+          toggleBusy={setSkillEnabled.isPending && setSkillEnabled.variables?.skillId === skill.id}
         />
       )}
     />
@@ -346,6 +404,10 @@ export function LibraryPage() {
           agents={groupMode === 'name' ? [server.agent] : undefined}
           onDelete={(target) =>
             setDeleteServerTarget({ agentId: target.agent.id, serverId: target.id })
+          }
+          onToggle={toggleServer}
+          toggleBusy={
+            setServerEnabled.isPending && setServerEnabled.variables?.serverId === server.id
           }
         />
       )}
@@ -400,6 +462,15 @@ export function LibraryPage() {
           onChange: setFacet,
           options: tab === 'skills' ? skillFacets : tab === 'mcp' ? serverFacets : otherFacets,
         }}
+        activity={
+          tab === 'other'
+            ? null
+            : {
+                items: tab === 'skills' ? skillBase : serverBase,
+                value: activity,
+                onChange: setActivity,
+              }
+        }
         groupMode={groupMode}
         onGroupModeChange={setGroupMode}
         showGrouping={tab !== 'other'}
@@ -411,17 +482,15 @@ export function LibraryPage() {
         <TabsList>
           <TabsTrigger value="skills">
             {t('library.tabs.skills')}
-            {skills.length > 0 ? <span className="text-faint ml-1.5">{skills.length}</span> : null}
+            {skillBadge > 0 ? <span className="text-faint ml-1.5">{skillBadge}</span> : null}
           </TabsTrigger>
           <TabsTrigger value="mcp">
             {t('library.tabs.mcp')}
-            {servers.length > 0 ? (
-              <span className="text-faint ml-1.5">{servers.length}</span>
-            ) : null}
+            {serverBadge > 0 ? <span className="text-faint ml-1.5">{serverBadge}</span> : null}
           </TabsTrigger>
           <TabsTrigger value="other">
             {t('library.tabs.other')}
-            {others.length > 0 ? <span className="text-faint ml-1.5">{others.length}</span> : null}
+            {otherBadge > 0 ? <span className="text-faint ml-1.5">{otherBadge}</span> : null}
           </TabsTrigger>
         </TabsList>
 
@@ -452,16 +521,18 @@ export function LibraryPage() {
         skill={detail}
         open={detail !== null}
         onOpenChange={(open) => {
-          if (!open) setDetail(null)
+          if (!open) setDetailId(null)
         }}
         onEdit={(skill) => {
-          setDetail(null)
+          setDetailId(null)
           setEditTarget(skill)
         }}
         onDelete={(skill) => {
-          setDetail(null)
+          setDetailId(null)
           setDeleteSkillTarget(skill)
         }}
+        onToggle={toggleSkill}
+        toggleBusy={setSkillEnabled.isPending && setSkillEnabled.variables?.skillId === detail?.id}
       />
 
       {editTarget?.entryPath && editOwner ? (

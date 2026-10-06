@@ -231,6 +231,12 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   run as program + args (no shell).
 - Secrets (`env`/`headers` keys that look secret) are masked **in the backend** (`domain::secrets`); the
   frontend mirror `src/shared/lib/mask.ts` must stay in sync with it.
+- **A skill or MCP server is switched off by moving what makes it visible, never by rewriting it.** A skill's
+  entry file is renamed to `<name>.disabled` (`ManifestAdapter::set_skill_enabled`) — agents look a skill up by
+  the exact file name — and an MCP entry is moved into the sibling `<container>Disabled` object of its own
+  config file (`doc_edit::move_entry`, byte-preserving for JSON/JSONC). Both stay in the scan with
+  `enabled = false`, and an MCP server's `key_path` always addresses its _enabled_ position, so every reader of
+  a single entry has to go through `adapters::mcp_entry_location`.
 - **A terminal session is derived, never dictated.** `commands/terminal.rs` resolves the agent id through
   `AppState::agent` (installed + `binary_path` from the scan) and hands it to `services::terminal`, which
   starts the user's own shell in a PTY (`native_pty_system`) and _types_ the quoted executable into it — that

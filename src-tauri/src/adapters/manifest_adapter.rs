@@ -18,12 +18,89 @@ use super::doc_edit;
 use super::frontmatter;
 use super::mcp_parse;
 use super::{
-    expand_glob, is_unverified, search_dirs, AgentAdapter, GlobTarget, PREVIEW_LIMIT_BYTES,
-    VERSION_TIMEOUT,
+    expand_glob, is_unverified, mcp_entry_location, search_dirs, AgentAdapter, GlobTarget,
+    PREVIEW_LIMIT_BYTES, VERSION_TIMEOUT,
 };
 
 const SKILL_FILE_NAMES: &[&str] = &["SKILL.md", "skill.md", "README.md", "readme.md"];
 const OTHER_GLOB_DEPTH: usize = 3;
+
+/// Suffix a skill's entry file carries while the skill is switched off.
+///
+/// Agents look for the exact file name (`SKILL.md`), so a renamed entry is a skill the agent
+/// no longer sees — and renaming it back is the whole "switch it on" operation. Nothing is
+/// deleted, and the file's contents are never touched.
+const DISABLED_FILE_SUFFIX: &str = ".disabled";
+
+/// `SKILL.md` → `SKILL.md.disabled`.
+fn disabled_name(name: &str) -> String {
+    format!("{name}{DISABLED_FILE_SUFFIX}")
+}
+
+/// `SKILL.md.disabled` → `SKILL.md`; a path without the suffix is returned unchanged.
+fn without_disabled_suffix(path: &Path) -> PathBuf {
+    let Some(name) = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+    else {
+        return path.to_path_buf();
+    };
+    match name.strip_suffix(DISABLED_FILE_SUFFIX) {
+        Some(base) => path.with_file_name(base),
+        None => path.to_path_buf(),
+    }
+}
+
+/// The entry file a skill directory is recognised by, with the state it is in: the recognised
+/// name while the skill is on, the same name with the disabled suffix while it is off.
+///
+/// `None` when neither exists — the directory is not a skill.
+fn skill_entry(directory: &Path, format: SkillFormat) -> Option<(PathBuf, bool)> {
+    let names: Vec<&str> = match format {
+        SkillFormat::SkillMd => vec!["SKILL.md"],
+        SkillFormat::Directory => SKILL_FILE_NAMES.to_vec(),
+        SkillFormat::MarkdownFile => return None,
+    };
+    for name in &names {
+        let candidate = directory.join(name);
+        if candidate.is_file() {
+            return Some((candidate, true));
+        }
+    }
+    for name in &names {
+        let candidate = directory.join(disabled_name(name));
+        if candidate.is_file() {
+            return Some((candidate, false));
+        }
+    }
+    None
+}
+
+/// Entries of a server map, in document order.
+///
+/// Most agents store `name -> server`, but some (Continue) store an array of servers that
+/// carry their own `name`.
+fn mcp_entries(map: &serde_json::Value) -> Vec<(String, &serde_json::Value)> {
+    match map {
+        serde_json::Value::Object(object) => object
+            .iter()
+            .map(|(name, value)| (name.clone(), value))
+            .collect(),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                let name = item
+                    .get("name")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("server-{}", index + 1));
+                (name, item)
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
 
 pub struct ManifestAdapter {
     manifest: AgentManifest,
@@ -79,6 +156,89 @@ impl ManifestAdapter {
         self.manifest.mcp.iter().collect()
     }
 
+    /// The path of a skill this manifest may change, after every guard: it must belong to this
+    /// agent, be one Ahabby is allowed to act on (not a document owned by someone else), live
+    /// under a skills root the manifest declared, and still exist.
+    ///
+    /// Shared by deletion and the on/off switch, so both are guarded identically.
+    fn checked_skill_path(&self, ctx: &PlatformContext, skill: &Skill) -> Result<PathBuf> {
+        if !skill
+            .agents
+            .iter()
+            .any(|agent| agent.id == self.manifest.id)
+        {
+            return Err(AppError::InvalidInput(
+                "this skill belongs to a different agent".to_string(),
+            ));
+        }
+        if !skill.removable {
+            return Err(AppError::NotSupported(
+                "this skill is managed elsewhere and cannot be changed from Ahabby".to_string(),
+            ));
+        }
+
+        // The path must live under a skills directory the manifest declared.
+        let allowed: Vec<PathBuf> = self
+            .manifest
+            .skills
+            .as_ref()
+            .and_then(|spec| ctx.expand_map(&spec.path))
+            .into_iter()
+            .collect();
+        let target = PathBuf::from(&skill.path);
+        if !allowed.iter().any(|root| target.starts_with(root)) {
+            return Err(AppError::CommandNotAllowed(format!(
+                "{} is outside the skills directory declared by {}",
+                skill.path, self.manifest.id
+            )));
+        }
+        if !target.exists() {
+            return Err(AppError::NotFound(skill.path.clone()));
+        }
+        Ok(target)
+    }
+
+    /// The config file an MCP removal or on/off switch may touch, plus the spec that describes
+    /// how to edit it. Shared by both, so the path checks cannot drift apart.
+    fn checked_mcp_target(
+        &self,
+        ctx: &PlatformContext,
+        server: &McpServer,
+    ) -> Result<(PathBuf, &McpSpec)> {
+        if server.agent.id != self.manifest.id {
+            return Err(AppError::InvalidInput(
+                "this MCP server belongs to a different agent".to_string(),
+            ));
+        }
+        if !server.removable {
+            return Err(AppError::NotSupported(
+                "this MCP server cannot be changed from Ahabby".to_string(),
+            ));
+        }
+
+        let target = PathBuf::from(&server.source_config);
+        let allowed = self.writable_paths(ctx);
+        if !allowed.iter().any(|path| path == &target) {
+            return Err(AppError::CommandNotAllowed(format!(
+                "{} is not a config file declared by {}",
+                server.source_config, self.manifest.id
+            )));
+        }
+        let Some(spec) = self
+            .mcp_specs()
+            .into_iter()
+            .find(|spec| mcp_files(ctx, spec).contains(&target))
+        else {
+            return Err(AppError::InvalidInput(
+                "no MCP config declared at this path".to_string(),
+            ));
+        };
+        if !target.is_file() {
+            return Err(AppError::NotFound(server.source_config.clone()));
+        }
+        Ok((target, spec))
+    }
+
     fn config_entry(&self, spec: &ConfigSpec, path: PathBuf) -> ConfigFile {
         let metadata = std::fs::metadata(&path).ok();
         ConfigFile {
@@ -100,6 +260,9 @@ impl ManifestAdapter {
     }
 
     /// Read one skill directory (`<dir>/SKILL.md` or a directory with a README).
+    ///
+    /// A directory whose entry file carries the disabled suffix is still a skill: it is
+    /// reported with `enabled = false` so the UI can switch it back on.
     fn skill_from_directory(
         &self,
         directory: &Path,
@@ -111,17 +274,7 @@ impl ManifestAdapter {
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| "skill".to_string());
 
-        let entry = match format {
-            SkillFormat::SkillMd => directory.join("SKILL.md"),
-            SkillFormat::Directory => SKILL_FILE_NAMES
-                .iter()
-                .map(|name| directory.join(name))
-                .find(|candidate| candidate.is_file())?,
-            SkillFormat::MarkdownFile => return None,
-        };
-        if !entry.is_file() {
-            return None;
-        }
+        let (entry, enabled) = skill_entry(directory, format)?;
 
         let metadata = std::fs::metadata(&entry).ok();
         let size = metadata.as_ref().map(std::fs::Metadata::len);
@@ -156,31 +309,37 @@ impl ManifestAdapter {
             size_bytes: size,
             created_ms: metadata.as_ref().and_then(platform::created_at_ms),
             modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
+            enabled,
             removable: true,
             unverified,
         })
     }
 
     /// A single markdown file that holds "the" instructions of an agent.
-    fn skill_from_file(&self, path: &Path, unverified: bool) -> Option<Skill> {
-        if !path.is_file() {
+    ///
+    /// `entry` is the file as it exists right now; the canonical (un-suffixed) name is what the
+    /// skill keeps as its path and id, so switching it off never renames it in the UI.
+    fn skill_from_file(&self, entry: &Path, enabled: bool, unverified: bool) -> Option<Skill> {
+        if !entry.is_file() {
             return None;
         }
-        let metadata = std::fs::metadata(path).ok();
+        let canonical = without_disabled_suffix(entry);
+        let metadata = std::fs::metadata(entry).ok();
         let size = metadata.as_ref().map(std::fs::Metadata::len);
-        let text = platform::read_text(path).ok()?;
+        let text = platform::read_text(entry).ok()?;
         let markdown = frontmatter::parse(&text);
         let name = markdown.name.clone().unwrap_or_else(|| {
-            path.file_stem()
+            canonical
+                .file_stem()
                 .map(|stem| stem.to_string_lossy().to_string())
                 .unwrap_or_else(|| "instructions".to_string())
         });
         Some(Skill {
-            id: Skill::new_id(&name, &path.to_string_lossy()),
+            id: Skill::new_id(&name, &canonical.to_string_lossy()),
             name,
             description: markdown.summary(),
-            path: path.to_string_lossy().to_string(),
-            entry_path: Some(path.to_string_lossy().to_string()),
+            path: canonical.to_string_lossy().to_string(),
+            entry_path: Some(entry.to_string_lossy().to_string()),
             scope: Scope::Global,
             agents: vec![self.agent_ref()],
             frontmatter: markdown.frontmatter.clone(),
@@ -188,6 +347,7 @@ impl ManifestAdapter {
             size_bytes: size,
             created_ms: metadata.as_ref().and_then(platform::created_at_ms),
             modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
+            enabled,
             // A standalone file is a document, not a deletable skill directory.
             removable: false,
             unverified,
@@ -215,57 +375,53 @@ impl ManifestAdapter {
         let metadata = std::fs::metadata(path).ok();
         let content = platform::read_text(path)?;
         let document = mcp_parse::document_to_value(spec.format, &content)?;
-        let Some(map) = mcp_parse::value_at(&document, &spec.key_path) else {
-            return Ok(Vec::new());
-        };
-
-        // Most agents store `name -> server`, but some (Continue) store an array of
-        // servers that carry their own `name`. Removal is only supported for the map
-        // shape, because only there is the entry addressable by key.
-        let entries: Vec<(String, &serde_json::Value)> = match map {
-            serde_json::Value::Object(object) => object
-                .iter()
-                .map(|(name, value)| (name.clone(), value))
-                .collect(),
-            serde_json::Value::Array(items) => items
-                .iter()
-                .enumerate()
-                .map(|(index, item)| {
-                    let name = item
-                        .get("name")
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::to_string)
-                        .unwrap_or_else(|| format!("server-{}", index + 1));
-                    (name, item)
-                })
-                .collect(),
-            _ => return Ok(Vec::new()),
-        };
-        let addressable = map.is_object();
-
         let unverified = is_unverified(&self.manifest, "mcp.key_path");
         let mut servers = Vec::new();
-        for (name, value) in entries {
-            let normalized = mcp_parse::normalize(value);
-            let mut key_path = spec.key_path.clone();
-            key_path.push(name.clone());
-            servers.push(McpServer {
-                id: McpServer::new_id(&name, &source_config, &key_path),
-                name,
-                transport: normalized.transport,
-                scope: Scope::Global,
-                agent: self.agent_ref(),
-                source_config: source_config.clone(),
-                key_path,
-                env: normalized.env,
-                headers: normalized.headers,
-                raw: normalized.raw,
-                created_ms: metadata.as_ref().and_then(platform::created_at_ms),
-                modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
-                has_secrets: normalized.has_secrets,
-                removable: addressable,
-                unverified,
-            });
+
+        // A switched-off server lives in the sibling `<container>Disabled` object of the same
+        // file, where no agent looks for servers. Its `key_path` still addresses the *enabled*
+        // position (that is what the toggle moves it back to, and what keeps its id stable
+        // across the switch), so only the container it is read from changes.
+        let mut containers: Vec<(Vec<String>, bool)> = vec![(spec.key_path.clone(), true)];
+        if let Some(disabled) = doc_edit::disabled_container(&spec.key_path) {
+            containers.push((disabled, false));
+        }
+
+        for (container, enabled) in containers {
+            let Some(map) = mcp_parse::value_at(&document, &container) else {
+                continue;
+            };
+            // Only the map shape is addressable by key, and that is what removal *and* the
+            // on/off switch need: the array shape (Continue) keeps the name inside the entry.
+            let addressable = map.is_object();
+            for (name, value) in mcp_entries(map) {
+                let mut key_path = spec.key_path.clone();
+                key_path.push(name.clone());
+                let id = McpServer::new_id(&name, &source_config, &key_path);
+                // A leftover disabled copy never shadows the server the agent actually sees.
+                if servers.iter().any(|server: &McpServer| server.id == id) {
+                    continue;
+                }
+                let normalized = mcp_parse::normalize(value);
+                servers.push(McpServer {
+                    id,
+                    name,
+                    transport: normalized.transport,
+                    scope: Scope::Global,
+                    agent: self.agent_ref(),
+                    source_config: source_config.clone(),
+                    key_path,
+                    env: normalized.env,
+                    headers: normalized.headers,
+                    raw: normalized.raw,
+                    created_ms: metadata.as_ref().and_then(platform::created_at_ms),
+                    modified_ms: metadata.as_ref().and_then(platform::modified_at_ms),
+                    has_secrets: normalized.has_secrets,
+                    enabled,
+                    removable: addressable,
+                    unverified,
+                });
+            }
         }
         Ok(servers)
     }
@@ -385,12 +541,26 @@ impl AgentAdapter for ManifestAdapter {
         match spec.format {
             SkillFormat::SkillMd => {
                 let glob = spec.glob.as_deref().unwrap_or("**/SKILL.md");
-                for entry in expand_glob(ctx, &spec.path, Some(glob), GlobTarget::Files, 4) {
-                    let Some(directory) = entry.parent() else {
-                        continue;
-                    };
+                // A switched-off skill is the same entry file with the disabled suffix, so the
+                // second pattern is the first one plus that suffix: the manifest names the entry
+                // file in the glob's last segment (`**/SKILL.md`, `{skills,skills-cursor}/*/SKILL.md`).
+                let disabled = disabled_name(glob);
+                let mut directories: Vec<PathBuf> = Vec::new();
+                for pattern in [glob, disabled.as_str()] {
+                    for entry in expand_glob(ctx, &spec.path, Some(pattern), GlobTarget::Files, 4) {
+                        let Some(directory) = entry.parent().map(Path::to_path_buf) else {
+                            continue;
+                        };
+                        // An enabled entry wins over a leftover disabled copy in the same
+                        // directory: `skill_entry` would report the enabled one anyway.
+                        if !directories.contains(&directory) {
+                            directories.push(directory);
+                        }
+                    }
+                }
+                for directory in directories {
                     if let Some(skill) =
-                        self.skill_from_directory(directory, spec.format, unverified)
+                        self.skill_from_directory(&directory, spec.format, unverified)
                     {
                         skills.push(skill);
                     }
@@ -410,8 +580,16 @@ impl AgentAdapter for ManifestAdapter {
             }
             SkillFormat::MarkdownFile => {
                 if let Some(path) = ctx.expand_map(&spec.path) {
-                    if let Some(skill) = self.skill_from_file(&path, unverified) {
-                        skills.push(skill);
+                    let disabled = path
+                        .file_name()
+                        .map(|name| path.with_file_name(disabled_name(&name.to_string_lossy())));
+                    for (entry, enabled) in
+                        [(path.clone(), true), (disabled.unwrap_or(path), false)]
+                    {
+                        if let Some(skill) = self.skill_from_file(&entry, enabled, unverified) {
+                            skills.push(skill);
+                            break;
+                        }
                     }
                 }
             }
@@ -461,39 +639,7 @@ impl AgentAdapter for ManifestAdapter {
     }
 
     async fn remove_skill(&self, ctx: &PlatformContext, skill: &Skill) -> Result<()> {
-        if !skill
-            .agents
-            .iter()
-            .any(|agent| agent.id == self.manifest.id)
-        {
-            return Err(AppError::InvalidInput(
-                "this skill belongs to a different agent".to_string(),
-            ));
-        }
-        if !skill.removable {
-            return Err(AppError::NotSupported(
-                "this skill is a shared document and cannot be deleted from Ahabby".to_string(),
-            ));
-        }
-
-        // The path must live under a skills directory the manifest declared.
-        let allowed: Vec<PathBuf> = self
-            .manifest
-            .skills
-            .as_ref()
-            .and_then(|spec| ctx.expand_map(&spec.path))
-            .into_iter()
-            .collect();
-        let target = PathBuf::from(&skill.path);
-        if !allowed.iter().any(|root| target.starts_with(root)) {
-            return Err(AppError::CommandNotAllowed(format!(
-                "{} is outside the skills directory declared by {}",
-                skill.path, self.manifest.id
-            )));
-        }
-        if !target.exists() {
-            return Err(AppError::NotFound(skill.path.clone()));
-        }
+        let target = self.checked_skill_path(ctx, skill)?;
 
         trash::delete(&target).map_err(|error| {
             AppError::other(format!(
@@ -504,44 +650,88 @@ impl AgentAdapter for ManifestAdapter {
         Ok(())
     }
 
-    async fn remove_mcp_server(&self, ctx: &PlatformContext, server: &McpServer) -> Result<()> {
-        if server.agent.id != self.manifest.id {
-            return Err(AppError::InvalidInput(
-                "this MCP server belongs to a different agent".to_string(),
-            ));
-        }
-        if !server.removable {
-            return Err(AppError::NotSupported(
-                "this MCP server cannot be removed from Ahabby".to_string(),
-            ));
+    /// Rename the skill's entry file so the agent stops seeing it, or rename it back.
+    ///
+    /// The agent looks the skill up by the exact file name (`SKILL.md`), so nothing else has to
+    /// change and nothing is lost: the reverse rename is the whole operation.
+    async fn set_skill_enabled(
+        &self,
+        ctx: &PlatformContext,
+        skill: &Skill,
+        enabled: bool,
+    ) -> Result<()> {
+        let directory = self.checked_skill_path(ctx, skill)?;
+        let entry = skill
+            .entry_path
+            .as_deref()
+            .map(PathBuf::from)
+            .ok_or_else(|| {
+                AppError::NotSupported("this skill has no entry file to switch".to_string())
+            })?;
+        if !entry.starts_with(&directory) || !entry.is_file() {
+            return Err(AppError::NotFound(entry.to_string_lossy().to_string()));
         }
 
-        let target = PathBuf::from(&server.source_config);
-        let allowed = self.writable_paths(ctx);
-        if !allowed.iter().any(|path| path == &target) {
-            return Err(AppError::CommandNotAllowed(format!(
-                "{} is not a config file declared by {}",
-                server.source_config, self.manifest.id
+        // The name on disk decides the direction, so a stale report cannot turn a double click
+        // into a rename back and forth.
+        let name = entry
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let target_name = match name.strip_suffix(DISABLED_FILE_SUFFIX) {
+            Some(base) if enabled => base.to_string(),
+            Some(_) => return Ok(()),
+            None if enabled => return Ok(()),
+            None => disabled_name(&name),
+        };
+
+        let target = entry.with_file_name(&target_name);
+        if target.exists() {
+            return Err(AppError::InvalidInput(format!(
+                "{} already exists",
+                target.display()
             )));
         }
-        let Some(spec) = self
-            .mcp_specs()
-            .into_iter()
-            .find(|spec| mcp_files(ctx, spec).contains(&target))
-        else {
-            return Err(AppError::InvalidInput(
-                "no MCP config declared at this path".to_string(),
-            ));
-        };
-        if !target.is_file() {
-            return Err(AppError::NotFound(server.source_config.clone()));
-        }
+        std::fs::rename(&entry, &target).map_err(|error| AppError::io(&entry, error))?;
+        Ok(())
+    }
+
+    async fn remove_mcp_server(&self, ctx: &PlatformContext, server: &McpServer) -> Result<()> {
+        let (target, spec) = self.checked_mcp_target(ctx, server)?;
+        let location = mcp_entry_location(&server.key_path, server.enabled)?;
 
         let content = platform::read_text(&target)?;
-        let Some(updated) = doc_edit::remove_entry(spec.format, &content, &server.key_path)? else {
+        let Some(updated) = doc_edit::remove_entry(spec.format, &content, &location)? else {
             return Err(AppError::NotFound(format!(
                 "{} is no longer present in {}",
-                doc_edit::describe_path(&server.key_path),
+                doc_edit::describe_path(&location),
+                server.source_config
+            )));
+        };
+        doc_edit::validate(spec.format, &updated, &server.source_config)?;
+        platform::write_atomic(&target, &updated, Some(&ctx.backup_root))?;
+        Ok(())
+    }
+
+    /// Move the entry between the container the agent reads and its disabled sibling.
+    async fn set_mcp_server_enabled(
+        &self,
+        ctx: &PlatformContext,
+        server: &McpServer,
+        enabled: bool,
+    ) -> Result<()> {
+        let (target, spec) = self.checked_mcp_target(ctx, server)?;
+        if server.enabled == enabled {
+            return Ok(());
+        }
+
+        let from = mcp_entry_location(&server.key_path, server.enabled)?;
+        let to = mcp_entry_location(&server.key_path, enabled)?;
+        let content = platform::read_text(&target)?;
+        let Some(updated) = doc_edit::move_entry(spec.format, &content, &from, &to)? else {
+            return Err(AppError::NotFound(format!(
+                "{} is no longer present in {}",
+                doc_edit::describe_path(&from),
                 server.source_config
             )));
         };

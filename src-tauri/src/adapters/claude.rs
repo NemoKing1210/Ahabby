@@ -123,6 +123,26 @@ impl AgentAdapter for ClaudeAdapter {
         self.inner.remove_mcp_server(ctx, server).await
     }
 
+    async fn set_skill_enabled(
+        &self,
+        ctx: &PlatformContext,
+        skill: &Skill,
+        enabled: bool,
+    ) -> Result<()> {
+        self.inner.set_skill_enabled(ctx, skill, enabled).await
+    }
+
+    async fn set_mcp_server_enabled(
+        &self,
+        ctx: &PlatformContext,
+        server: &McpServer,
+        enabled: bool,
+    ) -> Result<()> {
+        self.inner
+            .set_mcp_server_enabled(ctx, server, enabled)
+            .await
+    }
+
     async fn install_plan(
         &self,
         ctx: &PlatformContext,

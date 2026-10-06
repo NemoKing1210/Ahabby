@@ -45,3 +45,12 @@ pub use terminal::{
     TerminalOutput, TerminalSession,
 };
 pub use version::Version;
+
+/// Default for a `bool` field added after a report was cached.
+///
+/// The last scan is cached on disk to make the first paint instant, so a report written by an
+/// older version has no value for such a field; the honest reading of a missing one is "nothing
+/// was switched off" rather than "everything is off".
+pub(crate) fn default_true() -> bool {
+    true
+}

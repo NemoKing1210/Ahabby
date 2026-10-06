@@ -76,6 +76,11 @@ pub struct McpServer {
     #[ts(type = "number | null")]
     pub modified_ms: Option<i64>,
     pub has_secrets: bool,
+    /// `false` while the user has the server switched off: the entry lives in the sibling
+    /// `<container>Disabled` object of the same config file, where no agent looks for servers.
+    /// `key_path` always addresses the entry's *enabled* position, so the switch can go back.
+    #[serde(default = "super::default_true")]
+    pub enabled: bool,
     pub removable: bool,
     pub unverified: bool,
 }

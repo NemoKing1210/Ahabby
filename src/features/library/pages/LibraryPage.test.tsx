@@ -45,6 +45,7 @@ function skill(name: string, path: string, agents: AgentRef[], extra: Partial<Sk
     frontmatter: [],
     content: '# body',
     sizeBytes: 10,
+    enabled: true,
     removable: true,
     unverified: false,
     ...extra,
@@ -65,6 +66,7 @@ const SERVER: McpServer = {
   createdMs: Date.UTC(2024, 0, 2),
   modifiedMs: Date.UTC(2024, 5, 3),
   hasSecrets: false,
+  enabled: true,
   removable: true,
   unverified: false,
 }
@@ -235,6 +237,33 @@ describe('LibraryPage', () => {
 
     expect(within(container).getByText('https://mcp.example.com')).toBeTruthy()
     expect(within(container).queryByText('npx')).toBeNull()
+  })
+
+  it('narrows a tab to the resources that are switched off', async () => {
+    vi.mocked(ipc.listLibrary).mockResolvedValue({
+      ...LIBRARY,
+      skills: [...LIBRARY.skills, skill('parked', '/a/parked', [claude], { enabled: false })],
+    })
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    // The row counts what each choice would show, so "Off 0" cannot look like a filter that
+    // does nothing.
+    const activity = within(container).getByRole('group', { name: 'Activity' })
+    expect(within(activity).getByRole('button', { name: 'All 4' })).toBeTruthy()
+    expect(within(activity).getByRole('button', { name: 'On 3' })).toBeTruthy()
+    expect(within(activity).getByRole('button', { name: 'Off 1' })).toBeTruthy()
+
+    await user.click(within(activity).getByRole('button', { name: 'Off 1' }))
+    expect(within(container).getByRole('button', { name: 'parked' })).toBeTruthy()
+    expect(within(container).queryByRole('heading', { name: 'pdf' })).toBeNull()
+    // Narrowing this tab does not empty the others: their badges keep their own counts.
+    expect(within(container).getByRole('tab', { name: /^MCP/ })).toHaveTextContent('2')
+
+    await user.click(within(activity).getByRole('button', { name: 'All 4' }))
+    expect(within(container).getByRole('heading', { name: 'pdf' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'parked' })).toBeTruthy()
   })
 
   it('shows the file date each resource carries, and labels it honestly', async () => {

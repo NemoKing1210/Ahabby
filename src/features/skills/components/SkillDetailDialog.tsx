@@ -10,6 +10,7 @@ import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/
 import { EmptyState } from '@/shared/ui/EmptyState'
 import { Markdown } from '@/shared/ui/Markdown'
 import { PathRow } from '@/shared/ui/PathRow'
+import { Switch } from '@/shared/ui/Switch'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 /** Full view of one skill: metadata, frontmatter and the rendered SKILL.md body. */
@@ -19,12 +20,18 @@ export function SkillDetailDialog({
   onOpenChange,
   onEdit,
   onDelete,
+  onToggle,
+  toggleBusy,
 }: {
   skill: Skill | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit?: (skill: Skill) => void
   onDelete?: (skill: Skill) => void
+  /** Only offered for a skill Ahabby may switch off. */
+  onToggle?: (skill: Skill, enabled: boolean) => void
+  /** Disables the switch while its own mutation is in flight. */
+  toggleBusy?: boolean
 }) {
   const { t, i18n } = useTranslation()
   if (!skill) return null
@@ -40,6 +47,18 @@ export function SkillDetailDialog({
               {skill.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
               {!skill.removable ? <Badge tone="neutral">{t('skills.notRemovable')}</Badge> : null}
             </div>
+            {onToggle && skill.removable ? (
+              <Tooltip content={t('skills.switchHint')}>
+                <span className="inline-flex">
+                  <Switch
+                    checked={skill.enabled}
+                    disabled={toggleBusy}
+                    onCheckedChange={(next) => onToggle(skill, next)}
+                    aria-label={skill.enabled ? t('skills.toggleOff') : t('skills.toggleOn')}
+                  />
+                </span>
+              </Tooltip>
+            ) : null}
             {onEdit && skill.entryPath ? (
               <Tooltip content={skill.removable ? t('configs.edit') : t('configs.notEditable')}>
                 <span className="inline-flex">
@@ -65,7 +84,10 @@ export function SkillDetailDialog({
         }
       >
         <DialogHeader>
-          <DialogTitle>{skill.name}</DialogTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <DialogTitle>{skill.name}</DialogTitle>
+            {!skill.enabled ? <Badge tone="neutral">{t('skills.disabled')}</Badge> : null}
+          </div>
           {skill.description ? (
             <p className="text-muted text-[0.8125rem]">{skill.description}</p>
           ) : null}

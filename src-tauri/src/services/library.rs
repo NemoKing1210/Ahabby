@@ -171,6 +171,7 @@ mod tests {
             size_bytes: Some(10),
             created_ms: Some(1_700_000_000_000),
             modified_ms: Some(1_700_000_100_000),
+            enabled: true,
             removable: true,
             unverified: false,
         }
@@ -199,6 +200,7 @@ mod tests {
             created_ms: Some(1_700_000_000_000),
             modified_ms: Some(1_700_000_100_000),
             has_secrets: true,
+            enabled: true,
             removable: true,
             unverified: false,
         }

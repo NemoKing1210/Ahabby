@@ -505,6 +505,225 @@ async fn removing_an_mcp_server_from_a_jsonc_file_keeps_the_comments() {
 }
 
 #[tokio::test]
+async fn switching_a_skill_off_renames_its_entry_file_and_back() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+    let directory = fixture.home.join(".pipeline/skills/pdf");
+
+    let skill = adapter.list_skills(&context).await.unwrap().remove(0);
+    assert!(skill.enabled);
+    adapter
+        .set_skill_enabled(&context, &skill, false)
+        .await
+        .unwrap();
+
+    // Agents look a skill up by the exact file name, so a renamed entry is a skill they no
+    // longer see — while the file itself is untouched.
+    assert!(!directory.join("SKILL.md").exists());
+    assert!(directory.join("SKILL.md.disabled").is_file());
+    assert!(fs::read_to_string(directory.join("SKILL.md.disabled"))
+        .unwrap()
+        .contains("pdftotext"));
+
+    // It stays in the scan (the switch has to be able to go back) and keeps its identity.
+    let disabled = adapter.list_skills(&context).await.unwrap();
+    assert_eq!(disabled.len(), 1);
+    assert!(!disabled[0].enabled);
+    assert_eq!(disabled[0].id, skill.id, "the id survives the switch");
+    assert_eq!(disabled[0].name, "pdf", "the name survives the switch");
+    assert!(disabled[0]
+        .entry_path
+        .as_deref()
+        .unwrap()
+        .ends_with("SKILL.md.disabled"));
+
+    adapter
+        .set_skill_enabled(&context, &disabled[0], true)
+        .await
+        .unwrap();
+    assert!(directory.join("SKILL.md").is_file());
+    assert!(!directory.join("SKILL.md.disabled").exists());
+    assert!(adapter.list_skills(&context).await.unwrap()[0].enabled);
+
+    // A skill Ahabby is not allowed to touch (plugin-managed) is never renamed.
+    let mut locked = skill.clone();
+    locked.removable = false;
+    let error = adapter
+        .set_skill_enabled(&context, &locked, false)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "not_supported");
+    assert!(directory.join("SKILL.md").is_file());
+}
+
+#[tokio::test]
+async fn switching_an_mcp_server_off_moves_it_out_of_the_agents_view() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+    let path = fixture.settings_json();
+
+    let servers = adapter.list_mcp_servers(&context).await.unwrap();
+    let github = servers
+        .iter()
+        .find(|server| server.name == "github")
+        .unwrap()
+        .clone();
+    assert!(github.enabled);
+    adapter
+        .set_mcp_server_enabled(&context, &github, false)
+        .await
+        .unwrap();
+
+    let read = || -> serde_json::Value {
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap()
+    };
+    let value = read();
+    assert!(value["mcpServers"].get("github").is_none());
+    assert!(value["mcpServersDisabled"]["github"].is_object());
+    assert!(
+        value["mcpServers"].get("linear").is_some(),
+        "other servers stay"
+    );
+    assert_eq!(value["theme"], "dark", "unrelated keys stay");
+    assert_eq!(
+        value["mcpServersDisabled"]["github"]["env"]["GITHUB_PERSONAL_ACCESS_TOKEN"],
+        "ghp_do_not_leak_me",
+        "the entry keeps its secrets"
+    );
+    assert_eq!(
+        services::list_backups(&context.backup_root, &path)
+            .unwrap()
+            .len(),
+        1,
+        "the switch is backed up"
+    );
+
+    // The switched-off server is still reported — with its enabled address and its id — so the
+    // UI can switch it back on.
+    let off = adapter
+        .list_mcp_servers(&context)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|server| server.name == "github")
+        .unwrap();
+    assert!(!off.enabled);
+    assert_eq!(off.id, github.id, "the id survives the switch");
+    assert_eq!(
+        off.key_path, github.key_path,
+        "the address stays the enabled one"
+    );
+    assert_eq!(off.env[0].value, None, "secrets stay masked while off");
+
+    adapter
+        .set_mcp_server_enabled(&context, &off, true)
+        .await
+        .unwrap();
+    assert!(read()["mcpServers"]["github"].is_object());
+
+    // A switched-off server can still be removed for good.
+    adapter
+        .set_mcp_server_enabled(&context, &github, false)
+        .await
+        .unwrap();
+    let off = adapter
+        .list_mcp_servers(&context)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|server| server.name == "github")
+        .unwrap();
+    assert!(!off.enabled);
+    adapter.remove_mcp_server(&context, &off).await.unwrap();
+    assert!(read()["mcpServersDisabled"].get("github").is_none());
+}
+
+#[tokio::test]
+async fn switching_an_mcp_server_off_in_jsonc_keeps_every_comment() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+
+    let agent_dir = fixture.home.join(".pipeline");
+    fs::create_dir_all(&agent_dir).unwrap();
+    let path = fixture.settings_json();
+    fs::write(
+        &path,
+        r#"{
+  // keep me
+  "mcpServers": {
+    "github": { "command": "npx", "args": ["-y", "server-github"] },
+    "linear": { "url": "https://mcp.linear.app/sse" },
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    let jsonc_manifest = MANIFEST.replace("format = \"json\"", "format = \"jsonc\"");
+    let adapter = ahabby_lib::adapters::registry::create(
+        toml_edit::de::from_str(&jsonc_manifest).expect("jsonc variant of the fixture manifest"),
+    );
+    let context = fixture.context();
+    let servers = adapter.list_mcp_servers(&context).await.unwrap();
+    let linear = servers
+        .iter()
+        .find(|server| server.name == "linear")
+        .unwrap();
+    adapter
+        .set_mcp_server_enabled(&context, linear, false)
+        .await
+        .unwrap();
+
+    let updated = fs::read_to_string(&path).unwrap();
+    assert!(updated.contains("// keep me"), "comments survive the move");
+    assert!(updated.contains("\"github\""), "other servers survive");
+    assert!(
+        updated.contains("mcpServersDisabled"),
+        "the entry moved to the disabled object"
+    );
+    doc_edit::validate(ConfigFormat::Jsonc, &updated, "test").unwrap();
+
+    let off = adapter
+        .list_mcp_servers(&context)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|server| server.name == "linear")
+        .unwrap();
+    assert!(!off.enabled);
+    assert_eq!(off.transport.label(), "http");
+
+    adapter
+        .set_mcp_server_enabled(&context, &off, true)
+        .await
+        .unwrap();
+    let restored = fs::read_to_string(&path).unwrap();
+    doc_edit::validate(ConfigFormat::Jsonc, &restored, "test").unwrap();
+    assert!(restored.contains("// keep me"));
+    let servers = adapter.list_mcp_servers(&context).await.unwrap();
+    let linear = servers
+        .iter()
+        .find(|server| server.name == "linear")
+        .unwrap();
+    assert!(linear.enabled, "the entry is readable where it was before");
+}
+
+#[tokio::test]
 async fn writes_are_refused_outside_declared_paths() {
     let fixture = Fixture::new();
     fixture.write_manifest();

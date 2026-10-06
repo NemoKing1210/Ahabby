@@ -4,6 +4,8 @@ import { Plug } from 'lucide-react'
 
 import type { ConfigFile } from '@/shared/bindings/ConfigFile'
 import type { McpServer } from '@/shared/bindings/McpServer'
+import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
+import { ActivityChips } from '@/shared/ui/ActivityChips'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
@@ -12,7 +14,7 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { configDocument, type EditorDocument } from '@/features/editor/model'
 
-import { useDeleteMcpServer } from '../api/hooks'
+import { useDeleteMcpServer, useSetMcpServerEnabled } from '../api/hooks'
 import { McpCard } from './McpCard'
 
 /**
@@ -34,8 +36,26 @@ export function McpTab({
 }) {
   const { t } = useTranslation()
   const remove = useDeleteMcpServer()
+  const toggle = useSetMcpServerEnabled()
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null)
   const [open, setOpen] = useState<EditorDocument | null>(null)
+  const [activity, setActivity] = useState<ActivityFilter>('all')
+
+  // Every card carries a switch, so the list can be narrowed to what is on or off — the state
+  // is on the scanned server itself, nothing to remember here.
+  const visible = servers.filter((server) => matchesActivity(server.enabled, activity))
+
+  const toggleServer = (server: McpServer, enabled: boolean) => {
+    toggle.mutate(
+      { agentId, serverId: server.id, enabled },
+      {
+        onSuccess: (result) => {
+          toast.success(t(enabled ? 'mcp.toggledOn' : 'mcp.toggledOff', { name: result.data.name }))
+        },
+        onError: (error) => toastAppError(error),
+      },
+    )
+  }
 
   const documentFor = (server: McpServer): EditorDocument | null => {
     const config = configs.find((candidate) => candidate.path === server.sourceConfig)
@@ -48,17 +68,30 @@ export function McpTab({
 
   return (
     <>
-      <AnimatedList>
-        {servers.map((server) => (
-          <McpCard
-            key={server.id}
-            server={server}
-            sourceDocument={documentFor(server)}
-            onOpen={setOpen}
-            onDelete={setDeleteTarget}
+      <div className="flex flex-col gap-3">
+        <ActivityChips items={servers} value={activity} onChange={setActivity} />
+        {visible.length === 0 ? (
+          <EmptyState
+            title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}
+            hint={t('activity.noneHint')}
+            icon={Plug}
           />
-        ))}
-      </AnimatedList>
+        ) : (
+          <AnimatedList>
+            {visible.map((server) => (
+              <McpCard
+                key={server.id}
+                server={server}
+                sourceDocument={documentFor(server)}
+                onOpen={setOpen}
+                onDelete={setDeleteTarget}
+                onToggle={toggleServer}
+                toggleBusy={toggle.isPending && toggle.variables?.serverId === server.id}
+              />
+            ))}
+          </AnimatedList>
+        )}
+      </div>
 
       <ConfirmDialog
         open={deleteTarget !== null}

@@ -110,6 +110,27 @@ Server entry shapes recognised without extra code: `command` as string + `args`,
 array, `env` / `environment`, `url` (+ `type` = `sse` / `http` / `remote` / `streamable-http`),
 `headers`. Secret-looking keys (`*_TOKEN`, `*_KEY`, `Authorization`, …) are masked.
 
+### Switching a server off
+
+Ahabby can switch a server off without deleting it: the entry is moved into a sibling object
+whose name is the container plus `Disabled` (`mcpServers` → `mcpServersDisabled`,
+`mcp.servers` → `mcp.serversDisabled`, `mcp_servers` → `mcp_serversDisabled`), where no agent
+looks for servers, and switching it on moves it back. The rest of the file is preserved —
+byte for byte for JSON and JSONC (comments included) and through the format's own editor for
+TOML and YAML — and a timestamped backup is taken first. A container left empty is not
+removed, so comments inside it are never lost. Only entries addressable by key (the map shape)
+can be switched, exactly like removal; the scan reports the rest as `enabled: false` so the UI
+can offer the switch.
+
+### Switching a skill off
+
+A `SkillFormat` is switched off by renaming its entry file to `<name>.disabled`
+(`SKILL.md` → `SKILL.md.disabled`) — every agent looks a skill up by the exact file name, so
+the skill disappears from its view while the file itself is untouched; renaming it back is the
+whole "switch on" operation. A switched-off skill is still scanned, with `enabled: false`, and
+`entry_path` pointing at the renamed file so it can still be read and edited. Only skills
+Ahabby could also delete are switchable.
+
 ## `[[other]]` (optional, repeatable)
 
 Non-config resources: instructions, slash commands, sub-agents, hooks, rules, prompts.

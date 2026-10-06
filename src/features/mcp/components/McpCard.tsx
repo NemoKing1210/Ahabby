@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, FileCode2, Trash2 } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
+import { cn } from '@/shared/lib/cn'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -11,6 +12,7 @@ import { Card } from '@/shared/ui/Card'
 import { CodeViewer } from '@/shared/ui/CodeViewer'
 import { PathRow } from '@/shared/ui/PathRow'
 import { Reveal } from '@/shared/ui/Reveal'
+import { Switch } from '@/shared/ui/Switch'
 import { Timestamp } from '@/shared/ui/Timestamp'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
@@ -35,6 +37,8 @@ export function McpCard({
   sourceDocument,
   onOpen,
   onDelete,
+  onToggle,
+  toggleBusy,
 }: {
   server: McpServer
   /** Every agent that declares a server with this name; defaults to this server's owner. */
@@ -43,6 +47,10 @@ export function McpCard({
   sourceDocument?: EditorDocument | null
   onOpen?: (document: EditorDocument) => void
   onDelete?: (server: McpServer) => void
+  /** Only offered for a server Ahabby may switch off; the backend refuses the rest. */
+  onToggle?: (server: McpServer, enabled: boolean) => void
+  /** Disables this card's switch while its own mutation is in flight. */
+  toggleBusy?: boolean
 }) {
   const { t } = useTranslation()
   const [showRaw, setShowRaw] = useState(false)
@@ -53,13 +61,24 @@ export function McpCard({
   const showOwners = agents !== undefined || owners.length > 1
 
   return (
-    <Card className="group ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color,translate] duration-150 hover:-translate-y-px">
+    <Card
+      className={cn(
+        'group ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color,translate] duration-150 hover:-translate-y-px',
+        !server.enabled && 'border-dashed',
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-foreground group-hover:text-accent-strong font-serif text-[0.9375rem]">
+            <span
+              className={cn(
+                'group-hover:text-accent-strong font-serif text-[0.9375rem]',
+                server.enabled ? 'text-foreground' : 'text-muted',
+              )}
+            >
               {server.name}
             </span>
+            {!server.enabled ? <Badge tone="neutral">{t('mcp.disabled')}</Badge> : null}
             <TransportBadge server={server} />
             {server.hasSecrets ? (
               <Badge tone="warning">
@@ -80,6 +99,18 @@ export function McpCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {onToggle && server.removable ? (
+            <Tooltip content={t('mcp.switchHint')}>
+              <span className="inline-flex">
+                <Switch
+                  checked={server.enabled}
+                  disabled={toggleBusy}
+                  onCheckedChange={(next) => onToggle(server, next)}
+                  aria-label={server.enabled ? t('mcp.toggleOff') : t('mcp.toggleOn')}
+                />
+              </span>
+            </Tooltip>
+          ) : null}
           {sourceDocument && onOpen ? (
             <Tooltip
               content={sourceDocument.editable ? t('mcp.editConfig') : t('configs.notEditable')}

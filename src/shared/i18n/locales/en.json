@@ -70,6 +70,14 @@
     "notAvailable": "Not available",
     "readOnly": "Read-only"
   },
+  "activity": {
+    "label": "Activity",
+    "on": "On",
+    "off": "Off",
+    "noneOn": "Nothing here is switched on",
+    "noneOff": "Nothing here is switched off",
+    "noneHint": "A skill or server appears here once it has been switched off, and nothing tells the agent to forget it."
+  },
   "agents": {
     "title": "Agents",
     "installed": "Installed",
@@ -289,7 +297,13 @@
     "deleteBody": "The directory {{path}} will be moved to the system trash — you can restore it from there. Nothing is deleted permanently.",
     "deleted": "“{{name}}” moved to the trash",
     "pluginManaged": "Managed by a plugin",
-    "notRemovable": "Ahabby will not delete this one"
+    "notRemovable": "Ahabby will not delete this one",
+    "toggleOn": "Switch on",
+    "toggleOff": "Switch off",
+    "switchHint": "Switched off, the entry file is renamed to SKILL.md.disabled — the agent stops loading the skill and nothing is deleted.",
+    "disabled": "Disabled",
+    "toggledOn": "“{{name}}” is switched on",
+    "toggledOff": "“{{name}}” is switched off"
   },
   "mcp": {
     "title": "MCP servers",
@@ -314,7 +328,13 @@
     "delete": "Remove server",
     "deleteTitle": "Remove “{{name}}”?",
     "deleteBody": "The entry will be deleted from {{config}}. A timestamped backup is taken first, so you can undo this from Backups.",
-    "deleted": "“{{name}}” removed"
+    "deleted": "“{{name}}” removed",
+    "toggleOn": "Switch on",
+    "toggleOff": "Switch off",
+    "switchHint": "Switched off, the entry is moved to the mcpServersDisabled object of the same file, where no agent looks for servers.",
+    "disabled": "Disabled",
+    "toggledOn": "“{{name}}” is switched on",
+    "toggledOff": "“{{name}}” is switched off"
   },
   "library": {
     "title": "Library",

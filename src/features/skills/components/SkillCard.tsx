@@ -4,11 +4,13 @@ import { Pencil, Sparkles, Trash2 } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Skill } from '@/shared/bindings/Skill'
+import { cn } from '@/shared/lib/cn'
 import { formatBytes, shortenPath } from '@/shared/lib/format'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
+import { Switch } from '@/shared/ui/Switch'
 import { Timestamp } from '@/shared/ui/Timestamp'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
@@ -26,6 +28,8 @@ export function SkillCard({
   onOpen,
   onEdit,
   onDelete,
+  onToggle,
+  toggleBusy,
 }: {
   skill: Skill
   /** Owners to show as tags; omit them on a page that is already scoped to one agent. */
@@ -35,6 +39,10 @@ export function SkillCard({
   onEdit?: (skill: Skill) => void
   /** Only offered for a skill Ahabby is allowed to delete. */
   onDelete?: (skill: Skill) => void
+  /** Only offered for a skill Ahabby may switch off; the backend refuses the rest. */
+  onToggle?: (skill: Skill, enabled: boolean) => void
+  /** Disables this card's switch while its own mutation is in flight. */
+  toggleBusy?: boolean
 }) {
   const { t } = useTranslation()
   const size = formatBytes(skill.sizeBytes)
@@ -51,7 +59,12 @@ export function SkillCard({
   }
 
   return (
-    <Card className="group ease-warm hover:border-border-strong relative transition-[border-color,translate] duration-150 hover:-translate-y-px">
+    <Card
+      className={cn(
+        'group ease-warm hover:border-border-strong relative transition-[border-color,translate] duration-150 hover:-translate-y-px',
+        !skill.enabled && 'border-dashed',
+      )}
+    >
       <div className="flex items-start gap-4 p-4">
         <div
           role="button"
@@ -63,16 +76,25 @@ export function SkillCard({
         >
           <span
             aria-hidden
-            className="border-border bg-surface-2 text-accent-strong inline-flex size-10 shrink-0 items-center justify-center rounded-lg border"
+            className={cn(
+              'border-border bg-surface-2 text-accent-strong inline-flex size-10 shrink-0 items-center justify-center rounded-lg border',
+              !skill.enabled && 'opacity-60',
+            )}
           >
             <Sparkles className="size-4" />
           </span>
 
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-foreground group-hover:text-accent-strong font-serif text-[0.9375rem]">
+              <span
+                className={cn(
+                  'group-hover:text-accent-strong font-serif text-[0.9375rem]',
+                  skill.enabled ? 'text-foreground' : 'text-muted',
+                )}
+              >
                 {skill.name}
               </span>
+              {!skill.enabled ? <Badge tone="neutral">{t('skills.disabled')}</Badge> : null}
               {!skill.removable ? <Badge tone="neutral">{t('skills.pluginManaged')}</Badge> : null}
               {skill.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
             </div>
@@ -98,6 +120,18 @@ export function SkillCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {onToggle && skill.removable ? (
+            <Tooltip content={t('skills.switchHint')}>
+              <span className="inline-flex">
+                <Switch
+                  checked={skill.enabled}
+                  disabled={toggleBusy}
+                  onCheckedChange={(next) => onToggle(skill, next)}
+                  aria-label={skill.enabled ? t('skills.toggleOff') : t('skills.toggleOn')}
+                />
+              </span>
+            </Tooltip>
+          ) : null}
           <Button variant="secondary" size="sm" onClick={open} disabled={!open}>
             {t('common.open')}
           </Button>

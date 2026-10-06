@@ -6,7 +6,7 @@ use crate::domain::{secrets, McpServer};
 use crate::error::{AppError, Result};
 use crate::state::AppState;
 
-use super::{McpRemoval, MutationResult};
+use super::{McpRemoval, McpToggle, MutationResult};
 
 #[tauri::command]
 pub async fn list_agent_mcp_servers(
@@ -35,6 +35,37 @@ pub async fn delete_mcp_server(
         McpRemoval {
             removed_server_id: server_id,
             name: server.name,
+            config: server.source_config,
+        },
+        report,
+    ))
+}
+
+/// Switch an MCP server on or off.
+///
+/// The entry is moved between the object the agent reads (`mcpServers`) and its disabled
+/// sibling (`mcpServersDisabled`), where no agent looks for servers. A timestamped backup is
+/// taken and the switch is reversible, so no confirmation is required.
+#[tauri::command]
+pub async fn set_mcp_server_enabled(
+    state: State<'_, AppState>,
+    agent_id: String,
+    server_id: String,
+    enabled: bool,
+) -> Result<MutationResult<McpToggle>> {
+    let server = state.mcp_server(&agent_id, &server_id)?;
+    let adapter = state.adapter(&agent_id)?;
+    let context = state.platform_context();
+    adapter
+        .set_mcp_server_enabled(&context, &server, enabled)
+        .await?;
+
+    let report = state.scan().await;
+    Ok(MutationResult::new(
+        McpToggle {
+            server_id,
+            name: server.name,
+            enabled,
             config: server.source_config,
         },
         report,
@@ -72,7 +103,10 @@ pub async fn reveal_mcp_secret(
 
     let content = crate::platform::read_text(&path)?;
     let document = crate::adapters::mcp_parse::document_to_value(format, &content)?;
-    let entry = crate::adapters::mcp_parse::value_at(&document, &server.key_path)
+    // A switched-off server lives in the disabled sibling container, so the entry is looked up
+    // where it actually is.
+    let location = crate::adapters::mcp_entry_location(&server.key_path, server.enabled)?;
+    let entry = crate::adapters::mcp_parse::value_at(&document, &location)
         .ok_or_else(|| AppError::NotFound(format!("{} in {}", key, server.source_config)))?;
 
     let collection = entry

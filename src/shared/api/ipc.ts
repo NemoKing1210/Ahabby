@@ -19,6 +19,7 @@ import type { InstallPlan } from '@/shared/bindings/InstallPlan'
 import type { Library } from '@/shared/bindings/Library'
 import type { McpRemoval } from '@/shared/bindings/McpRemoval'
 import type { McpServer } from '@/shared/bindings/McpServer'
+import type { McpToggle } from '@/shared/bindings/McpToggle'
 import type { MutationResult } from '@/shared/bindings/MutationResult'
 import type { PackageManagerInfo } from '@/shared/bindings/PackageManagerInfo'
 import type { RemovalMode } from '@/shared/bindings/RemovalMode'
@@ -27,6 +28,7 @@ import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { Settings } from '@/shared/bindings/Settings'
 import type { Skill } from '@/shared/bindings/Skill'
 import type { SkillRemoval } from '@/shared/bindings/SkillRemoval'
+import type { SkillToggle } from '@/shared/bindings/SkillToggle'
 import type { TerminalCatalog } from '@/shared/bindings/TerminalCatalog'
 import type { TerminalSession } from '@/shared/bindings/TerminalSession'
 import type { Theme } from '@/shared/bindings/Theme'
@@ -68,12 +70,16 @@ export const ipc = {
   listAgentSkills: (agentId: string) => invoke<Skill[]>('list_agent_skills', { agentId }),
   deleteSkill: (agentId: string, skillId: string, confirm: boolean) =>
     invoke<MutationResult<SkillRemoval>>('delete_skill', { agentId, skillId, confirm }),
+  setSkillEnabled: (agentId: string, skillId: string, enabled: boolean) =>
+    invoke<MutationResult<SkillToggle>>('set_skill_enabled', { agentId, skillId, enabled }),
 
   // --- mcp ----------------------------------------------------------------------------
   listAgentMcpServers: (agentId: string) =>
     invoke<McpServer[]>('list_agent_mcp_servers', { agentId }),
   deleteMcpServer: (agentId: string, serverId: string, confirm: boolean) =>
     invoke<MutationResult<McpRemoval>>('delete_mcp_server', { agentId, serverId, confirm }),
+  setMcpServerEnabled: (agentId: string, serverId: string, enabled: boolean) =>
+    invoke<MutationResult<McpToggle>>('set_mcp_server_enabled', { agentId, serverId, enabled }),
   revealMcpSecret: (agentId: string, serverId: string, key: string) =>
     invoke<string>('reveal_mcp_secret', { agentId, serverId, key }),
 

@@ -1,6 +1,8 @@
 import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import type { ActivityFilter } from '@/shared/lib/activity'
+import { ActivityChips } from '@/shared/ui/ActivityChips'
 import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
 import { Input } from '@/shared/ui/Input'
@@ -47,6 +49,7 @@ export function LibraryToolbar({
   sort,
   onSortChange,
   facet,
+  activity,
   groupMode,
   onGroupModeChange,
   showGrouping,
@@ -65,6 +68,15 @@ export function LibraryToolbar({
   onSortChange: (sort: LibrarySort) => void
   /** `null` on a tab that has no meaningful refinement (the "other" tab has kinds instead). */
   facet: LibraryFacet | null
+  /**
+   * The activity chip row (what is switched on / off). `null` on a tab whose resources have no
+   * switch — the "other" tab is documents and rules, which are never switched off.
+   */
+  activity: {
+    items: readonly { enabled: boolean }[]
+    value: ActivityFilter
+    onChange: (filter: ActivityFilter) => void
+  } | null
   groupMode: LibraryGroupMode
   onGroupModeChange: (mode: LibraryGroupMode) => void
   showGrouping: boolean
@@ -121,7 +133,7 @@ export function LibraryToolbar({
         ) : null}
       </div>
 
-      {showGrouping || facetVisible ? (
+      {showGrouping || activity || facetVisible ? (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {showGrouping ? (
             <div
@@ -143,7 +155,19 @@ export function LibraryToolbar({
             </div>
           ) : null}
 
-          {showGrouping && facetVisible ? (
+          {showGrouping && (activity !== null || facetVisible) ? (
+            <span aria-hidden className="bg-border h-5 w-px shrink-0" />
+          ) : null}
+
+          {activity ? (
+            <ActivityChips
+              items={activity.items}
+              value={activity.value}
+              onChange={activity.onChange}
+            />
+          ) : null}
+
+          {(showGrouping || activity !== null) && facetVisible ? (
             <span aria-hidden className="bg-border h-5 w-px shrink-0" />
           ) : null}
 

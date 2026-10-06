@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Sparkles } from 'lucide-react'
 
 import type { Skill } from '@/shared/bindings/Skill'
+import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
+import { ActivityChips } from '@/shared/ui/ActivityChips'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
@@ -10,7 +12,7 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 
-import { useDeleteSkill } from '../api/hooks'
+import { useDeleteSkill, useSetSkillEnabled } from '../api/hooks'
 import { SkillCard } from './SkillCard'
 import { SkillDetailDialog } from './SkillDetailDialog'
 
@@ -18,9 +20,32 @@ import { SkillDetailDialog } from './SkillDetailDialog'
 export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[] }) {
   const { t } = useTranslation()
   const remove = useDeleteSkill()
-  const [detail, setDetail] = useState<Skill | null>(null)
+  const toggle = useSetSkillEnabled()
+  // The dialog carries a switch, so it keeps the id and reads the live skill out of the list
+  // the mutation refreshes: a snapshot would leave that switch showing a stale state.
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const detail = skills.find((skill) => skill.id === detailId) ?? null
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null)
+  const [activity, setActivity] = useState<ActivityFilter>('all')
+
+  // Every card carries a switch, so the list can be narrowed to what is on or off — the state
+  // is on the scanned skill itself, nothing to remember here.
+  const visible = skills.filter((skill) => matchesActivity(skill.enabled, activity))
+
+  const toggleSkill = (skill: Skill, enabled: boolean) => {
+    toggle.mutate(
+      { agentId, skillId: skill.id, enabled },
+      {
+        onSuccess: (result) => {
+          toast.success(
+            t(enabled ? 'skills.toggledOn' : 'skills.toggledOff', { name: result.data.name }),
+          )
+        },
+        onError: (error) => toastAppError(error),
+      },
+    )
+  }
 
   if (skills.length === 0) {
     return <EmptyState title={t('skills.none')} hint={t('skills.noneHint')} icon={Sparkles} />
@@ -28,32 +53,47 @@ export function SkillsTab({ agentId, skills }: { agentId: string; skills: Skill[
 
   return (
     <>
-      <AnimatedList>
-        {skills.map((skill) => (
-          <SkillCard
-            key={skill.id}
-            skill={skill}
-            onOpen={setDetail}
-            onEdit={setEditTarget}
-            onDelete={setDeleteTarget}
+      <div className="flex flex-col gap-3">
+        <ActivityChips items={skills} value={activity} onChange={setActivity} />
+        {visible.length === 0 ? (
+          <EmptyState
+            title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}
+            hint={t('activity.noneHint')}
+            icon={Sparkles}
           />
-        ))}
-      </AnimatedList>
+        ) : (
+          <AnimatedList>
+            {visible.map((skill) => (
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                onOpen={(skill) => setDetailId(skill.id)}
+                onEdit={setEditTarget}
+                onDelete={setDeleteTarget}
+                onToggle={toggleSkill}
+                toggleBusy={toggle.isPending && toggle.variables?.skillId === skill.id}
+              />
+            ))}
+          </AnimatedList>
+        )}
+      </div>
 
       <SkillDetailDialog
         skill={detail}
         open={detail !== null}
         onOpenChange={(open) => {
-          if (!open) setDetail(null)
+          if (!open) setDetailId(null)
         }}
         onEdit={(skill) => {
-          setDetail(null)
+          setDetailId(null)
           setEditTarget(skill)
         }}
         onDelete={(skill) => {
-          setDetail(null)
+          setDetailId(null)
           setDeleteTarget(skill)
         }}
+        onToggle={toggleSkill}
+        toggleBusy={toggle.isPending && toggle.variables?.skillId === detail?.id}
       />
 
       <ConfirmDialog

@@ -49,6 +49,11 @@ pub struct Skill {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "number | null")]
     pub modified_ms: Option<i64>,
+    /// `false` while the user has the skill switched off: its entry file is renamed to
+    /// `<name>.disabled`, so the agent stops loading it while nothing is lost. The skill is
+    /// still scanned so the UI can offer to switch it back on.
+    #[serde(default = "super::default_true")]
+    pub enabled: bool,
     /// `false` for skills Ahabby refuses to delete (e.g. a plugin-managed directory).
     pub removable: bool,
     /// `true` when the manifest path for this skill has not been verified against docs.

@@ -30,7 +30,7 @@ use crate::domain::{
     AgentManifest, AgentRef, ConfigFile, Detection, InstallAction, InstallPlan, Manager, McpServer,
     OsPathMap, OtherResource, Skill, Version,
 };
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
 
 /// Version commands must never hang a scan.
@@ -73,6 +73,26 @@ pub trait AgentAdapter: Send + Sync {
     /// Removes an MCP server entry from its config file (backup + atomic write).
     async fn remove_mcp_server(&self, ctx: &PlatformContext, server: &McpServer) -> Result<()>;
 
+    /// Switches a skill on or off. Off renames its entry file to `<name>.disabled`, which is
+    /// enough to make the agent stop loading the skill; on renames it back. Nothing is deleted,
+    /// and only a skill Ahabby could also delete is switchable.
+    async fn set_skill_enabled(
+        &self,
+        ctx: &PlatformContext,
+        skill: &Skill,
+        enabled: bool,
+    ) -> Result<()>;
+
+    /// Switches an MCP server on or off by moving its entry between the container the agent
+    /// reads (`mcpServers`) and its disabled sibling (`mcpServersDisabled`), where no agent
+    /// looks for servers. Only a server Ahabby could also remove is switchable.
+    async fn set_mcp_server_enabled(
+        &self,
+        ctx: &PlatformContext,
+        server: &McpServer,
+        enabled: bool,
+    ) -> Result<()>;
+
     /// Resolve an install/update/uninstall command for this machine.
     async fn install_plan(
         &self,
@@ -80,6 +100,21 @@ pub trait AgentAdapter: Send + Sync {
         action: InstallAction,
         method_id: Option<&str>,
     ) -> Result<InstallPlan>;
+}
+
+/// Where an MCP entry actually lives inside its document: its own `key_path` while the server
+/// is on, the sibling `<container>Disabled` object while the user has switched it off.
+///
+/// `key_path` always describes the *enabled* position (that is what keeps a server's id stable
+/// across the switch), so every reader of a single entry — reveal, removal, toggle — has to go
+/// through this.
+pub fn mcp_entry_location(key_path: &[String], enabled: bool) -> Result<Vec<String>> {
+    if enabled {
+        return Ok(key_path.to_vec());
+    }
+    doc_edit::disabled_entry_path(key_path).ok_or_else(|| {
+        AppError::InvalidInput("this MCP entry has no address in its config file".to_string())
+    })
 }
 
 /// Directories to search for an agent's binary: manifest search paths, then the user's

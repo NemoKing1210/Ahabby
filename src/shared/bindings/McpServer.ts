@@ -27,4 +27,10 @@ createdMs?: number | null,
 /**
  * Modification time of that same file.
  */
-modifiedMs?: number | null, hasSecrets: boolean, removable: boolean, unverified: boolean, };
+modifiedMs?: number | null, hasSecrets: boolean, 
+/**
+ * `false` while the user has the server switched off: the entry lives in the sibling
+ * `<container>Disabled` object of the same config file, where no agent looks for servers.
+ * `key_path` always addresses the entry's *enabled* position, so the switch can go back.
+ */
+enabled: boolean, removable: boolean, unverified: boolean, };

@@ -90,3 +90,29 @@ pub struct McpRemoval {
     /// Config file it was removed from.
     pub config: String,
 }
+
+/// What `set_skill_enabled` switched.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct SkillToggle {
+    pub skill_id: String,
+    pub name: String,
+    /// The state the skill is in now.
+    pub enabled: bool,
+    /// Where it lives: the skill directory, or the file itself for a document.
+    pub path: String,
+}
+
+/// What `set_mcp_server_enabled` switched.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct McpToggle {
+    pub server_id: String,
+    pub name: String,
+    /// The state the server is in now.
+    pub enabled: bool,
+    /// Config file the entry was moved inside.
+    pub config: String,
+}

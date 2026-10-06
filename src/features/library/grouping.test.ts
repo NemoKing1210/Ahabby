@@ -29,6 +29,7 @@ function skill(name: string, path: string, agents: AgentRef[]): Skill {
     frontmatter: [],
     content: '# body',
     sizeBytes: 10,
+    enabled: true,
     removable: true,
     unverified: false,
   }
@@ -47,6 +48,7 @@ function server(name: string, agent: AgentRef, file: string): McpServer {
     headers: [],
     raw: '{}',
     hasSecrets: false,
+    enabled: true,
     removable: true,
     unverified: false,
   }
