@@ -5,6 +5,33 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - 2026-10-06
+
+### Added
+
+- Skills and MCP servers of your own can be created from the UI: on an agent's page and in the Library a
+  form writes the `SKILL.md` convention (with YAML frontmatter) into the skills directory the manifest
+  declares, or adds a server to the agent's own MCP config — `command`/`args`/`env` for a local process,
+  `url`/`headers` for a remote one — in the file's own format (JSON, JSONC, TOML, YAML) and the agent's own
+  entry shape (opencode's `type: local` command array included), keeping every other byte of that file intact.
+  Agents that keep their servers in a list (goose, Continue, gptme) stay read-only instead of getting an
+  entry they would not read.
+- In the Library the owner is part of the form: a skill or server can be written for one specific agent or
+  for the shared `~/.agents` surface that every installed agent reads
+
+### Changed
+
+- Every select that chooses an agent — the Library's owner filter, the creation forms and the terminal
+  dialog — now shows the agent's logo in the closed select and in each row, with the resource count or the
+  installed version as a dimmed note beside the name, so the owner is recognised before the name is read
+
+## [0.22.1] - 2026-10-06
+
+### Changed
+
+- The boot splash is quieter: the loading bar is gone, and the mark keeps its own colour instead of taking
+  the accent from Settings
+
 ## [0.22.0] - 2026-10-06
 
 ### Added

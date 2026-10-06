@@ -10,7 +10,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.22.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.23.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -154,7 +154,9 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   CVA + `cn()` (`twMerge(clsx(...))`). Use design tokens only — `bg-surface`, `bg-surface-2/3`, `text-muted`,
   `text-faint`, `border-border`, `border-border-strong`, `text-accent-strong`, `bg-accent`, `outline-ring`,
   `rounded-lg`, `shadow-popover`, `duration-150 ease-warm`. There is no `bg-surface-1`, `text-fg` or
-  `*-primary`. Every screen needs loading (skeleton), empty (hint) and error (code + retry) states.
+  `*-primary`. A `Select` option may carry an `icon` (the agent tile of a picker) and a `description`
+  (a dimmed trailing note such as a count) — see the Icons bullet. Every screen needs loading
+  (skeleton), empty (hint) and error (code + retry) states.
 - **Dialogs** are conditionally mounted with a `key` for state reset and an `onOpenChange` that unmounts —
   not always-present with an `open` prop. A dialog that stays mounted while `open` flips (e.g. `ConfirmDialog`)
   plays the exit animation; an unmounting one only animates in.
@@ -197,6 +199,11 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   Unmapped keys get a neutral monogram. Deep-import leaf components
   (`@lobehub/icons/es/<Brand>/components/{Color,Mono,Inner}`), never the per-brand index — that
   index also pulls the library's `Avatar` wrapper, dragging `@lobehub/ui` and `antd` into the bundle.
+  Every select that chooses an agent builds its rows with `agentOptions.tsx` (`agentOption`/`ownerOption`,
+  plus `anyAgentOption` for the "no filter" row, whose `NeutralTile` keeps the logo column straight), so a
+  picker shows the brand tile in the closed trigger and in every row. Radix drops the `className` given to
+  `Select.Value` and `SelectItemText`, which is why the trigger paints the selected option itself and a row
+  keeps its spacing in a wrapper of its own.
 - **Terminal**: `src/features/terminal` renders PTY sessions with xterm.js inside `TerminalDock`, a footer the
   shell owns (`AppShell` lazy-loads it the first time a terminal exists — xterm is the one heavy dependency the
   other screens should not pay for). The dock's tab strip is always on screen; collapsing it sets the body to
