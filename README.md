@@ -29,8 +29,9 @@
 ---
 
 Ahabby finds the AI coding agents installed on your machine and puts them in one place: versions, config
-files, global skills, MCP servers, sub-agents and instructions. You can read all of it, edit configs with a
-diff and a backup, and install or update an agent with the exact command from its manifest.
+files, global skills, MCP servers, sub-agents and instructions. Add your own project folders and it reads what
+each project keeps locally, too. You can read all of it, edit configs with a diff and a backup, and install or
+update an agent with the exact command from its manifest.
 
 Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
 
@@ -45,6 +46,13 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
   config files, skills, rules and other resources, and MCP servers.
 - **Groups everything in a Library view:** every skill (with its `SKILL.md` frontmatter and rendered body),
   every MCP server (transport, command/URL, which agents use it) and every other resource.
+- **Reads your projects, not just your home directory:** add the folder you keep your projects in — or a
+  single project's folder — and Ahabby finds the projects inside it and shows each one's own skills
+  (`.claude/skills`, `.agents/skills`, `.opencode/skills`), MCP servers (`.mcp.json`, `.cursor/mcp.json`,
+  `.vscode/mcp.json`, `.gemini/settings.json`, `.agents/mcp.json`), instructions (`AGENTS.md`, `CLAUDE.md`,
+  `GEMINI.md`, `.github/copilot-instructions.md`), rules (`.cursor/rules`, `.clinerules`, `.continue/rules`),
+  sub-agents and slash commands. Everything there is editable, creatable and switchable exactly like an
+  agent's own resources, and **Run agent here** starts an agent inside the project's folder.
 - **Creates your own skills and MCP servers:** a form on an agent's page or in the Library writes `SKILL.md`
   into the skills directory that agent declares, or adds a server to its MCP config — local
   (`command`/`args`/`env`) or remote (`url`/`headers`) — in the file's own format, leaving everything else in

@@ -20,6 +20,28 @@ pub use file_io::{
 };
 pub use packages::{detect_managers, PackageManager};
 pub use paths::{expand_template, PlatformContext};
+
+/// The absolute, symlink-resolved form of a directory, without the Windows verbatim prefix.
+///
+/// `std::fs::canonicalize` yields `\\?\C:\work\app` on Windows — correct for the kernel, but not
+/// something to show a user or to hash into an id. Folding it back to `C:\work\app` keeps ids,
+/// duplicates detection and the paths in the settings file readable. `None` when the path does
+/// not exist (which is also how a folder that has been moved is detected).
+pub fn canonical_dir(path: &std::path::Path) -> Option<std::path::PathBuf> {
+    let resolved = std::fs::canonicalize(path).ok()?;
+    Some(strip_verbatim(resolved))
+}
+
+fn strip_verbatim(path: std::path::PathBuf) -> std::path::PathBuf {
+    let text = path.to_string_lossy().to_string();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return std::path::PathBuf::from(format!(r"\\{rest}"));
+    }
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) => std::path::PathBuf::from(rest),
+        None => path,
+    }
+}
 pub use process::{
     apply_proxy, build_command, kill_tree, run_binary, run_capture, run_shell_capture,
     shell_invocation, CommandOutput,

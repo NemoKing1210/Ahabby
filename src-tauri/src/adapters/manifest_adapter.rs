@@ -105,6 +105,13 @@ fn mcp_entries(map: &serde_json::Value) -> Vec<(String, &serde_json::Value)> {
 
 pub struct ManifestAdapter {
     manifest: AgentManifest,
+    /// The id this adapter's resources report as their owner.
+    ///
+    /// For an agent it is the manifest's own id. An adapter that reads *for* a synthetic owner
+    /// sets it: `catalog/project.toml` describes the project surface, but the owner of everything
+    /// found through it is the project itself. The ownership guards below compare against this id
+    /// rather than the manifest's, so they accept exactly the resources this adapter produced.
+    owner_id: Option<String>,
 }
 
 /// Directory name a new skill is stored under: derived from the display name, keeping letters
@@ -166,7 +173,22 @@ fn mcp_files(ctx: &PlatformContext, spec: &McpSpec) -> Vec<PathBuf> {
 
 impl ManifestAdapter {
     pub fn new(manifest: AgentManifest) -> Self {
-        Self { manifest }
+        Self {
+            manifest,
+            owner_id: None,
+        }
+    }
+
+    /// Read for a synthetic owner: everything this adapter yields is stamped with `id` (by the
+    /// caller that wraps it), and the ownership guards compare against that same id.
+    pub fn owned_by(mut self, id: impl Into<String>) -> Self {
+        self.owner_id = Some(id.into());
+        self
+    }
+
+    /// The id the resources of this adapter carry as their owner.
+    fn owner_id(&self) -> &str {
+        self.owner_id.as_deref().unwrap_or(&self.manifest.id)
     }
 
     pub fn into_boxed(self) -> Box<dyn AgentAdapter> {
@@ -208,13 +230,9 @@ impl ManifestAdapter {
     ///
     /// Shared by deletion and the on/off switch, so both are guarded identically.
     fn checked_skill_path(&self, ctx: &PlatformContext, skill: &Skill) -> Result<PathBuf> {
-        if !skill
-            .agents
-            .iter()
-            .any(|agent| agent.id == self.manifest.id)
-        {
+        if !skill.agents.iter().any(|agent| agent.id == self.owner_id()) {
             return Err(AppError::InvalidInput(
-                "this skill belongs to a different agent".to_string(),
+                "this skill belongs to a different owner".to_string(),
             ));
         }
         if !skill.removable {
@@ -227,9 +245,8 @@ impl ManifestAdapter {
         let allowed: Vec<PathBuf> = self
             .manifest
             .skills
-            .as_ref()
-            .and_then(|spec| ctx.expand_map(&spec.path))
-            .into_iter()
+            .iter()
+            .flat_map(|spec| ctx.expand_map(&spec.path))
             .collect();
         let target = PathBuf::from(&skill.path);
         if !allowed.iter().any(|root| target.starts_with(root)) {
@@ -251,9 +268,9 @@ impl ManifestAdapter {
         ctx: &PlatformContext,
         server: &McpServer,
     ) -> Result<(PathBuf, &McpSpec)> {
-        if server.agent.id != self.manifest.id {
+        if server.agent.id != self.owner_id() {
             return Err(AppError::InvalidInput(
-                "this MCP server belongs to a different agent".to_string(),
+                "this MCP server belongs to a different owner".to_string(),
             ));
         }
         if !server.removable {
@@ -474,27 +491,40 @@ impl ManifestAdapter {
 
     /// The skills directory a new skill is written into, plus the format to read it back with.
     ///
-    /// Refuses the agents that keep their instructions in a single markdown file: there is no
-    /// directory to create a skill in, and overwriting that file is not a skill creation.
+    /// The first declared location that can hold a skill wins: a manifest that reads several
+    /// directories writes into the one it lists first, so the choice is the manifest's own and
+    /// not a guess made here. Refuses the agents that keep their instructions in a single
+    /// markdown file: there is no directory to create a skill in, and overwriting that file is
+    /// not a skill creation.
     fn writable_skills_root(&self, ctx: &PlatformContext) -> Result<(PathBuf, SkillFormat)> {
-        let spec = self.manifest.skills.as_ref().ok_or_else(|| {
-            AppError::NotSupported(format!(
+        if self.manifest.skills.is_empty() {
+            return Err(AppError::NotSupported(format!(
                 "{} does not declare a skills directory",
                 self.manifest.name
-            ))
-        })?;
-        if matches!(spec.format, SkillFormat::MarkdownFile) {
+            )));
+        }
+        if self
+            .manifest
+            .skills
+            .iter()
+            .all(|spec| matches!(spec.format, SkillFormat::MarkdownFile))
+        {
             return Err(AppError::NotSupported(format!(
                 "{} keeps its instructions in a single file, which cannot hold a new skill",
                 self.manifest.name
             )));
         }
-        let root = ctx.expand_map(&spec.path).ok_or_else(|| {
-            AppError::NotSupported(
-                "the skills directory of this agent does not resolve on this system".to_string(),
-            )
-        })?;
-        Ok((root, spec.format))
+        for spec in &self.manifest.skills {
+            if matches!(spec.format, SkillFormat::MarkdownFile) {
+                continue;
+            }
+            if let Some(root) = ctx.expand_map(&spec.path) {
+                return Ok((root, spec.format));
+            }
+        }
+        Err(AppError::NotSupported(
+            "the skills directory of this agent does not resolve on this system".to_string(),
+        ))
     }
 
     /// The config file a new server is written into: the file the spec already resolves to, or
@@ -625,70 +655,82 @@ impl AgentAdapter for ManifestAdapter {
     }
 
     async fn list_skills(&self, ctx: &PlatformContext) -> Result<Vec<Skill>> {
-        let Some(spec) = &self.manifest.skills else {
+        if self.manifest.skills.is_empty() {
             return Ok(Vec::new());
-        };
+        }
         let unverified = is_unverified(&self.manifest, "skills.path");
-        let mut skills = Vec::new();
+        let mut skills: Vec<Skill> = Vec::new();
 
-        match spec.format {
-            SkillFormat::SkillMd => {
-                let glob = spec.glob.as_deref().unwrap_or("**/SKILL.md");
-                // A switched-off skill is the same entry file with the disabled suffix, so the
-                // second pattern is the first one plus that suffix: the manifest names the entry
-                // file in the glob's last segment (`**/SKILL.md`, `{skills,skills-cursor}/*/SKILL.md`).
-                let disabled = disabled_name(glob);
-                let mut directories: Vec<PathBuf> = Vec::new();
-                for pattern in [glob, disabled.as_str()] {
-                    for entry in expand_glob(ctx, &spec.path, Some(pattern), GlobTarget::Files, 4) {
-                        let Some(directory) = entry.parent().map(Path::to_path_buf) else {
-                            continue;
-                        };
-                        // An enabled entry wins over a leftover disabled copy in the same
-                        // directory: `skill_entry` would report the enabled one anyway.
-                        if !directories.contains(&directory) {
-                            directories.push(directory);
+        // Every declared location is read: a tool can keep skills in more than one directory
+        // (Claude Code reads `.claude/skills` and `.agents/skills` in a project), and each of
+        // them is a real directory the user can edit and delete.
+        for spec in &self.manifest.skills {
+            let mut found: Vec<Skill> = Vec::new();
+            match spec.format {
+                SkillFormat::SkillMd => {
+                    let glob = spec.glob.as_deref().unwrap_or("**/SKILL.md");
+                    // A switched-off skill is the same entry file with the disabled suffix, so the
+                    // second pattern is the first one plus that suffix: the manifest names the entry
+                    // file in the glob's last segment (`**/SKILL.md`, `{skills,skills-cursor}/*/SKILL.md`).
+                    let disabled = disabled_name(glob);
+                    let mut directories: Vec<PathBuf> = Vec::new();
+                    for pattern in [glob, disabled.as_str()] {
+                        for entry in
+                            expand_glob(ctx, &spec.path, Some(pattern), GlobTarget::Files, 4)
+                        {
+                            let Some(directory) = entry.parent().map(Path::to_path_buf) else {
+                                continue;
+                            };
+                            // An enabled entry wins over a leftover disabled copy in the same
+                            // directory: `skill_entry` would report the enabled one anyway.
+                            if !directories.contains(&directory) {
+                                directories.push(directory);
+                            }
+                        }
+                    }
+                    for directory in directories {
+                        if let Some(skill) =
+                            self.skill_from_directory(&directory, spec.format, unverified)
+                        {
+                            found.push(skill);
                         }
                     }
                 }
-                for directory in directories {
-                    if let Some(skill) =
-                        self.skill_from_directory(&directory, spec.format, unverified)
+                SkillFormat::Directory => {
+                    let glob = spec.glob.as_deref().unwrap_or("*");
+                    for directory in
+                        expand_glob(ctx, &spec.path, Some(glob), GlobTarget::Directories, 2)
                     {
-                        skills.push(skill);
-                    }
-                }
-            }
-            SkillFormat::Directory => {
-                let glob = spec.glob.as_deref().unwrap_or("*");
-                for directory in
-                    expand_glob(ctx, &spec.path, Some(glob), GlobTarget::Directories, 2)
-                {
-                    if let Some(skill) =
-                        self.skill_from_directory(&directory, spec.format, unverified)
-                    {
-                        skills.push(skill);
-                    }
-                }
-            }
-            SkillFormat::MarkdownFile => {
-                if let Some(path) = ctx.expand_map(&spec.path) {
-                    let disabled = path
-                        .file_name()
-                        .map(|name| path.with_file_name(disabled_name(&name.to_string_lossy())));
-                    for (entry, enabled) in
-                        [(path.clone(), true), (disabled.unwrap_or(path), false)]
-                    {
-                        if let Some(skill) = self.skill_from_file(&entry, enabled, unverified) {
-                            skills.push(skill);
-                            break;
+                        if let Some(skill) =
+                            self.skill_from_directory(&directory, spec.format, unverified)
+                        {
+                            found.push(skill);
                         }
                     }
                 }
-            }
+                SkillFormat::MarkdownFile => {
+                    if let Some(path) = ctx.expand_map(&spec.path) {
+                        let disabled = path.file_name().map(|name| {
+                            path.with_file_name(disabled_name(&name.to_string_lossy()))
+                        });
+                        for (entry, enabled) in
+                            [(path.clone(), true), (disabled.unwrap_or(path), false)]
+                        {
+                            if let Some(skill) = self.skill_from_file(&entry, enabled, unverified) {
+                                found.push(skill);
+                                break;
+                            }
+                        }
+                    }
+                }
+            };
+            skills.append(&mut found);
         }
 
         skills.sort_by_key(|a| a.name.to_lowercase());
+        // The same directory can be declared twice (or reached through a symlink); a skill's id
+        // is derived from its path, so identical entries collapse here.
+        skills.dedup_by(|a, b| a.id == b.id);
         Ok(skills)
     }
 
@@ -880,7 +922,9 @@ impl AgentAdapter for ManifestAdapter {
         ctx: &PlatformContext,
         draft: &McpServerDraft,
     ) -> Result<McpServer> {
-        let spec = self.manifest.mcp.as_ref().ok_or_else(|| {
+        // A new server goes into the first declared MCP source — the same rule the skills
+        // directory follows, so *which* file receives it is the manifest's own decision.
+        let spec = self.manifest.mcp.first().ok_or_else(|| {
             AppError::NotSupported(format!(
                 "{} does not declare an MCP config file",
                 self.manifest.name

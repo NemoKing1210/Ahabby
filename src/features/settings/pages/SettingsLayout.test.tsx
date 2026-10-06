@@ -45,6 +45,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     terminalTheme: 'auto',
     hiddenAgents: [],
     favoriteAgents: [],
+    projectFolders: [],
     ...overrides,
   }
 }

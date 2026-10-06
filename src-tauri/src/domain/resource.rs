@@ -42,3 +42,15 @@ pub struct OtherResource {
     pub item_count: Option<usize>,
     pub unverified: bool,
 }
+
+impl OtherResource {
+    /// Display order of a list of resources: by kind, then by label. It lives here so the agent
+    /// scan and the project scan cannot drift apart.
+    pub fn sort_for_display(resources: &mut [Self]) {
+        resources.sort_by(|a, b| {
+            format!("{:?}", a.kind)
+                .cmp(&format!("{:?}", b.kind))
+                .then_with(|| a.label.to_lowercase().cmp(&b.label.to_lowercase()))
+        });
+    }
+}

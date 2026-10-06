@@ -10,7 +10,7 @@ use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::domain::{HiddenAgent, Proxy, ProxyMode};
+use crate::domain::{HiddenAgent, ProjectFolder, Proxy, ProxyMode};
 use crate::error::{AppError, Result};
 use crate::platform::{self, PlatformContext};
 
@@ -145,6 +145,11 @@ pub struct Settings {
     pub terminal: String,
     /// Colours of the built-in terminal.
     pub terminal_theme: TerminalTheme,
+    /// Folders the user added to the Projects screen. Ahabby looks for projects inside each of
+    /// them (and treats the folder itself as one when it holds none) and reads the project-local
+    /// skills, MCP servers and documents it finds. Only Ahabby's own list changes — nothing is
+    /// written until the user edits something inside a project.
+    pub project_folders: Vec<ProjectFolder>,
 }
 
 fn is_hex_color(value: &str) -> bool {
@@ -182,6 +187,7 @@ impl Default for Settings {
             favorite_agents: Vec::new(),
             terminal: crate::platform::terminals::BUILTIN_ID.to_string(),
             terminal_theme: TerminalTheme::Auto,
+            project_folders: Vec::new(),
         }
     }
 }
@@ -205,6 +211,21 @@ impl Settings {
             .into_iter()
             .map(|id| id.trim().to_string())
             .filter(|id| !id.is_empty() && seen.insert(id.clone()))
+            .collect();
+        // Same for the project folders: a hand-edited list keeps its order, drops blanks, and
+        // gets its ids recomputed from the paths — the id is what the scan reports and what the
+        // frontend addresses a folder by.
+        let mut seen_folders = HashSet::new();
+        self.project_folders = std::mem::take(&mut self.project_folders)
+            .into_iter()
+            .filter_map(|mut folder| {
+                folder.path = folder.path.trim().to_string();
+                if folder.path.is_empty() {
+                    return None;
+                }
+                folder.id = ProjectFolder::id_for(&folder.path);
+                seen_folders.insert(folder.id.clone()).then_some(folder)
+            })
             .collect();
         // The terminal must be one Ahabby knows how to start. A terminal that is merely *not
         // installed right now* keeps its place in the setting: the UI flags it and the user can
@@ -324,6 +345,37 @@ impl SettingsService {
             settings.favorite_agents.retain(|existing| existing != id);
         }
         self.save(settings)
+    }
+
+    /// Add a folder to the Projects screen. The folder itself is validated by the caller (it has
+    /// to exist); this only refuses a duplicate and keeps the list ordered.
+    pub fn add_project_folder(&self, folder: ProjectFolder) -> Result<Settings> {
+        let mut settings = self.get();
+        let normalized = ProjectFolder::normalize(&folder.path);
+        if settings.project_folders.iter().any(|existing| {
+            existing.id == folder.id || ProjectFolder::normalize(&existing.path) == normalized
+        }) {
+            return Err(AppError::InvalidInput(format!(
+                "{} is already in your projects",
+                folder.path
+            )));
+        }
+        settings.project_folders.push(folder);
+        self.save(settings)
+    }
+
+    /// Forget a folder. Nothing on disk is touched: the projects under it simply stop being
+    /// scanned, which is why this needs no confirmation.
+    pub fn remove_project_folder(&self, folder_id: &str) -> Result<ProjectFolder> {
+        let mut settings = self.get();
+        let index = settings
+            .project_folders
+            .iter()
+            .position(|folder| folder.id == folder_id)
+            .ok_or_else(|| AppError::NotFound(format!("project folder '{folder_id}'")))?;
+        let removed = settings.project_folders.remove(index);
+        self.save(settings)?;
+        Ok(removed)
     }
 }
 

@@ -4,7 +4,7 @@ Instructions for [Claude Code](https://code.claude.com/docs/en/claude-md) workin
 
 ## Project
 
-Ahabby is a **Tauri 2** desktop app that finds the AI coding agents installed on the machine and puts them in one place: versions, config files, global skills, MCP servers, and rules/instructions/sub-agents/hooks. It reads and edits configs with a diff and a backup, and runs install/update commands taken only from a manifest. It can also start an agent in a terminal — its own tabbed one, or one installed on the machine — but it stays a control panel: it never talks to a model and never invents what to execute.
+Ahabby is a **Tauri 2** desktop app that finds the AI coding agents installed on the machine and puts them in one place: versions, config files, global skills, MCP servers, and rules/instructions/sub-agents/hooks. It does the same for the user's own projects: folders they add are searched for projects, and each project's local skills, MCP servers and documents are read and edited through the very same pipeline. It reads and edits configs with a diff and a backup, and runs install/update commands taken only from a manifest. It can also start an agent in a terminal — its own tabbed one, or one installed on the machine — but it stays a control panel: it never talks to a model and never invents what to execute.
 
 Stack: React 19 + TypeScript + Vite + Tailwind v4 + React Query + xterm.js + three Zustand stores (install console, toasts, terminal tabs) + i18next (`en`/`ru`) + Radix UI + lucide-react. Native: Rust 2021, Tauri 2, `reqwest`, `toml_edit`, `portable-pty`. Identifier: `io.ahabby.app`. Alias `@/*` → `src/*`. Vite port **1420**.
 
@@ -45,9 +45,11 @@ src/shared/i18n/           i18next + locales/{en,ru}.json (parity enforced by a 
 src/shared/ui/             design system (Radix primitives wrapped)
 src-tauri/src/             domain · catalog · adapters · platform · services · commands
 src-tauri/catalog/builtin/*.toml   one manifest per agent — the whole support matrix
+src-tauri/catalog/project.toml     the project surface — relative locations a project keeps resources in
 ```
 
-Adding an agent = adding one TOML manifest. No Rust, no TypeScript.
+Adding an agent = adding one TOML manifest. No Rust, no TypeScript. A project-level location is one entry in
+`catalog/project.toml`; a tool with several skills directories or MCP files uses `[[skills]]` / `[[mcp]]`.
 
 ## Versioning
 

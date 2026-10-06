@@ -110,16 +110,21 @@ pub async fn reveal_mcp_secret(
         )));
     }
 
-    let path = state
-        .document_target(&agent_id, &server.source_config)?
-        .path;
+    let target = state.document_target(&agent_id, &server.source_config)?;
     let adapter = state.adapter(&agent_id)?;
-    let format = adapter
-        .manifest()
-        .mcp
-        .as_ref()
-        .map(|spec| spec.format)
-        .unwrap_or_else(|| crate::domain::ConfigFormat::from_extension(&server.source_config));
+    // A server does not record which declared source it came from, so the format is resolved
+    // from what the scan knew: with a single source the manifest is authoritative, and with
+    // several the document's own declared format picks the right one (JSONC stays JSONC).
+    let specs = &adapter.manifest().mcp;
+    let format = match specs.first() {
+        Some(only) if specs.len() == 1 => only.format,
+        _ => specs
+            .iter()
+            .map(|spec| spec.format)
+            .find(|format| *format == target.format)
+            .unwrap_or(target.format),
+    };
+    let path = target.path;
 
     let content = crate::platform::read_text(&path)?;
     let document = crate::adapters::mcp_parse::document_to_value(format, &content)?;

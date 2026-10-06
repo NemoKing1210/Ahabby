@@ -1,0 +1,270 @@
+# The project surface.
+#
+# NOT an agent manifest: it lives outside `catalog/builtin/`, so `build.rs` never embeds it and
+# it never shows up in the agent list. Its id is reserved (`catalog::loader`), exactly like
+# `shared`.
+#
+# This is what Ahabby reads inside the folders the user added to the Projects screen. Every
+# path here is *relative*: `PlatformContext::project_root` resolves it against the project being
+# scanned, so one declarative file describes every project on the machine — and the same
+# adapter, path checks, backups and editor that serve an agent's documents serve a project's.
+#
+# Order carries meaning: within `[[skills]]` and `[[mcp]]`, the **first** entry is the one
+# Ahabby writes a new skill or server into (`ManifestAdapter::writable_skills_root`), so the
+# first entry of each kind is the location the most tools read.
+id = "project"
+name = "Project"
+description = "Skills, MCP servers and documents that live inside one of your projects."
+notes = """Every path is a project-root-relative location documented by the tool that reads it.
+Locations that overlap (`.claude/skills` is read by Claude Code, Cursor, opencode and the
+.agents convention) are declared once and reported once.
+
+Not listed on purpose:
+`opencode.json` (opencode's project config) and `.factory/mcp.json` (droid) are documented for
+one tool each and are not covered yet, so a project that uses them shows its servers as that
+tool's business only. Add an `[[mcp]]` entry here to change that — no Rust required."""
+
+[binaries]
+names = ["ahabby-project"]
+version_args = []
+
+# --- skills ---------------------------------------------------------------------------------
+# New project skills are written into the first directory below, `.claude/skills`, which is the
+# location every Claude-compatible agent reads (opencode explicitly falls back to it).
+
+# SOURCE: https://code.claude.com/docs/en/skills (checked 2026-10-05) — "Project skills"
+# SOURCE: https://opencode.ai/docs/skills (checked 2026-10-06) — ".claude/skills/<name>/SKILL.md"
+[[skills]]
+format = "skillMd"
+glob = "**/SKILL.md"
+path = { windows = ".claude/skills", macos = ".claude/skills", linux = ".claude/skills" }
+description = "Project skills in `.claude/skills/<name>/SKILL.md`."
+
+# SOURCE: https://dotagentsprotocol.com/ (draft 2026-02-24, checked 2026-10-06) — "LAYER 2 —
+# WORKSPACE: <project>/.agents/, optional overrides, commit to git for team config"
+# SOURCE: https://opencode.ai/docs/skills (checked 2026-10-06)
+[[skills]]
+format = "skillMd"
+glob = "**/SKILL.md"
+path = { windows = ".agents/skills", macos = ".agents/skills", linux = ".agents/skills" }
+description = "Project skills in the cross-tool `.agents/skills` directory."
+
+# SOURCE: https://opencode.ai/docs/skills (checked 2026-10-06) — "Project config:
+# .opencode/skills/<name>/SKILL.md"
+[[skills]]
+format = "skillMd"
+glob = "**/SKILL.md"
+path = { windows = ".opencode/skills", macos = ".opencode/skills", linux = ".opencode/skills" }
+description = "Project skills in opencode's own `.opencode/skills` directory."
+
+# --- MCP servers ----------------------------------------------------------------------------
+# New servers are written into the first source, `.mcp.json`, which is the project-scoped MCP
+# file the tools share (`claude mcp add --scope project` writes it).
+
+# SOURCE: https://code.claude.com/docs/en/claude-directory (checked 2026-10-05) — ".mcp.json —
+# Project-scoped MCP servers, shared with your team"
+# SOURCE: https://code.claude.com/docs/en/mcp (checked 2026-10-06) — key `mcpServers`
+[[mcp]]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+path = { windows = ".mcp.json", macos = ".mcp.json", linux = ".mcp.json" }
+description = "Project-scoped MCP servers in `.mcp.json` at the project root."
+
+# SOURCE: https://cursor.com/docs/mcp (checked 2026-10-05, cursor-agent.toml) — the editor and
+# the CLI share `mcp.json`; the project copy sits in `.cursor/`
+[[mcp]]
+format = "jsonc"
+key_path = ["mcpServers"]
+shared_with_config = true
+path = { windows = ".cursor/mcp.json", macos = ".cursor/mcp.json", linux = ".cursor/mcp.json" }
+description = "Cursor's project MCP servers, `.cursor/mcp.json` (JSONC, comments preserved)."
+
+# SOURCE: https://code.visualstudio.com/docs/agent-customization/mcp-servers (checked 2026-10-06)
+# — "Workspace, VS Code format: create or open .vscode/mcp.json in your project. This format
+# defines servers in a top-level servers object": the entries carry a `type` VS Code validates.
+[[mcp]]
+format = "json"
+key_path = ["servers"]
+entry_shape = "vscode"
+shared_with_config = true
+path = { windows = ".vscode/mcp.json", macos = ".vscode/mcp.json", linux = ".vscode/mcp.json" }
+description = "VS Code / GitHub Copilot workspace servers, `.vscode/mcp.json`."
+
+# SOURCE: https://geminicli.com/docs/cli/configuration (checked 2026-10-06) — "three locations",
+# the project one being `.gemini/settings.json`
+[[mcp]]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+path = { windows = ".gemini/settings.json", macos = ".gemini/settings.json", linux = ".gemini/settings.json" }
+description = "Gemini CLI's project settings, `.gemini/settings.json`."
+
+# SOURCE: https://dotagentsprotocol.com/ (draft 2026-02-24, checked 2026-10-06) — the workspace
+# layer holds the protocol's own files; the format table maps MCP to `mcp.json`
+[[mcp]]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+path = { windows = ".agents/mcp.json", macos = ".agents/mcp.json", linux = ".agents/mcp.json" }
+description = "MCP servers of the .agents convention, `<project>/.agents/mcp.json`."
+
+# --- project settings Ahabby may edit -------------------------------------------------------
+#
+# Every MCP source is declared here as well: the `[[mcp]]` block tells Ahabby how to read the
+# servers, and this one is what makes the file addressable — readable, editable and backed up
+# like any other document (the same reason `catalog/shared.toml` declares its `mcp.json` twice).
+
+[[configs]]
+id = "mcp-json"
+label = ".mcp.json"
+description = "Project-scoped MCP servers, shared with the team."
+format = "json"
+path = { windows = ".mcp.json", macos = ".mcp.json", linux = ".mcp.json" }
+
+[[configs]]
+id = "cursor-mcp"
+label = ".cursor/mcp.json"
+description = "Cursor's project MCP servers (JSONC: comments are preserved)."
+format = "jsonc"
+path = { windows = ".cursor/mcp.json", macos = ".cursor/mcp.json", linux = ".cursor/mcp.json" }
+
+[[configs]]
+id = "vscode-mcp"
+label = ".vscode/mcp.json"
+description = "VS Code / GitHub Copilot workspace MCP servers."
+format = "json"
+path = { windows = ".vscode/mcp.json", macos = ".vscode/mcp.json", linux = ".vscode/mcp.json" }
+
+[[configs]]
+id = "gemini-settings"
+label = ".gemini/settings.json"
+description = "Gemini CLI's project settings, including its MCP servers."
+format = "json"
+path = { windows = ".gemini/settings.json", macos = ".gemini/settings.json", linux = ".gemini/settings.json" }
+
+[[configs]]
+id = "agents-mcp"
+label = ".agents/mcp.json"
+description = "MCP servers of the .agents convention for this project."
+format = "json"
+path = { windows = ".agents/mcp.json", macos = ".agents/mcp.json", linux = ".agents/mcp.json" }
+
+# SOURCE: https://code.claude.com/docs/en/settings (checked 2026-10-05) — project settings are
+# `.claude/settings.json` (checked in) and `.claude/settings.local.json` (personal)
+[[configs]]
+id = "claude-settings"
+label = "settings.json"
+description = "Project settings shared with the team: permissions, hooks, environment."
+format = "json"
+path = { windows = ".claude/settings.json", macos = ".claude/settings.json", linux = ".claude/settings.json" }
+
+# SOURCE: https://code.claude.com/docs/en/settings (checked 2026-10-05)
+[[configs]]
+id = "claude-settings-local"
+label = "settings.local.json"
+description = "Your own project settings; not meant to be committed."
+format = "json"
+path = { windows = ".claude/settings.local.json", macos = ".claude/settings.local.json", linux = ".claude/settings.local.json" }
+
+# --- instructions, rules, sub-agents and commands -------------------------------------------
+
+# SOURCE: https://agents.md/ (checked 2026-10-05) — the open AGENTS.md format
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Instructions every agent that follows the AGENTS.md convention reads."
+format = "markdown"
+path = { windows = "AGENTS.md", macos = "AGENTS.md", linux = "AGENTS.md" }
+
+# SOURCE: https://code.claude.com/docs/en/memory (checked 2026-10-05) — project memory
+[[other]]
+id = "claude-md"
+kind = "instructions"
+label = "CLAUDE.md"
+description = "Claude Code's project memory."
+format = "markdown"
+path = { windows = "CLAUDE.md", macos = "CLAUDE.md", linux = "CLAUDE.md" }
+
+# SOURCE: https://geminicli.com/docs/cli/gemini-md (checked 2026-10-06) — GEMINI.md context files
+[[other]]
+id = "gemini-md"
+kind = "instructions"
+label = "GEMINI.md"
+description = "Gemini CLI's project context file."
+format = "markdown"
+path = { windows = "GEMINI.md", macos = "GEMINI.md", linux = "GEMINI.md" }
+
+# SOURCE: https://docs.github.com/en/copilot (checked 2026-10-06) — repository-wide custom
+# instructions for GitHub Copilot
+[[other]]
+id = "copilot-instructions"
+kind = "instructions"
+label = "copilot-instructions.md"
+description = "Repository-wide instructions for GitHub Copilot."
+format = "markdown"
+path = { windows = ".github/copilot-instructions.md", macos = ".github/copilot-instructions.md", linux = ".github/copilot-instructions.md" }
+
+# SOURCE: https://aider.chat/docs/usage/conventions.html (checked 2026-10-05, aider.toml) —
+# read from the repository root
+[[other]]
+id = "conventions-md"
+kind = "instructions"
+label = "CONVENTIONS.md"
+description = "Coding conventions Aider reads from the repository root."
+format = "markdown"
+path = { windows = "CONVENTIONS.md", macos = "CONVENTIONS.md", linux = "CONVENTIONS.md" }
+
+# SOURCE: https://code.claude.com/docs/en/sub-agents (checked 2026-10-05) — project sub-agents
+[[other]]
+id = "claude-agents"
+kind = "subagents"
+label = "Sub-agents"
+description = "Project sub-agents: markdown files with YAML frontmatter."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = ".claude/agents", macos = ".claude/agents", linux = ".claude/agents" }
+
+# SOURCE: https://code.claude.com/docs/en/skills (checked 2026-10-05) — command files under
+# `.claude/commands/` are the older slash-command format and still work
+[[other]]
+id = "claude-commands"
+kind = "commands"
+label = "Custom commands"
+description = "Slash commands stored as markdown files in the project."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = ".claude/commands", macos = ".claude/commands", linux = ".claude/commands" }
+
+# SOURCE: https://cursor.com/docs/rules (checked 2026-10-06) — "Project Rules: stored in
+# .cursor/rules", one `.mdc` file per rule
+[[other]]
+id = "cursor-rules"
+kind = "rules"
+label = ".cursor/rules"
+description = "Project rules Cursor applies to Agent and Chat requests."
+format = "markdown"
+glob = "**/*.mdc"
+path = { windows = ".cursor/rules", macos = ".cursor/rules", linux = ".cursor/rules" }
+
+# SOURCE: https://docs.cline.bot/customization/cline-rules (checked 2026-10-05, cline.toml) —
+# workspace rules at the project root
+[[other]]
+id = "clinerules"
+kind = "rules"
+label = ".clinerules"
+description = "Workspace rules for Cline, at the project root."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = ".clinerules", macos = ".clinerules", linux = ".clinerules" }
+
+# SOURCE: https://docs.continue.dev/customize/deep-dives/rules (checked 2026-10-05, continue.toml)
+[[other]]
+id = "continue-rules"
+kind = "rules"
+label = ".continue/rules"
+description = "Workspace rules for Continue, applied to Agent, Chat and Edit requests."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = ".continue/rules", macos = ".continue/rules", linux = ".continue/rules" }

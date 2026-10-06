@@ -56,10 +56,10 @@ fn roots(ctx: &PlatformContext) -> Vec<String> {
             .iter()
             .filter_map(|spec| ctx.expand_map(&spec.path)),
     );
-    if let Some(skills) = &manifest.skills {
+    if let Some(skills) = manifest.skills.first() {
         roots.extend(ctx.expand_map(&skills.path));
     }
-    if let Some(mcp) = &manifest.mcp {
+    if let Some(mcp) = manifest.mcp.first() {
         roots.extend(ctx.expand_map(&mcp.path));
     }
     roots.extend(
@@ -146,14 +146,11 @@ mod tests {
             .iter()
             .all(|problem| { problem.severity != crate::domain::Severity::Error }));
 
-        let skills = manifest
-            .skills
-            .as_ref()
-            .expect("shared skills are declared");
+        let skills = manifest.skills.first().expect("shared skills are declared");
         assert_eq!(skills.format, SkillFormat::SkillMd);
         assert_eq!(skills.path.get(Os::Linux), Some("${HOME}/.agents/skills"));
 
-        let mcp = manifest.mcp.as_ref().expect("shared MCP is declared");
+        let mcp = manifest.mcp.first().expect("shared MCP is declared");
         assert_eq!(mcp.key_path, vec!["mcpServers".to_string()]);
         assert!(mcp.shared_with_config);
 

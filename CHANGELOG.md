@@ -5,6 +5,38 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-10-06
+
+### Added
+
+- **Projects**: add the folder you keep your projects in — or a single project's folder — and Ahabby finds
+  every project inside it (a git repository, a `.claude` or `.agents` directory, `.mcp.json`, `AGENTS.md`,
+  `.cursor/rules`, …) and reads what each one holds. One project per added folder counts as much as twenty.
+- What a project holds: project skills (`.claude/skills`, `.agents/skills`, `.opencode/skills`), MCP servers
+  (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `.gemini/settings.json`, `.agents/mcp.json`),
+  instructions (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `CONVENTIONS.md`),
+  rules (`.cursor/rules`, `.clinerules`, `.continue/rules`), sub-agents and slash commands.
+- Everything inside a project is edited exactly like an agent's own resources: switch a skill or a server off
+  without deleting it, edit any project file in the editor (validation, diff and backups included), and create
+  new project skills and MCP servers straight from the UI.
+- The system's own folder picker for adding a folder: the dialog is the OS's, opened by the backend
+  (`tauri-plugin-dialog`, reachable from Rust only — the webview gets no permission for it), so a path never
+  has to be typed by hand while typing one still works.
+- **Run an agent here**: an installed agent starts in the project's own directory, from the project's page or
+  its card.
+- A manifest may now declare more than one skills directory and more than one MCP source (`[[skills]]`,
+  `[[mcp]]`); the previous single-table form keeps working, so existing manifests and user overrides are
+  unaffected.
+- VS Code's project MCP file (`.vscode/mcp.json`) is written in the shape that editor requires, `type`
+  included.
+
+### Changed
+
+- A directory the user adds but where no project marker is found is treated as one project, so "a folder
+  with a project" and "a folder with projects" are the same gesture.
+- `ScanReport` carries the projects next to the agents and the shared resources, so the Projects screen is
+  painted from the same scan the rest of the app uses — one source of truth, refreshed by every edit.
+
 ## [0.23.0] - 2026-10-06
 
 ### Added

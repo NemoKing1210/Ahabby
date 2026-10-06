@@ -16,6 +16,7 @@ pub mod frontmatter;
 pub mod jsonc;
 pub mod manifest_adapter;
 pub mod mcp_parse;
+pub mod project;
 pub mod registry;
 
 use std::path::{Path, PathBuf};
@@ -24,6 +25,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 pub use manifest_adapter::ManifestAdapter;
+pub use project::ProjectAdapter;
 pub use registry::AdapterRegistry;
 
 use crate::domain::{

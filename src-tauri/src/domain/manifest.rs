@@ -198,6 +198,29 @@ fn default_version_args() -> Vec<String> {
     vec!["--version".to_string()]
 }
 
+/// Accept a spec written as a single table or as an array of tables.
+///
+/// `[skills]` (the shape every manifest in the catalog used before Ahabby could read more than
+/// one skills directory) and `[[skills]]` are the same thing to a reader, so both keep working
+/// and no user manifest has to be rewritten.
+fn one_or_many<'de, D, T>(deserializer: D) -> std::result::Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany<T> {
+        One(T),
+        Many(Vec<T>),
+    }
+
+    Ok(match OneOrMany::deserialize(deserializer)? {
+        OneOrMany::One(one) => vec![one],
+        OneOrMany::Many(many) => many,
+    })
+}
+
 /// A configuration file (or directory) belonging to an agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -261,6 +284,11 @@ pub enum McpEntryShape {
     /// opencode: `{ "type": "local", "command": ["npx", ...], "environment": {...} }`, or
     /// `{ "type": "remote", "url": ..., "headers": ... }`.
     Local,
+    /// VS Code and the GitHub Copilot editors: the shared keys plus an explicit `type`
+    /// (`{ "type": "stdio", "command": ..., "args": [...], "env": {...} }`, or
+    /// `{ "type": "http", "url": ..., "headers": ... }`). The editor requires that key, so the
+    /// `Command` shape — the same entry without it — would be rejected as an invalid server.
+    Vscode,
     /// The agent keeps its servers in a list (`goose`'s `extensions`, Continue's `mcpServers`,
     /// gptme's `[[mcp.servers]]`). Ahabby reads those entries but never adds one: writing the
     /// list's own grammar is not something a manifest can describe.
@@ -462,10 +490,17 @@ pub struct AgentManifest {
     pub search_paths: Vec<SearchPathSpec>,
     #[serde(default)]
     pub configs: Vec<ConfigSpec>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub skills: Option<SkillSpec>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp: Option<McpSpec>,
+    /// Skills directories. A tool may keep skills in more than one place (Claude Code reads
+    /// both `.claude/skills` and the cross-tool `.agents/skills`), so this is a list; a
+    /// manifest written before that — `[skills]` as a single table — still parses, and the
+    /// one it declares is simply the only entry.
+    #[serde(default, deserialize_with = "one_or_many")]
+    pub skills: Vec<SkillSpec>,
+    /// MCP sources. Same reasoning as [`AgentManifest::skills`]: a project keeps its servers in
+    /// `.mcp.json` for one tool and `.vscode/mcp.json` for another, and every one of them is
+    /// read, switchable and removable.
+    #[serde(default, deserialize_with = "one_or_many")]
+    pub mcp: Vec<McpSpec>,
     #[serde(default)]
     pub other: Vec<OtherSpec>,
     #[serde(default)]
@@ -599,24 +634,30 @@ impl AgentManifest {
             }
         }
 
-        if let Some(skills) = &self.skills {
-            if skills.path.is_empty() {
-                problems.push(ManifestProblem::error("skills.path", "no path for any OS"));
-            }
+        if self.skills.iter().any(|spec| spec.path.is_empty()) {
+            problems.push(ManifestProblem::error("skills.path", "no path for any OS"));
         }
-        if let Some(mcp) = &self.mcp {
+        for (index, mcp) in self.mcp.iter().enumerate() {
+            let field = if self.mcp.len() == 1 {
+                "mcp".to_string()
+            } else {
+                format!("mcp[{index}]")
+            };
             if mcp.path.is_empty() {
-                problems.push(ManifestProblem::error("mcp.path", "no path for any OS"));
+                problems.push(ManifestProblem::error(
+                    format!("{field}.path"),
+                    "no path for any OS",
+                ));
             }
             if mcp.key_path.is_empty() {
                 problems.push(ManifestProblem::error(
-                    "mcp.key_path",
+                    format!("{field}.key_path"),
                     "must point at the map holding mcp servers",
                 ));
             }
             if matches!(mcp.format, ConfigFormat::Markdown | ConfigFormat::Text) {
                 problems.push(ManifestProblem::error(
-                    "mcp.format",
+                    format!("{field}.format"),
                     "must be a structured format (json, toml or yaml)",
                 ));
             }
@@ -824,6 +865,71 @@ mod tests {
 
     fn manifest(toml: &str) -> AgentManifest {
         toml_edit::de::from_str(toml).expect("manifest should deserialize")
+    }
+
+    #[test]
+    fn a_single_spec_table_and_an_array_of_specs_are_the_same_shape() {
+        let single = manifest(
+            r#"
+id = "demo"
+name = "Demo"
+description = "d"
+
+[binaries]
+names = ["demo"]
+
+[skills]
+format = "skillMd"
+path = { linux = "${HOME}/.demo/skills" }
+
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+path = { linux = "${HOME}/.demo/mcp.json" }
+"#,
+        );
+        assert_eq!(single.skills.len(), 1);
+        assert_eq!(single.skills[0].format, SkillFormat::SkillMd);
+        assert_eq!(single.mcp.len(), 1);
+        assert_eq!(single.mcp[0].key_path, vec!["mcpServers".to_string()]);
+
+        let many = manifest(
+            r#"
+id = "demo"
+name = "Demo"
+description = "d"
+
+[binaries]
+names = ["demo"]
+
+[[skills]]
+format = "skillMd"
+path = { linux = ".claude/skills" }
+
+[[skills]]
+format = "skillMd"
+path = { linux = ".agents/skills" }
+
+[[mcp]]
+format = "json"
+key_path = ["mcpServers"]
+path = { linux = ".mcp.json" }
+
+[[mcp]]
+format = "json"
+key_path = ["servers"]
+entry_shape = "vscode"
+path = { linux = ".vscode/mcp.json" }
+"#,
+        );
+        assert_eq!(many.skills.len(), 2);
+        assert_eq!(many.skills[1].path.get(Os::Linux), Some(".agents/skills"));
+        assert_eq!(many.mcp.len(), 2);
+        assert_eq!(many.mcp[1].entry_shape, McpEntryShape::Vscode);
+        assert!(many
+            .validate()
+            .iter()
+            .all(|problem| problem.severity != Severity::Error));
     }
 
     #[test]

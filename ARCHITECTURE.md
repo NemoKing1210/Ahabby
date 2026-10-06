@@ -57,18 +57,35 @@ YAML frontmatter, and every install method. **One** specialised adapter exists t
 The registry falls back to `ManifestAdapter` (with a warning) for an unknown adapter id, so a typo in a
 manifest can never disable an agent.
 
+Two more adapters do not come from the registry, because they read something that is not an agent:
+
+- `ClaudeAdapter` (opted into with `adapter = "claude"` in the manifest) because two of its behaviours are
+  genuinely not declarative:
+  1. Claude Code reads MCP servers from two files (`~/.claude.json` and `mcpServers` inside
+     `~/.claude/settings.json`); only the declared one may ever be written, the other is surfaced read-only.
+  2. Skills installed under `~/.claude/plugins/**` are owned by the plugin manager and are listed but never
+     deleted.
+- `ProjectAdapter` wraps `ManifestAdapter` to read **one project**: `catalog/project.toml` declares the
+  project-level locations as _relative_ paths, and the adapter owns the project root, re-rooting every call
+  (so a relative path can only ever resolve inside that project) and stamping everything it yields — including
+  what `create_skill` / `create_mcp_server` return — with `project:<hash>` as the owner and `Scope::Project`.
+  `ManifestAdapter::owned_by` tells the inner adapter's ownership guards which id its resources carry.
+
 ## 2. Data flow
 
 ```
 manifests ──► AdapterRegistry ──► Scanner ──► ScanReport ──► commands ──► React Query ──► UI
                                      │
-                                     └──► services::aggregate ──► Library (skills, MCP, other)
+                                     ├──► services::aggregate ──► Library (skills, MCP, other)
+                                     └──► services::project ──► the user's projects (per project root)
 ```
 
 - **One scan, one source of truth.** `list_agents` runs (or returns the cached) scan; the agent page, the
-  sidebar counters and the library all read from it. A rescan replaces it atomically.
+  sidebar counters, the library and the project screens all read from it. A rescan replaces it atomically.
 - **Mutations return the new report.** `save_config`, `delete_skill`, `delete_mcp_server` and `remove_agent`
   respond with `MutationResult<T> { data, report }`, so the UI never shows a stale file list after a write.
+- **A resource is addressed by its owner id.** An agent id, the reserved `shared` surface and a project's
+  `project:<hash>` id all resolve through the same `AppState` lookups, so one command set serves all three.
 - **Frontend state**: server state lives in React Query (`shared/api/ipc.ts` is the only module that calls
   `invoke`). Zustand is used for one thing only: the install-job console. No component calls `invoke`.
 
@@ -90,6 +107,7 @@ are confirmed; secrets stay masked; no arbitrary shell from the UI.
 | Destructive actions             | `delete_skill`, `delete_mcp_server` and `remove_agent` require `confirm: true`, which only the confirmation dialog sends. Removing an agent is an explicit choice: **hide** (Ahabby's settings only, reversible from Settings) or **delete**. "Uninstall" is offered only when the manifest declares an uninstall command whose package manager is available and which passes the same whitelist as install commands; a user-catalog manifest can be moved to the OS trash instead, while a shipped manifest can never be deleted. |
 | Excessive permissions           | `src-tauri/capabilities/default.json` grants exactly one capability (`core:event:default`) for the install console. There is no filesystem or shell plugin: all I/O happens in Rust. The webview CSP forbids remote script, frames and objects.                                                                                                                                                                                                                                                                                    |
 | Opening links                   | `open_url` accepts only `http`/`https`; the file-manager command accepts only existing paths inside the user's home or Ahabby's own directories.                                                                                                                                                                                                                                                                                                                                                                                   |
+| Native dialogs                  | The dialog plugin is reachable from Rust only (`pick_project_folder`): the webview has no capability for it, so the frontend cannot open a dialog of its own, and the path it returns is validated like any other input.                                                                                                                                                                                                                                                                                                           |
 
 ## 4. Manifest policy: verified paths
 
@@ -115,6 +133,13 @@ Agent file layouts change, and guessing one is worse than admitting uncertainty:
 - The last report is cached in memory: navigation is instant, and `force = false` never rescans.
 - Agents the user removed (`settings::hidden_agents`) are filtered out of the report and its counters
   before it is cached, so the list, the sidebar counters and the Library all agree they are gone.
+- The user's own folders (`settings::project_folders`) are scanned **after** the agents, and their result
+  travels in the same report (`ScanReport::projects`). Each added folder is walked breadth first, at most
+  three levels deep and 20 000 directories, stopping at every directory that holds a marker
+  (`services::project::markers()` derives them from `catalog/project.toml` plus `.git`, so declaring a new
+  location also makes a folder holding it a project); a folder where nothing was found is one project of its
+  own, because that is what the user said it was. Reading one project is bounded by its own 15 s timeout and a
+  failure in one project never fails the scan — it becomes a warning on that project.
 
 ## 6. Frontend structure
 
@@ -127,6 +152,7 @@ src/
 │  ├─ skills/   skill list + detail (rendered markdown), delete flow
 │  ├─ mcp/      server cards, masked secret reveal, delete flow
 │  ├─ library/  aggregated skills/MCP/other with search, agent filter, grouping
+│  ├─ projects/ the added folders, the projects inside them, native folder dialog, run-agent-in-project
 │  ├─ install/  plan preview dialog, streamed job console, Zustand job store
 │  ├─ terminal/ docked PTY tabs (xterm.js), new-tab dialog, run-in-terminal action, Zustand tab store
 │  └─ settings/ language, theme, accent colour, interface/text size, fonts, scan paths, network

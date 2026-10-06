@@ -2,6 +2,7 @@
 import type { Agent } from "./Agent";
 import type { CatalogProblem } from "./CatalogProblem";
 import type { Os } from "./Os";
+import type { ProjectScan } from "./ProjectScan";
 import type { SharedResources } from "./SharedResources";
 
 /**
@@ -13,4 +14,10 @@ export type ScanReport = { agents: Array<Agent>, problems: Array<CatalogProblem>
  * from the cross-agent locations (`~/.agents/...`). Shown by the Library; never part of
  * the agent list or its counts.
  */
-shared: SharedResources, };
+shared: SharedResources, 
+/**
+ * The projects the user added in the Projects screen: their folders and what each of them
+ * holds. Read the same way, but they are the user's own working directories rather than
+ * this machine's agents, so they never mix into the agent list, its counts or the Library.
+ */
+projects: ProjectScan, };

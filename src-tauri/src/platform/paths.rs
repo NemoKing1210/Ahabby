@@ -24,6 +24,12 @@ pub struct PlatformContext {
     env: BTreeMap<String, String>,
     /// Extra directories the user added in Settings.
     pub extra_scan_paths: Vec<PathBuf>,
+    /// Root of the project a scan is reading, when it is reading a project.
+    ///
+    /// Manifest paths that are not absolute (`.claude/skills`, `.mcp.json`, `AGENTS.md`) are
+    /// project-scoped by definition; resolving them against this root is what turns one
+    /// declarative surface manifest into "what this project holds" for every project.
+    pub project_root: Option<PathBuf>,
 }
 
 impl PlatformContext {
@@ -44,6 +50,7 @@ impl PlatformContext {
             backup_root,
             env,
             extra_scan_paths,
+            project_root: None,
         }
     }
 
@@ -81,6 +88,7 @@ impl PlatformContext {
             app_config: app_config.as_ref().to_path_buf(),
             env,
             extra_scan_paths: Vec::new(),
+            project_root: None,
         }
     }
 
@@ -94,15 +102,30 @@ impl PlatformContext {
         self
     }
 
+    /// The same context, reading a project: relative manifest paths resolve inside `root`.
+    pub fn with_project_root(mut self, root: impl AsRef<Path>) -> Self {
+        self.project_root = Some(root.as_ref().to_path_buf());
+        self
+    }
+
     pub fn env_var(&self, key: &str) -> Option<&str> {
         self.env.get(key).map(String::as_str)
     }
 
     /// Resolve one template for the current OS.
+    ///
+    /// A template that is not absolute is project-scoped: it is resolved against the root of
+    /// the project being read (when there is one). Without a project root it stays relative,
+    /// which is what the global scan wants — a manifest's project-scoped entries simply do not
+    /// describe a location on this machine.
     pub fn expand(&self, template: &str) -> Option<PathBuf> {
-        expand_template(template, self.os, &self.home, |key| {
+        let path = expand_template(template, self.os, &self.home, |key| {
             self.env.get(key).cloned()
-        })
+        })?;
+        match &self.project_root {
+            Some(root) if path.is_relative() => Some(root.join(path)),
+            _ => Some(path),
+        }
     }
 
     /// Expand the manifest path for this OS.
@@ -260,6 +283,28 @@ mod tests {
             expand("%APPDATA%/npm/claude.cmd", Os::Windows).unwrap(),
             r"\home\tester\AppData\Roaming\npm\claude.cmd"
         );
+    }
+
+    #[test]
+    fn a_project_root_resolves_the_relative_manifest_paths() {
+        let context = PlatformContext::for_tests(Os::Linux, "/home/tester", "/data", "/cfg")
+            .with_project_root("/work/app");
+        assert_eq!(
+            context.expand(".claude/skills").unwrap(),
+            PathBuf::from("/work/app/.claude/skills")
+        );
+        assert_eq!(
+            context.expand("AGENTS.md").unwrap(),
+            PathBuf::from("/work/app/AGENTS.md")
+        );
+        // An absolute template is never re-rooted.
+        assert_eq!(
+            context.expand("${HOME}/.claude/skills").unwrap(),
+            PathBuf::from("/home/tester/.claude/skills")
+        );
+        // Without a project root the same template stays relative — the global scan case.
+        let global = PlatformContext::for_tests(Os::Linux, "/home/tester", "/data", "/cfg");
+        assert!(global.expand("AGENTS.md").unwrap().is_relative());
     }
 
     #[test]

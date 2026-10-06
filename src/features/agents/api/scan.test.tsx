@@ -70,6 +70,7 @@ const REPORT: ScanReport = {
   availableToInstall: 0,
   os: 'windows',
   shared: { configs: [], skills: [], mcpServers: [], other: [], roots: [] },
+  projects: { folders: [], projects: [], scannedAtMs: 0, durationMs: 0 },
 }
 
 function emit(event: string, payload: unknown) {

@@ -202,7 +202,7 @@ async fn full_read_pipeline_from_a_user_manifest() {
     ));
 
     let scanner = Scanner::new(&catalog);
-    let report = scanner.scan(&fixture.context(), None, &[], None).await;
+    let report = scanner.scan(&fixture.context(), None, &[], &[], None).await;
 
     let agent = report.agent("pipeline-demo").expect("agent scanned");
     assert_eq!(agent.status, AgentStatus::Installed);
@@ -1140,7 +1140,7 @@ async fn only_scanned_documents_are_addressable() {
 
     let catalog = catalog_for(&fixture);
     let scanner = Scanner::new(&catalog);
-    let report = scanner.scan(&fixture.context(), None, &[], None).await;
+    let report = scanner.scan(&fixture.context(), None, &[], &[], None).await;
     let agent = report.agent("pipeline-demo").expect("agent scanned");
 
     // A declared config, with the format and writability the manifest gave it.
@@ -1251,4 +1251,167 @@ fn shipped_catalog_is_valid_and_extensible() {
     // Every manifest that ships with the app is reachable through the scanner.
     let scanner = Scanner::new(&catalog);
     assert_eq!(scanner.registry().len(), catalog.manifests.len());
+}
+
+/// The project surface, end to end: discovery, reading, and writing *inside* the project root.
+///
+/// This guards the one thing that makes a project work at all: a relative path of
+/// `catalog/project.toml` must resolve inside the project being read. If it ever resolved
+/// against Ahabby's working directory instead, a created skill would land next to the
+/// application — and a forged path from the webview could reach it.
+#[tokio::test]
+async fn a_project_is_read_and_written_inside_its_own_root() {
+    let fixture = Fixture::new();
+    let work = fixture.home.join("work");
+    let app = work.join("app");
+
+    fs::create_dir_all(app.join(".claude/skills/review")).unwrap();
+    fs::write(
+        app.join(".claude/skills/review/SKILL.md"),
+        "---\nname: review\ndescription: Review code\n---\n# Review\n",
+    )
+    .unwrap();
+    fs::write(
+        app.join(".mcp.json"),
+        r#"{"mcpServers":{"github":{"command":"npx","args":["-y","server-github"]}}}"#,
+    )
+    .unwrap();
+    fs::write(app.join("AGENTS.md"), "# House rules\n").unwrap();
+    fs::create_dir_all(app.join(".cursor/rules")).unwrap();
+    fs::write(app.join(".cursor/rules/style.mdc"), "be terse\n").unwrap();
+    // A second project, discovered through its git directory.
+    fs::create_dir_all(work.join("other/.git")).unwrap();
+    fs::write(work.join("other/.git/HEAD"), "ref: refs/heads/main\n").unwrap();
+
+    let folder = services::project::folder_for(&work.to_string_lossy()).unwrap();
+    let catalog = catalog::load(None);
+    let report = Scanner::new(&catalog)
+        .scan(
+            &fixture.context(),
+            None,
+            &[],
+            std::slice::from_ref(&folder),
+            None,
+        )
+        .await;
+
+    assert_eq!(report.projects.folders.len(), 1);
+    assert!(report.projects.folders[0].exists);
+    assert_eq!(
+        report.projects.projects.len(),
+        2,
+        "both projects are discovered: {:?}",
+        report
+            .projects
+            .projects
+            .iter()
+            .map(|project| project.root.as_str())
+            .collect::<Vec<_>>()
+    );
+
+    let project = report
+        .projects
+        .projects
+        .iter()
+        .find(|project| project.name == "app")
+        .expect("the app project");
+    assert_eq!(project.skills.len(), 1);
+    assert_eq!(project.skills[0].name, "review");
+    assert_eq!(project.mcp_servers.len(), 1);
+    assert!(project
+        .other
+        .iter()
+        .any(|item| item.path.ends_with("AGENTS.md")));
+    assert!(project
+        .configs
+        .iter()
+        .any(|config| config.path.ends_with(".mcp.json")));
+    // Owned and scoped by the project, never mistaken for an agent's global resource.
+    assert_eq!(project.skills[0].agents[0].id, project.id);
+    assert!(matches!(
+        project.skills[0].scope,
+        ahabby_lib::domain::Scope::Project { .. }
+    ));
+    // Nothing from the project leaks into the agent list or the Library.
+    assert!(report.agents.iter().all(|agent| agent.skills.is_empty()));
+    assert!(aggregate(&report).skills.is_empty());
+
+    // A document of the project is addressable; the project root and anything outside is not.
+    let entry = project.skills[0].entry_path.clone().unwrap();
+    assert!(services::project::resolve_document(project, &entry).is_ok());
+    assert!(services::project::resolve_document(project, &project.root).is_err());
+    assert!(services::project::resolve_document(project, "/etc/passwd").is_err());
+
+    // Writing goes through the same adapter an agent's documents use — rooted at the project.
+    let context = fixture.context();
+    let adapter = services::project::adapter(&app);
+    let created = adapter
+        .create_skill(
+            &context,
+            &SkillDraft {
+                name: "Deploy".to_string(),
+                description: Some("Ship it".to_string()),
+                content: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(created.agents[0].id == project.id, "the project owns it");
+    assert!(std::path::Path::new(&created.path).starts_with(&app));
+    assert!(created
+        .entry_path
+        .as_deref()
+        .unwrap()
+        .replace('\\', "/")
+        .ends_with("/app/.claude/skills/deploy/SKILL.md"));
+
+    // Switch it off and back on: the rename happens inside the project, nothing is deleted.
+    adapter
+        .set_skill_enabled(&context, &created, false)
+        .await
+        .unwrap();
+    let listed = adapter.list_skills(&context).await.unwrap();
+    let disabled = listed
+        .iter()
+        .find(|skill| skill.name == "Deploy")
+        .expect("switched-off skills stay listed");
+    assert!(!disabled.enabled);
+    adapter
+        .set_skill_enabled(&context, disabled, true)
+        .await
+        .unwrap();
+
+    // A new MCP server lands in the project's `.mcp.json`, keeping the file's other entries.
+    let server = adapter
+        .create_mcp_server(
+            &context,
+            &McpServerDraft {
+                name: "linear".to_string(),
+                transport: McpDraftTransport::Stdio {
+                    command: "npx".to_string(),
+                    args: vec!["-y".to_string(), "server-linear".to_string()],
+                    env: Vec::new(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+    assert!(server
+        .source_config
+        .replace('\\', "/")
+        .ends_with("/app/.mcp.json"));
+    let content = fs::read_to_string(app.join(".mcp.json")).unwrap();
+    assert!(content.contains("linear"), "{content}");
+    assert!(
+        content.contains("server-github"),
+        "existing entry kept: {content}"
+    );
+
+    // …and it can be switched off, which moves the entry where no agent looks for it.
+    adapter
+        .set_mcp_server_enabled(&context, &server, false)
+        .await
+        .unwrap();
+    let switched = fs::read_to_string(app.join(".mcp.json")).unwrap();
+    assert!(switched.contains("mcpServersDisabled"), "{switched}");
 }

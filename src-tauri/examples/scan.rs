@@ -79,7 +79,7 @@ async fn main() {
 
     let context = PlatformContext::detect(app_data, app_config, Vec::new());
     let scanner = Scanner::new(&catalog);
-    let report = scanner.scan(&context, None, &[], None).await;
+    let report = scanner.scan(&context, None, &[], &[], None).await;
     let library = aggregate(&report);
 
     if as_json {

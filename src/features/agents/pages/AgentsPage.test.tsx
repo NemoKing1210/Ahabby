@@ -83,6 +83,7 @@ const REPORT: ScanReport = {
   availableToInstall: 2,
   os: 'windows',
   shared: { configs: [], skills: [], mcpServers: [], other: [], roots: [] },
+  projects: { folders: [], projects: [], scannedAtMs: 0, durationMs: 0 },
 }
 
 const SETTINGS: Settings = {
@@ -104,6 +105,7 @@ const SETTINGS: Settings = {
   terminalTheme: 'auto',
   hiddenAgents: [],
   favoriteAgents: [],
+  projectFolders: [],
 }
 
 function renderPage() {

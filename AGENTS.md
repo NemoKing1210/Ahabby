@@ -4,13 +4,15 @@
 
 Ahabby is a cross-platform (Windows/macOS/Linux) Tauri v2 desktop app that finds the AI coding agents
 installed on the machine and puts them in one place: versions, config files, global skills, MCP servers,
-rules/instructions/sub-agents/hooks, and safe install/update commands.
+rules/instructions/sub-agents/hooks, and safe install/update commands. It does the same for the _projects_ the
+user works in: the folders they add are searched for projects, and each project's local skills, MCP servers
+and documents are read and edited through the very same pipeline.
 
 Core boundary: **the Rust backend owns every file, process and network operation; the React frontend only
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.23.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.24.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -25,20 +27,23 @@ commands → services → adapters → catalog → domain
 - `domain` — pure models serialized 1:1 to TypeScript (`src-tauri/src/domain/*.rs`).
 - `catalog` — loads builtin manifests (embedded at compile time by `src-tauri/build.rs`) merged with user
   manifests from `<app config>/catalog/` (same `id` wins); validates and reports problems instead of failing.
-- `adapters` — `AgentAdapter` trait + `ManifestAdapter` (declarative). Only one specialised adapter exists:
+- `adapters` — `AgentAdapter` trait + `ManifestAdapter` (declarative). Two specialised adapters exist:
   `ClaudeAdapter` (`adapter = "claude"`), because Claude Code reads MCP from two files and plugin-managed
-  skills must never be deleted.
+  skills must never be deleted, and `ProjectAdapter`, which wraps `ManifestAdapter` to read _one project_:
+  it owns the project root (every call is re-rooted, so a relative surface path can only resolve inside that
+  project) and stamps everything it yields with the project as the owner.
 - `platform` — OS-specific: path expansion (`${VAR}`), binary lookup, package-manager detection, process
   execution with timeouts, atomic writes + backups, native window chrome (Windows: DWM).
 - `services` — scanner, config editor, installer + job runner, version checker, settings, library, terminal
-  sessions.
+  sessions, and `project` (project discovery + reading).
 - `commands` — thin Tauri command surface; validates input, calls a service.
 
 Data flow:
 
 ```
 manifests → AdapterRegistry → Scanner → ScanReport → commands → React Query → UI
-                                  └→ services::aggregate → Library
+                                  ├→ services::aggregate → Library
+                                  └→ services::project → the user's projects
 
 agent id ──→ AppState::agent (the scan's binary) ──→ services::terminal (PTY) ──→ terminal://output ──→ xterm
 ```
@@ -46,6 +51,11 @@ agent id ──→ AppState::agent (the scan's binary) ──→ services::termi
 - One scan, one source of truth; the last report is cached in memory so navigation is instant.
 - Mutations that touch disk return `MutationResult<T> { data, report }`, and the frontend pushes the fresh
   `report` into the agents query cache.
+- **A resource has an owner id, and that id is what addresses it.** A scanned agent's `id`, the reserved
+  `shared` surface (see `catalog/shared.toml`) and a project's synthetic `project:<hash>` id all resolve
+  through the same `AppState` lookups (`adapter`, `skill`, `mcp_server`, `document_target`), which is why the
+  whole editing surface — read, preview, save, create, switch off, delete — serves a project without a second
+  command set. Agent ids are restricted to `[a-z0-9_-]`, so `project:` can never collide with one.
 
 Frontend boundaries (enforce them):
 
@@ -56,8 +66,13 @@ Frontend boundaries (enforce them):
   exactly three places: the install-job console store, the toast store and the terminal tab store.
 - Routing is hash-based (`createHashRouter` in `src/app/router.tsx`) because the packaged app has no server SPA
   fallback. Routes: `/` (home — the summary and this machine's roster), `/agents`, `/agents/:agentId`,
-  `/library`, and `/settings/*` (one sub-page per area, `features/settings/routes.tsx`). The terminal has no
-  route — it is a dock of the shell, lazily loaded, that stays open under every screen.
+  `/projects`, `/projects/:projectId`, `/library`, and `/settings/*` (one sub-page per area,
+  `features/settings/routes.tsx`). The terminal has no route — it is a dock of the shell, lazily loaded, that
+  stays open under every screen.
+- **The Projects screen reads `report.projects` out of the agents query** (`useProjects()` selects that field
+  from the same `queryKeys.agents()` entry, `staleTime: Infinity`), so it needs no cache of its own: every
+  mutation that writes the fresh report into that entry repaints the page, and after a restart the cached
+  report paints it before the background scan lands.
 - **A terminal session is asked for by agent id.** The frontend never sends a program, a command line or an
   interpreter; the backend starts the executable the scan resolved, inside the user's own shell.
 
@@ -66,21 +81,23 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 
 ## Key Directories
 
-| Path                               | Purpose                                                                                                            |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                             |
-| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, install, settings, terminal |
-| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                            |
-| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                |
-| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                             |
-| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                                        |
-| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                   |
-| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                |
-| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · state.rs · error.rs`                         |
-| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                  |
-| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                  |
-| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                       |
-| `.github/workflows/ci.yml`         | The only CI workflow                                                                                               |
+| Path                               | Purpose                                                                                                                      |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                       |
+| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, projects, install, settings, terminal |
+| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                      |
+| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                          |
+| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                       |
+| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                                                  |
+| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                             |
+| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                          |
+| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · state.rs · error.rs`                                   |
+| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                            |
+| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                         |
+| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                              |
+| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                            |
+| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                 |
+| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                         |
 
 ## Development Commands
 
@@ -235,6 +252,19 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   plugin-managed skill, is refused by `preview_config_save` / `save_config` even if the UI asks). `remove_skill` /
   `remove_mcp_server` / `run_install` all take `confirm` and go through `commands::require_confirmation`, so a
   UI that skips its dialog is refused instead of deleting or executing something.
+- **A project is an owner, not a special case.** The folders the user adds live in
+  `Settings::project_folders`; `services::project` finds the projects inside each one — a marker of
+  `catalog/project.toml` or a `.git`, three levels deep, stopping at every project it finds, and the folder
+  itself when it holds none — and reads each project through `adapters::ProjectAdapter`. That adapter owns its
+  root and re-roots every call, so the _relative_ paths of the surface manifest can only ever resolve inside
+  that project: a forged path from the webview has nowhere to go. It stamps everything it yields with
+  `project:<hash>` as the owner and `Scope::Project`, including what `create_skill` / `create_mcp_server`
+  return; `ManifestAdapter::owned_by` is what tells the inner adapter's ownership guard which id its resources
+  carry.
+- Project discovery is derived from the manifest, never listed twice: `services::project::markers()` takes the
+  first path segment of every relative location in `catalog/project.toml` (plus `.git`, and the full path for
+  markers too common to mean anything on their own — `.github`), so declaring a new tool's location also makes
+  a folder holding it a project.
 - Commands are never trusted from the UI: the UI sends an agent id + method id; `plan_for()` resolves the
   command from the manifest and `validate_command` enforces the first token (manager binary, allow-listed
   installer for `script`, or the agent's own binary) and rejects newlines/backticks/`$(…)`. Non-script commands
@@ -273,6 +303,15 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   `snake_case`.
 - Every path group carries a `# SOURCE: <url> (checked <date>)` comment. Anything unconfirmed goes into
   `unverified = ["dotted.path"]` (prefix-tolerant matching; UI shows a "needs verification" badge).
+- `skills` and `mcp` are **lists**: `[[skills]]` / `[[mcp]]`, because a tool may keep skills in more than one
+  directory and servers in more than one file (`catalog/project.toml` declares three skills directories and
+  five MCP sources). A manifest written before that — `[skills]` as a single table — still parses
+  (`domain::manifest::one_or_many`), so existing user overrides keep working. The **first** entry of each list
+  is what a new skill or server is written into.
+- `catalog/project.toml` and `catalog/shared.toml` describe a surface rather than an agent. Every path in the
+  project surface is _relative_ and is resolved against the project being read; both files live outside
+  `catalog/builtin/`, so `build.rs` never embeds them, and their ids (`project`, `shared`) are reserved in
+  `catalog::loader`.
 - Top-level keys: `id, name, description, tagline, website, docs, icon, category, popular, vendor, features,
 github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, unverified, notes, source`.
   `claude-code.toml` is the fullest example; `SCHEMA.md` has a complete minimal example.
@@ -297,9 +336,12 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
 - **Rust**: edition 2021, MSRV **1.82**; CI uses stable. Release profile is `lto`/`codegen-units=1`/`strip`.
 - **TypeScript ~5.9.3** (pinned with `~`). No new runtime dependency without a reason in the change
   description; the frontend intentionally uses only React Query + two Zustand stores for state.
-- **Tauri**: capabilities grant exactly `core:event:default`; there is **no** `fs`, `shell`, `dialog` or
-  `http` plugin — all I/O/process/network is in Rust. The production CSP is strict (`script-src 'self'`,
-  no eval, `connect-src ipc: http://ipc.localhost`); do not add remote scripts/fonts. `withGlobalTauri: false`.
+- **Tauri**: capabilities grant exactly `core:event:default`; there is **no** `fs`, `shell` or `http` plugin —
+  all I/O/process/network is in Rust. `tauri-plugin-dialog` is registered for one job and used **from Rust
+  only**: `commands::projects::pick_project_folder` opens the OS folder picker and returns a path, so the
+  webview still has no permission to open a dialog of its own (and there is no `@tauri-apps/plugin-dialog`
+  dependency in the frontend). The production CSP is strict (`script-src 'self'`, no eval,
+  `connect-src ipc: http://ipc.localhost`); do not add remote scripts/fonts. `withGlobalTauri: false`.
 - App version lives in three places — `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` —
   bump them together (the UI reads the injected `__APP_VERSION__`).
 
@@ -311,13 +353,17 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   the DOM accumulates across `it` blocks in a file: scope queries with `within(container)`, call `unmount()` /
   `cleanup()`, or avoid duplicated accessible text.
 - Tests currently cover: locale key parity + no-empty strings, IPC error normalization, formatting/masking
-  helpers, `AgentCard` (render, install gating, badges, click-to-navigate), and the terminal tab store
-  (buffered output, finishing and closing a tab). Hooks are not tested.
+  helpers, `AgentCard` (render, install gating, badges, click-to-navigate), the Projects page (folders,
+  projects, the empty state, adding a folder), and the terminal tab store (buffered output, finishing and
+  closing a tab). Hooks are not tested.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch
   the real environment or network. Manifest fixtures use `catalog::parse_manifest(toml, "test")`.
   `src-tauri/tests/pipeline.rs` exercises the full read path, install-plan resolution, config edit
-  backup/stale/restore, MCP removal (JSONC comment preservation), and refusal to write outside declared paths.
+  backup/stale/restore, MCP removal (JSONC comment preservation), refusal to write outside declared paths, and
+  the project surface end to end (discovery, reading, a skill created inside the project root, switched off and
+  on again, and an MCP server added to the project's `.mcp.json`). `services::project` and `adapters::project`
+  hold the unit tests around discovery, markers, the reserved owner ids and the re-rooted reads.
   `services::terminal` tests are the only ones that spawn a real process (a PTY is the product): they run the
   user's own shell, answer ConPTY's cursor query themselves, and cover output, input, resize and closing.
 - **QA expectations**: prove the _refusal_ of dangerous write paths, not just happy paths; keep cross-boundary

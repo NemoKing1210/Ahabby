@@ -11,6 +11,7 @@ pub mod library;
 pub mod manifest;
 pub mod mcp;
 pub mod os;
+pub mod project;
 pub mod proxy;
 pub mod resource;
 pub mod scope;
@@ -35,6 +36,10 @@ pub use manifest::{
 };
 pub use mcp::{EnvVar, McpDraftTransport, McpKeyValue, McpServer, McpServerDraft, McpTransport};
 pub use os::Os;
+pub use project::{
+    is_project_owner, project_owner_id, project_owner_ref, Project, ProjectFolder,
+    ProjectFolderStatus, ProjectScan, PROJECT_OWNER_PREFIX, PROJECT_SURFACE_ID,
+};
 pub use proxy::{Proxy, ProxyMode};
 pub use resource::OtherResource;
 pub use scope::Scope;

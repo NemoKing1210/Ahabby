@@ -4,6 +4,7 @@ import type { FontFamily } from "./FontFamily";
 import type { HiddenAgent } from "./HiddenAgent";
 import type { Language } from "./Language";
 import type { MonoFont } from "./MonoFont";
+import type { ProjectFolder } from "./ProjectFolder";
 import type { ProxyMode } from "./ProxyMode";
 import type { TerminalTheme } from "./TerminalTheme";
 import type { Theme } from "./Theme";
@@ -77,4 +78,11 @@ terminal: string,
 /**
  * Colours of the built-in terminal.
  */
-terminalTheme: TerminalTheme, };
+terminalTheme: TerminalTheme, 
+/**
+ * Folders the user added to the Projects screen. Ahabby looks for projects inside each of
+ * them (and treats the folder itself as one when it holds none) and reads the project-local
+ * skills, MCP servers and documents it finds. Only Ahabby's own list changes — nothing is
+ * written until the user edits something inside a project.
+ */
+projectFolders: Array<ProjectFolder>, };

@@ -121,12 +121,12 @@ format = "json"
 path = { windows = "${USERPROFILE}/.example/settings.json", macos = "${HOME}/.example/settings.json", linux = "${HOME}/.example/settings.json" }
 
 # SOURCE: https://example.com/docs/skills
-[skills]
+[[skills]]
 format = "skillMd"
 path = { windows = "${USERPROFILE}/.example/skills", macos = "${HOME}/.example/skills", linux = "${HOME}/.example/skills" }
 
 # SOURCE: https://example.com/docs/mcp
-[mcp]
+[[mcp]]
 format = "json"
 key_path = ["mcpServers"]
 shared_with_config = true
@@ -143,6 +143,17 @@ requires = ["node >= 18"]
 
 Place it in `src-tauri/catalog/builtin/`. Nothing else changes: `build.rs` embeds every TOML file in that
 directory, so the new agent appears in the UI, in the scanner, and in the library automatically.
+
+`[[skills]]` and `[[mcp]]` are repeatable — a tool may keep skills in more than one directory and servers in
+more than one file — and the **first** entry of each list is where Ahabby writes a new skill or server. The
+older single-table form (`[skills]`, `[mcp]`) still parses, so existing manifests and user overrides need no
+change.
+
+If the agent also reads something _inside a project_ (a project-level skills directory, a workspace MCP file,
+a rules folder), that belongs in `src-tauri/catalog/project.toml` rather than in your agent manifest: its
+paths are relative and are resolved against the project being read, and the locations you declare there are
+also what makes Ahabby recognise a folder as a project. Nothing else changes — the entry is read, edited,
+switched off and deleted exactly like an agent's own.
 
 Users can override your manifest without touching the repository by dropping a file with the same `id` into
 `<app config directory>/catalog/`.
@@ -172,9 +183,10 @@ If the agent's format cannot be expressed declaratively, add a specialised adapt
 2. add it to `create()` in `src-tauri/src/adapters/registry.rs`;
 3. set `adapter = "<name>"` in the manifest.
 
-Only do this when the manifest cannot describe the layout — see `ARCHITECTURE.md` §1 for why exactly one
-specialisation exists today. Try to make the general `ManifestAdapter` handle the new shape first; MCP
-normalisation in `adapters/mcp_parse.rs` exists for precisely that reason.
+Only do this when the manifest cannot describe the layout — see `ARCHITECTURE.md` §1 for the two that exist
+today (a tool that reads MCP from two files, and the project surface). Try to make the general
+`ManifestAdapter` handle the new shape first; MCP normalisation in `adapters/mcp_parse.rs` exists for precisely
+that reason.
 
 ## Icons
 

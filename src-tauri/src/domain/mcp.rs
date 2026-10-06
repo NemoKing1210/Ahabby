@@ -87,6 +87,7 @@ impl McpDraftTransport {
     pub fn to_entry(&self, shape: McpEntryShape) -> serde_json::Value {
         match shape {
             McpEntryShape::Local => self.local_entry(),
+            McpEntryShape::Vscode => self.vscode_entry(),
             // A spec that keeps its servers in a list never reaches here — the adapter refuses
             // creation for it — so the shared convention is the honest fallback.
             McpEntryShape::Command | McpEntryShape::List => self.command_entry(),
@@ -124,6 +125,22 @@ impl McpDraftTransport {
                 serde_json::Value::Object(map)
             }
         }
+    }
+
+    /// VS Code's shape: the shared keys, but the `type` the editor insists on.
+    fn vscode_entry(&self) -> serde_json::Value {
+        let mut entry = self.command_entry();
+        if let Some(map) = entry.as_object_mut() {
+            let kind = match self {
+                McpDraftTransport::Stdio { .. } => "stdio",
+                McpDraftTransport::Http { .. } => "http",
+            };
+            map.insert(
+                "type".to_string(),
+                serde_json::Value::String(kind.to_string()),
+            );
+        }
+        entry
     }
 
     /// opencode's shape: one `command` array, `environment`, and an explicit `type`.
@@ -272,6 +289,14 @@ mod tests {
         };
         assert_eq!(http.to_entry(McpEntryShape::Command)["type"], "http");
         assert_eq!(http.to_entry(McpEntryShape::Local)["type"], "remote");
+
+        // VS Code wants the shared keys plus a `type` it validates.
+        let vscode = stdio.to_entry(McpEntryShape::Vscode);
+        assert_eq!(vscode["type"], "stdio");
+        assert_eq!(vscode["command"], "npx");
+        assert_eq!(vscode["args"][0], "-y");
+        assert_eq!(vscode["env"]["TOKEN"], "x");
+        assert_eq!(http.to_entry(McpEntryShape::Vscode)["type"], "http");
     }
 
     #[test]

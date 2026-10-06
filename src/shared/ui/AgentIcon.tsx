@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { Layers } from 'lucide-react'
+import { FolderGit2, Layers } from 'lucide-react'
 
 import { cn } from '@/shared/lib/cn'
-import { isSharedOwner } from '@/shared/lib/owners'
+import { isProjectOwner, isSharedOwner } from '@/shared/lib/owners'
 
 import { AGENT_BRANDS } from './agentBrands'
 
@@ -73,6 +73,19 @@ export function AgentIcon({
         className={cn(TILE, 'border-border bg-surface-2 text-accent-strong', tile, className)}
       >
         <Layers size={Math.round(edge * 0.6)} />
+      </span>
+    )
+  }
+
+  // A project is the user's own directory, not a product: it never gets a brand colour or a
+  // monogram, only the neutral tile with a folder mark.
+  if (ownerId && isProjectOwner(ownerId)) {
+    return (
+      <span
+        aria-hidden
+        className={cn(TILE, 'border-border bg-surface-2 text-muted', tile, className)}
+      >
+        <FolderGit2 size={Math.round(edge * 0.6)} />
       </span>
     )
   }

@@ -71,9 +71,10 @@ export function useCloseTerminal(): (sessionId: string) => void {
  * Which terminal that is comes from Settings: the built-in one opens a tab in the dock (which
  * comes up on its own, so the agent is on screen wherever the user is), an external one is
  * launched as its own window. Both are asked for with an agent id — the frontend never decides
- * what to execute.
+ * what to execute. `cwd` only says where the agent should start; on a project screen it is
+ * the project's root, and everywhere else it is left `null`.
  */
-export function useRunAgentInTerminal(): (agent: Agent) => void {
+export function useRunAgentInTerminal(): (agent: Agent, cwd?: string | null) => void {
   const { t } = useTranslation()
   const settings = useSettings()
   const catalog = useTerminals()
@@ -81,12 +82,12 @@ export function useRunAgentInTerminal(): (agent: Agent) => void {
   const openExternal = useOpenInTerminal()
 
   return useCallback(
-    (agent: Agent) => {
+    (agent: Agent, cwd: string | null = null) => {
       const terminalId = settings.data?.terminal ?? BUILTIN_TERMINAL_ID
 
       if (terminalId === BUILTIN_TERMINAL_ID) {
         launch.mutate(
-          { agentId: agent.id, cwd: null },
+          { agentId: agent.id, cwd: cwd ?? null },
           // `open` puts the session in the store, brings its tab to the front and expands the
           // dock — no navigation, the user keeps the screen they were on.
           {
@@ -99,7 +100,7 @@ export function useRunAgentInTerminal(): (agent: Agent) => void {
 
       const option = catalog.data?.options.find((entry) => entry.id === terminalId)
       openExternal.mutate(
-        { agentId: agent.id, terminalId, cwd: null },
+        { agentId: agent.id, terminalId, cwd: cwd ?? null },
         {
           onSuccess: () => {
             const name = option?.name ?? terminalId

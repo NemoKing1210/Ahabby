@@ -115,15 +115,17 @@ pub fn load(user_dir: Option<&Path>) -> Catalog {
         };
         match parse_manifest(&raw, &source) {
             Ok(mut manifest) => {
-                // `shared` names the agent-neutral surface (see `catalog/shared.toml`), which
-                // is addressed by id from the UI; a user manifest may not shadow it.
-                if manifest.id == crate::domain::SHARED_OWNER_ID {
+                // `shared` names the agent-neutral surface (see `catalog/shared.toml`) and
+                // `project` the project surface (see `catalog/project.toml`); both are addressed
+                // by id from the UI, so a user manifest may not shadow either of them.
+                let reserved = [
+                    crate::domain::SHARED_OWNER_ID,
+                    crate::domain::PROJECT_SURFACE_ID,
+                ];
+                if let Some(id) = reserved.iter().find(|id| **id == manifest.id) {
                     catalog.problems.push(CatalogProblem::error(
                         source.clone(),
-                        format!(
-                            "id '{}' is reserved for Ahabby's shared surface",
-                            crate::domain::SHARED_OWNER_ID
-                        ),
+                        format!("id '{id}' is reserved for Ahabby itself"),
                     ));
                     continue;
                 }

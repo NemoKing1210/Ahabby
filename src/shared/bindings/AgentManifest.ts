@@ -38,7 +38,20 @@ github?: string | null,
  * `ManifestAdapter`; a special adapter is opted into here (`"claude"`), so a
  * manifest can choose custom parsing rules without any registry code change.
  */
-adapter?: string | null, binaries: BinarySpec, searchPaths: Array<SearchPathSpec>, configs: Array<ConfigSpec>, skills?: SkillSpec | null, mcp?: McpSpec | null, other: Array<OtherSpec>, methods: Array<InstallMethodSpec>, 
+adapter?: string | null, binaries: BinarySpec, searchPaths: Array<SearchPathSpec>, configs: Array<ConfigSpec>, 
+/**
+ * Skills directories. A tool may keep skills in more than one place (Claude Code reads
+ * both `.claude/skills` and the cross-tool `.agents/skills`), so this is a list; a
+ * manifest written before that — `[skills]` as a single table — still parses, and the
+ * one it declares is simply the only entry.
+ */
+skills: Array<SkillSpec>, 
+/**
+ * MCP sources. Same reasoning as [`AgentManifest::skills`]: a project keeps its servers in
+ * `.mcp.json` for one tool and `.vscode/mcp.json` for another, and every one of them is
+ * read, switchable and removable.
+ */
+mcp: Array<McpSpec>, other: Array<OtherSpec>, methods: Array<InstallMethodSpec>, 
 /**
  * Dotted paths of this manifest that were **not** confirmed against official docs.
  * Surfaced in the UI so the user knows what to double-check.

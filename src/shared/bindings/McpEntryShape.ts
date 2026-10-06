@@ -7,4 +7,4 @@
  * know which one an agent expects — a wrong shape is a config the agent rejects, not a server
  * it ignores. Only the agents that differ from the shared convention declare this.
  */
-export type McpEntryShape = "command" | "local" | "list";
+export type McpEntryShape = "command" | "local" | "vscode" | "list";

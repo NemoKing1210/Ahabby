@@ -11,6 +11,7 @@ import {
 
 import {
   Boxes,
+  FolderGit2,
   House,
   Library,
   PanelLeftClose,
@@ -50,6 +51,7 @@ import { useTerminalStore } from '@/features/terminal/store'
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.home', icon: House, end: true },
   { to: '/agents', labelKey: 'nav.agents', icon: Boxes, end: false },
+  { to: '/projects', labelKey: 'nav.projects', icon: FolderGit2, end: false },
   { to: '/library', labelKey: 'nav.library', icon: Library, end: false },
   { to: '/settings', labelKey: 'nav.settings', icon: SettingsIcon, end: false },
 ] as const
@@ -196,6 +198,7 @@ export function AppShell() {
   }, [report, favoriteIds])
   const navCounts: Record<string, number | undefined> = {
     '/agents': report?.installed,
+    '/projects': report?.projects.projects.length,
     '/library': library
       ? library.stats.skills + library.stats.mcpServers + library.stats.other
       : undefined,

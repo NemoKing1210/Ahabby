@@ -11,7 +11,16 @@ agent, and its id (`shared`) is reserved: a user manifest claiming it is reporte
 catalog error. Shared resources are shown in the Library under the "Shared" owner and can be
 opened, edited and deleted through the same path checks as an agent's own files.
 
-**Adding support for a new agent means adding one file here — no Rust, no TypeScript.**
+A third one, `src-tauri/catalog/project.toml`, describes the **project surface**: the same
+kinds of resources, but as the user's own projects keep them. Every path in it is _relative_
+and is resolved against the project being read (`.claude/skills`, `.mcp.json`, `AGENTS.md`, …),
+which is how one declarative file covers every project on the machine. Its id (`project`) is
+reserved the same way, and the relative locations it declares are also what Ahabby uses to
+recognise a folder as a project.
+
+**Adding support for a new agent means adding one file here — no Rust, no TypeScript.** A new
+project-level location (a tool that keeps its skills somewhere else) is one entry in
+`catalog/project.toml`.
 
 Field names may be written in `snake_case` (idiomatic TOML, recommended) or `camelCase`;
 both are accepted. Unknown fields are rejected on purpose, so typos fail loudly in the test
@@ -79,7 +88,7 @@ path.
 | `glob`        | string                                                                  | relative glob, e.g. `*.json`                                                                                                                    |
 | `editable`    | bool, default `true`                                                    | set `false` for files Ahabby must never write                                                                                                   |
 
-## `[skills]` (optional, single)
+## `[[skills]]` (optional, repeatable)
 
 | key           | type                                                 | notes                                                                                                       |
 | ------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -88,17 +97,26 @@ path.
 | `glob`        | string                                               | default `**/SKILL.md` for `skillMd`, `*` for `directory`; braces work (`{skills,skills-cursor}/*/SKILL.md`) |
 | `description` | string                                               |                                                                                                             |
 
-## `[mcp]` (optional, single)
+Repeatable because a tool can keep skills in more than one directory (Claude Code reads both
+`.claude/skills` and the cross-tool `.agents/skills`; `catalog/project.toml` declares three). A new skill is
+written into the **first** entry that can hold one. The older single-table form (`[skills]`) still parses and
+is simply one entry.
 
-| key                  | type                                            | notes                                                                                                                                                                                                                                                                                         |
-| -------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`             | `json` \| `jsonc` \| `toml` \| `yaml`, required |                                                                                                                                                                                                                                                                                               |
-| `path`               | per-OS map, required                            | the file holding the servers                                                                                                                                                                                                                                                                  |
-| `key_path`           | [string], required                              | path inside the document to the `name -> server` map, e.g. `["mcpServers"]` or `["mcp_servers"]`                                                                                                                                                                                              |
-| `entry_shape`        | `command` \| `local` \| `list`                  | shape of one entry when Ahabby writes a new server: `command` (default) = `{command, args, env}` / `{type: http, url, headers}`, `local` = opencode's `{type: local, command: [...], environment}` / `{type: remote, url, headers}`, `list` = the servers live in a list Ahabby can only read |
-| `glob`               | string                                          | when the file name varies (`opencode.json*` matches `opencode.json` and `opencode.jsonc`) `path` points at the directory and this glob selects the file(s)                                                                                                                                    |
-| `description`        | string                                          |                                                                                                                                                                                                                                                                                               |
-| `shared_with_config` | bool                                            | `true` when the same file also appears in `[[configs]]` (recommended: declare it in both places)                                                                                                                                                                                              |
+## `[[mcp]]` (optional, repeatable)
+
+| key                  | type                                            | notes                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `format`             | `json` \| `jsonc` \| `toml` \| `yaml`, required |                                                                                                                                                                                                                                                                                                                                                                                |
+| `path`               | per-OS map, required                            | the file holding the servers                                                                                                                                                                                                                                                                                                                                                   |
+| `key_path`           | [string], required                              | path inside the document to the `name -> server` map, e.g. `["mcpServers"]` or `["mcp_servers"]`                                                                                                                                                                                                                                                                               |
+| `entry_shape`        | `command` \| `local` \| `vscode` \| `list`      | shape of one entry when Ahabby writes a new server: `command` (default) = `{command, args, env}` / `{type: http, url, headers}`, `local` = opencode's `{type: local, command: [...], environment}` / `{type: remote, url, headers}`, `vscode` = the shared keys plus the `type` VS Code validates (`stdio` / `http`), `list` = the servers live in a list Ahabby can only read |
+| `glob`               | string                                          | when the file name varies (`opencode.json*` matches `opencode.json` and `opencode.jsonc`) `path` points at the directory and this glob selects the file(s)                                                                                                                                                                                                                     |
+| `description`        | string                                          |                                                                                                                                                                                                                                                                                                                                                                                |
+| `shared_with_config` | bool                                            | `true` when the same file also appears in `[[configs]]` (recommended: declare it in both places — that is what makes the file addressable in the editor)                                                                                                                                                                                                                       |
+
+Repeatable for the same reason as `[[skills]]`: one project keeps its servers in `.mcp.json` for one tool and
+in `.vscode/mcp.json` for another, and every source is read, switchable and removable. A new server is written
+into the **first** entry, in the shape that entry declares. The older single-table form (`[mcp]`) still parses.
 
 Both the map shape (`name -> server`) and the array shape (each entry carrying its own `name`, as Continue
 uses) are recognised. An entry can only be _removed_ when it is addressable by key, i.e. in the map shape.

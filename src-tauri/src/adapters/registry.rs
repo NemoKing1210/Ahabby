@@ -92,7 +92,7 @@ names = ["{id}"]
     fn default_is_the_manifest_adapter() {
         let adapter = create(manifest("demo", None));
         assert_eq!(adapter.manifest().id, "demo");
-        assert!(adapter.manifest().skills.is_none());
+        assert!(adapter.manifest().skills.is_empty());
         assert_eq!(
             create(manifest("demo", Some("manifest"))).manifest().id,
             "demo"

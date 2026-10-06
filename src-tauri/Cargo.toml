@@ -1,6 +1,6 @@
 [package]
 name = "ahabby"
-version = "0.23.0"
+version = "0.24.0"
 description = "Ahabby — a control panel for the AI coding agents installed on your machine"
 authors = ["Ahabby contributors"]
 license = "MIT"
@@ -17,6 +17,10 @@ tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
 tauri = { version = "2.12", features = [] }
+# The native folder picker of the Projects screen. Only the Rust side uses it (no JS package,
+# no webview capability): the dialog is opened by `commands::projects::pick_project_folder` and
+# the frontend receives a path, exactly like every other value it renders.
+tauri-plugin-dialog = "2.7.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 toml_edit = { version = "0.25", features = ["serde"] }

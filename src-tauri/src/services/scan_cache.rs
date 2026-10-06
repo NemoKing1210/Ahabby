@@ -65,6 +65,7 @@ mod tests {
             available_to_install: 0,
             os,
             shared: Default::default(),
+            projects: Default::default(),
         }
     }
 

@@ -23,6 +23,7 @@ import type { McpServerDraft } from '@/shared/bindings/McpServerDraft'
 import type { McpToggle } from '@/shared/bindings/McpToggle'
 import type { MutationResult } from '@/shared/bindings/MutationResult'
 import type { PackageManagerInfo } from '@/shared/bindings/PackageManagerInfo'
+import type { ProjectFolder } from '@/shared/bindings/ProjectFolder'
 import type { RemovalMode } from '@/shared/bindings/RemovalMode'
 import type { SaveResult } from '@/shared/bindings/SaveResult'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
@@ -76,6 +77,19 @@ export const ipc = {
     invoke<MutationResult<SkillRemoval>>('delete_skill', { agentId, skillId, confirm }),
   setSkillEnabled: (agentId: string, skillId: string, enabled: boolean) =>
     invoke<MutationResult<SkillToggle>>('set_skill_enabled', { agentId, skillId, enabled }),
+
+  // --- projects -----------------------------------------------------------------------
+  /** Adds a folder to the Projects screen and rescans it; nothing on disk is touched. */
+  addProjectFolder: (path: string) =>
+    invoke<MutationResult<ProjectFolder>>('add_project_folder', { path }),
+  /** Forgets the folder. The directory itself is left alone. */
+  removeProjectFolder: (folderId: string) =>
+    invoke<MutationResult<ProjectFolder>>('remove_project_folder', { folderId }),
+  /**
+   * The OS's own folder picker, opened by the backend: it answers with the path the user chose,
+   * or `null` when the dialog was cancelled. Nothing is read, added or written by this call.
+   */
+  pickProjectFolder: () => invoke<string | null>('pick_project_folder'),
 
   // --- mcp ----------------------------------------------------------------------------
   listAgentMcpServers: (agentId: string) =>

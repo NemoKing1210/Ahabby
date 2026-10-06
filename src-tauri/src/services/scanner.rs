@@ -51,6 +51,11 @@ pub struct ScanReport {
     /// the agent list or its counts.
     #[serde(default)]
     pub shared: SharedResources,
+    /// The projects the user added in the Projects screen: their folders and what each of them
+    /// holds. Read the same way, but they are the user's own working directories rather than
+    /// this machine's agents, so they never mix into the agent list, its counts or the Library.
+    #[serde(default)]
+    pub projects: crate::domain::ProjectScan,
 }
 
 impl ScanReport {
@@ -127,12 +132,15 @@ impl Scanner {
     /// Scan everything. `versions` is optional: when `None` (or when the user disabled
     /// network checks) only locally available information is used. `hidden` lists the ids of
     /// agents the user removed from Ahabby; they are left out of the report and its counts.
-    /// `sink` receives progress while the scan runs.
+    /// `project_folders` are the folders the user added to the Projects screen; each one is
+    /// searched for projects and read with the project surface. `sink` receives progress while
+    /// the scan runs.
     pub async fn scan(
         &self,
         ctx: &PlatformContext,
         versions: Option<Arc<VersionChecker>>,
         hidden: &[String],
+        project_folders: &[crate::domain::ProjectFolder],
         sink: Option<Arc<dyn ScanSink>>,
     ) -> ScanReport {
         let started = Instant::now();
@@ -204,6 +212,9 @@ impl Scanner {
         // The agent-neutral surface is independent of any agent: one machine-wide read
         // appended to the report the Library aggregates.
         let shared = super::shared::scan(ctx).await;
+        // The projects are the user's own directories; they are read with the same adapter but
+        // rooted at each project, and they are reported separately from the agents.
+        let projects = super::project::scan(ctx, project_folders).await;
 
         let report = ScanReport {
             agents,
@@ -218,6 +229,7 @@ impl Scanner {
             available_to_install,
             os: ctx.os,
             shared,
+            projects,
         };
 
         if let Ok(mut cache) = self.cache.write() {
@@ -289,7 +301,10 @@ async fn scan_agent(
             Err(error) => warnings.push(format!("mcp servers: {error}")),
         }
         match other {
-            Ok(resources) => agent.other = other_resources_sorted(resources),
+            Ok(mut resources) => {
+                crate::domain::OtherResource::sort_for_display(&mut resources);
+                agent.other = resources;
+            }
             Err(error) => warnings.push(format!("other resources: {error}")),
         }
     }
@@ -420,18 +435,6 @@ fn install_options(
         .collect()
 }
 
-fn other_resources_sorted(
-    resources: Vec<crate::domain::OtherResource>,
-) -> Vec<crate::domain::OtherResource> {
-    let mut resources = resources;
-    resources.sort_by(|a, b| {
-        format!("{:?}", a.kind)
-            .cmp(&format!("{:?}", b.kind))
-            .then_with(|| a.label.to_lowercase().cmp(&b.label.to_lowercase()))
-    });
-    resources
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,7 +498,9 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let mut manifest = manifest();
         manifest.binaries.names = vec!["definitely-not-installed-unit-agent".to_string()];
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None, &[], None).await;
+        let report = scanner
+            .scan(&context(home.path()), None, &[], &[], None)
+            .await;
 
         let agent = report.agent("unit-agent").unwrap();
         assert_eq!(agent.status, AgentStatus::NotInstalled);
@@ -602,7 +607,9 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         manifest.methods[0].uninstall_command = Some("unit-agent self-uninstall".to_string());
 
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None, &[], None).await;
+        let report = scanner
+            .scan(&context(home.path()), None, &[], &[], None)
+            .await;
         let agent = report.agent("unit-agent").unwrap();
 
         assert_eq!(agent.status, AgentStatus::Installed);
@@ -650,7 +657,9 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         }];
 
         let scanner = Scanner::new(&catalog(manifest));
-        let report = scanner.scan(&context(home.path()), None, &[], None).await;
+        let report = scanner
+            .scan(&context(home.path()), None, &[], &[], None)
+            .await;
         let agent = report.agent("unit-agent").unwrap();
 
         assert_eq!(agent.status, AgentStatus::Installed);
@@ -667,7 +676,9 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let home = tempfile::tempdir().unwrap();
         let scanner = Scanner::new(&catalog(manifest()));
         assert!(scanner.last_report().is_none());
-        let report = scanner.scan(&context(home.path()), None, &[], None).await;
+        let report = scanner
+            .scan(&context(home.path()), None, &[], &[], None)
+            .await;
         let cached = scanner.last_report().expect("cached");
         assert_eq!(cached.scanned_at_ms, report.scanned_at_ms);
         assert_eq!(cached.agents.len(), 1);
@@ -678,7 +689,9 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let home = tempfile::tempdir().unwrap();
         let scanner = Scanner::new(&catalog(manifest()));
 
-        let visible = scanner.scan(&context(home.path()), None, &[], None).await;
+        let visible = scanner
+            .scan(&context(home.path()), None, &[], &[], None)
+            .await;
         assert!(
             visible.available_to_install > 0,
             "the script method makes this agent installable"
@@ -689,6 +702,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
                 &context(home.path()),
                 None,
                 &["unit-agent".to_string()],
+                &[],
                 None,
             )
             .await;
@@ -742,7 +756,7 @@ command = "curl -fsSL https://example.com/install.sh | sh"
         let sink = Arc::new(RecordingSink::default());
 
         let report = scanner
-            .scan(&context(home.path()), None, &[], Some(sink.clone()))
+            .scan(&context(home.path()), None, &[], &[], Some(sink.clone()))
             .await;
         assert_eq!(report.agents.len(), 1);
 

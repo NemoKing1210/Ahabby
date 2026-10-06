@@ -12,9 +12,9 @@ use tracing::warn;
 use crate::adapters::AgentAdapter;
 use crate::catalog::{self, Catalog};
 use crate::domain::{
-    Agent, AgentManifest, AgentRemoval, ConfigFile, ConfigFormat, HiddenAgent, ManifestSource,
-    McpServer, OtherResource, Proxy, RemovalKind, RemovalMode, Skill, TerminalExit, TerminalOutput,
-    SHARED_OWNER_ID,
+    is_project_owner, Agent, AgentManifest, AgentRemoval, ConfigFile, ConfigFormat, HiddenAgent,
+    ManifestSource, McpServer, OtherResource, Project, ProjectFolder, Proxy, RemovalKind,
+    RemovalMode, Skill, TerminalExit, TerminalOutput, SHARED_OWNER_ID,
 };
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
@@ -300,12 +300,16 @@ impl AppState {
         let catalog = Self::load_catalog(&self.app_config);
         self.scanner.reload(&catalog);
         let context = self.platform_context();
+        // The folders the user added on the Projects screen travel with the scan, exactly like
+        // the hidden agents do: they are part of what this machine holds.
+        let folders = self.settings().project_folders;
         let report = self
             .scanner
             .scan(
                 &context,
                 self.version_checker(),
                 &self.hidden_agent_ids(),
+                &folders,
                 Some(Arc::clone(&self.scan_sink)),
             )
             .await;
@@ -357,6 +361,22 @@ impl AppState {
         restore_hidden_agent(&self.settings, id)
     }
 
+    /// Add a folder to the Projects screen: it is resolved, checked to exist, and remembered.
+    ///
+    /// Only Ahabby's own list changes — nothing inside the folder is written until the user asks
+    /// for it.
+    pub fn add_project_folder(&self, path: &str) -> Result<ProjectFolder> {
+        let folder = services::project::folder_for(path)?;
+        self.settings.add_project_folder(folder.clone())?;
+        Ok(folder)
+    }
+
+    /// Forget a folder. The projects under it simply stop being scanned; nothing on disk is
+    /// touched, which is why this needs no confirmation.
+    pub fn remove_project_folder(&self, folder_id: &str) -> Result<ProjectFolder> {
+        self.settings.remove_project_folder(folder_id)
+    }
+
     /// Last scan result, or an error when nothing has been scanned yet.
     pub fn report(&self) -> Result<ScanReport> {
         self.scanner
@@ -371,11 +391,29 @@ impl AppState {
             .ok_or_else(|| AppError::NotFound(format!("agent '{id}'")))
     }
 
+    /// The project with this owner id, out of the last scan.
+    pub fn project(&self, id: &str) -> Result<Project> {
+        self.report()?
+            .projects
+            .project(id)
+            .cloned()
+            .ok_or_else(|| AppError::NotFound(format!("project '{id}'")))
+    }
+
     pub fn adapter(&self, id: &str) -> Result<Arc<dyn AgentAdapter>> {
         // The shared surface is not a catalog manifest, but deletion goes through the same
         // adapter interface, so its path checks stay identical to an agent's.
         if id == SHARED_OWNER_ID {
             return Ok(services::shared::adapter());
+        }
+        // A project is read through the project surface, rooted at the directory the scan found.
+        // The adapter re-roots every call itself, so whatever context a command passes it can
+        // only ever read inside that project.
+        if is_project_owner(id) {
+            let project = self.project(id)?;
+            return Ok(services::project::adapter(std::path::Path::new(
+                &project.root,
+            )));
         }
         self.scanner
             .registry()
@@ -394,6 +432,9 @@ impl AppState {
         if agent_id == SHARED_OWNER_ID {
             return services::shared::resolve_document(&self.report()?.shared, path);
         }
+        if is_project_owner(agent_id) {
+            return services::project::resolve_document(&self.project(agent_id)?, path);
+        }
         resolve_document(&self.agent(agent_id)?, path)
     }
 
@@ -406,6 +447,14 @@ impl AppState {
                 .into_iter()
                 .find(|skill| skill.id == skill_id)
                 .ok_or_else(|| AppError::NotFound(format!("shared skill '{skill_id}'")));
+        }
+        if is_project_owner(agent_id) {
+            return self
+                .project(agent_id)?
+                .skills
+                .into_iter()
+                .find(|skill| skill.id == skill_id)
+                .ok_or_else(|| AppError::NotFound(format!("project skill '{skill_id}'")));
         }
         self.agent(agent_id)?
             .skills
@@ -423,6 +472,14 @@ impl AppState {
                 .into_iter()
                 .find(|server| server.id == server_id)
                 .ok_or_else(|| AppError::NotFound(format!("shared MCP server '{server_id}'")));
+        }
+        if is_project_owner(agent_id) {
+            return self
+                .project(agent_id)?
+                .mcp_servers
+                .into_iter()
+                .find(|server| server.id == server_id)
+                .ok_or_else(|| AppError::NotFound(format!("project MCP server '{server_id}'")));
         }
         self.agent(agent_id)?
             .mcp_servers

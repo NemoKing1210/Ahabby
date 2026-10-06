@@ -4,6 +4,8 @@ import { AgentPage } from '@/features/agents/pages/AgentPage'
 import { AgentsPage } from '@/features/agents/pages/AgentsPage'
 import { HomePage } from '@/features/home/pages/HomePage'
 import { LibraryPage } from '@/features/library/pages/LibraryPage'
+import { ProjectPage } from '@/features/projects/pages/ProjectPage'
+import { ProjectsPage } from '@/features/projects/pages/ProjectsPage'
 import { settingsRoutes } from '@/features/settings/routes'
 
 import { AppShell } from './layouts/AppShell'
@@ -28,6 +30,8 @@ const router = createHashRouter([
       { path: 'agents', element: <AgentsPage /> },
       { path: 'agents/:agentId', element: <AgentPage /> },
       { path: 'library', element: <LibraryPage /> },
+      { path: 'projects', element: <ProjectsPage /> },
+      { path: 'projects/:projectId', element: <ProjectPage /> },
       ...settingsRoutes,
       { path: '*', element: <Navigate to="/" replace /> },
     ],

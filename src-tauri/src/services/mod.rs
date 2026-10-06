@@ -4,6 +4,7 @@
 pub mod config_editor;
 pub mod installer;
 pub mod library;
+pub mod project;
 pub mod scan_cache;
 pub mod scanner;
 pub mod settings;

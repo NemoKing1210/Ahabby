@@ -60,6 +60,9 @@ macro_rules! handlers {
             commands::mcp::delete_mcp_server,
             commands::mcp::set_mcp_server_enabled,
             commands::mcp::reveal_mcp_secret,
+            commands::projects::add_project_folder,
+            commands::projects::remove_project_folder,
+            commands::projects::pick_project_folder,
             commands::install::plan_install,
             commands::install::run_install,
             commands::install::cancel_job,
@@ -93,6 +96,10 @@ pub fn run() {
     init_tracing();
 
     let app = tauri::Builder::default()
+        // The dialog plugin is used from Rust only (the native folder picker of the Projects
+        // screen): the webview has no permission for it, so nothing in the frontend can open a
+        // dialog of its own.
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let state = state::AppState::new(app.handle())?;
             app.manage(state);

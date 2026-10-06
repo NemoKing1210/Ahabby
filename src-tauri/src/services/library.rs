@@ -255,6 +255,7 @@ mod tests {
             available_to_install: 0,
             os: Os::Linux,
             shared: Default::default(),
+            projects: Default::default(),
         }
     }
 

@@ -7,6 +7,7 @@ pub mod agents;
 pub mod configs;
 pub mod install;
 pub mod mcp;
+pub mod projects;
 pub mod settings;
 pub mod skills;
 pub mod terminal;
