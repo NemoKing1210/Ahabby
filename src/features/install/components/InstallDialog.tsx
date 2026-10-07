@@ -5,6 +5,7 @@ import { ExternalLink, Play, TriangleAlert } from 'lucide-react'
 import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import {
@@ -189,11 +190,15 @@ export function InstallDialog({
                     </div>
                   )}
                   {plan.data.warnings.length > 0 ? (
-                    <ul className="text-muted flex flex-col gap-1 text-[0.75rem]">
+                    <AnimatedList
+                      as="ul"
+                      grouped={false}
+                      className="text-muted flex flex-col gap-1 text-[0.75rem]"
+                    >
                       {plan.data.warnings.map((warning) => (
-                        <li key={warning}>· {warning}</li>
+                        <div key={warning}>· {warning}</div>
                       ))}
-                    </ul>
+                    </AnimatedList>
                   ) : null}
                 </div>
               ) : null}

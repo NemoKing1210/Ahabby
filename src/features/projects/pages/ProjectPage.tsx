@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, FolderGit2, FolderOpen, Terminal as TerminalIcon } from 'lucide-react'
 
 import { projectOwner } from '@/shared/lib/owners'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
@@ -98,11 +99,15 @@ export function ProjectPage() {
       {project.warnings.length > 0 ? (
         <Card className="border-warning/40 flex flex-col gap-2 p-4">
           <p className="text-foreground text-sm font-medium">{t('projects.warnings')}</p>
-          <ul className="text-muted list-disc pl-5 text-[0.8125rem]">
+          <AnimatedList
+            as="ul"
+            grouped={false}
+            className="text-muted list-disc pl-5 text-[0.8125rem]"
+          >
             {project.warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
+              <div key={warning}>{warning}</div>
             ))}
-          </ul>
+          </AnimatedList>
         </Card>
       ) : null}
 

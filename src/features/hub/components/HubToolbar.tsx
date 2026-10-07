@@ -6,6 +6,7 @@ import type { HubResourceKind } from '@/shared/bindings/HubResourceKind'
 import type { HubSource } from '@/shared/bindings/HubSource'
 import { cn } from '@/shared/lib/cn'
 import { tagColor } from '@/shared/lib/tagColor'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
 import { Input } from '@/shared/ui/Input'
@@ -143,41 +144,42 @@ export function HubToolbar({
           ask for an entry carrying any of them. Each tag keeps a colour of its own (hashed from
           its name), and the row stays one or two lines until the user asks for the rest. */}
       {tags.length > 0 ? (
-        <div
-          role="group"
-          aria-label={t('hub.tagFilter')}
-          className="flex flex-wrap items-center gap-2"
-        >
-          <span className="text-faint text-[0.75rem]">{t('hub.tags')}</span>
-          {shownTags.map((tag) => (
-            <Chip
-              key={tag}
-              label={tag}
-              active={selectedTags.includes(tag)}
-              className="ah-tag"
-              style={tagColor(tag)}
-              onClick={() => onToggleTag(tag)}
-            />
-          ))}
-          {foldable ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-expanded={allTags}
-              onClick={() => setAllTags((open) => !open)}
-            >
-              {allTags
-                ? t('hub.fewerTags')
-                : t('hub.moreTags', { count: tags.length - shownTags.length })}
-              <ChevronDown
-                className={cn(
-                  'ease-warm size-3.5 transition-transform duration-150',
-                  allTags && 'rotate-180',
-                )}
-                aria-hidden
+        <div role="group" aria-label={t('hub.tagFilter')}>
+          <AnimatedList grouped={false} className="flex flex-wrap items-center gap-2">
+            <span key="label" className="text-faint text-[0.75rem]">
+              {t('hub.tags')}
+            </span>
+            {shownTags.map((tag) => (
+              <Chip
+                key={tag}
+                label={tag}
+                active={selectedTags.includes(tag)}
+                className="ah-tag"
+                style={tagColor(tag)}
+                onClick={() => onToggleTag(tag)}
               />
-            </Button>
-          ) : null}
+            ))}
+            {foldable ? (
+              <Button
+                key="fold"
+                variant="ghost"
+                size="sm"
+                aria-expanded={allTags}
+                onClick={() => setAllTags((open) => !open)}
+              >
+                {allTags
+                  ? t('hub.fewerTags')
+                  : t('hub.moreTags', { count: tags.length - shownTags.length })}
+                <ChevronDown
+                  className={cn(
+                    'ease-warm size-3.5 transition-transform duration-150',
+                    allTags && 'rotate-180',
+                  )}
+                  aria-hidden
+                />
+              </Button>
+            ) : null}
+          </AnimatedList>
         </div>
       ) : null}
     </div>

@@ -6,6 +6,7 @@ import { Store } from 'lucide-react'
 import { queryKeys } from '@/shared/api/keys'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubResourceKind } from '@/shared/bindings/HubResourceKind'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { CatalogProblems } from '@/shared/ui/CatalogProblems'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
@@ -146,7 +147,7 @@ export function HubPage() {
           }
         />
       ) : (
-        <div className="flex flex-col gap-10">
+        <AnimatedList grouped={false} className="flex flex-col gap-10">
           {visible.map((source) => (
             <HubSourceSection
               key={source.id}
@@ -161,7 +162,7 @@ export function HubPage() {
               refreshingId={readingId}
             />
           ))}
-        </div>
+        </AnimatedList>
       )}
 
       <div className="border-border flex flex-col gap-2 border-t pt-4">

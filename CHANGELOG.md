@@ -5,6 +5,17 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.5] - 2026-10-07
+
+### Changed
+
+- **Every list in the app now animates its own contents.** A row that leaves — a skill narrowed away by a
+  filter, an agent hidden, a tag folded shut, a terminal tab closed — fades out where it stood while the rows
+  around it slide into the gap, a row that arrives eases in, and the ones that come later never queue behind
+  a stagger. The agent roster on the Home screen, the sidebar's favourites, the Hub's tag row and source
+  sections, the fact rows of an agent and the settings lists all move the same way. An OS that asks for less
+  motion keeps the fade and drops the movement.
+
 ## [0.28.4] - 2026-10-07
 
 ### Changed

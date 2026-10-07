@@ -29,6 +29,7 @@ import { formatDuration, formatRelative } from '@/shared/lib/format'
 import { glideTransition, softTransition, useSoftSlide } from '@/shared/lib/motion'
 import { cn } from '@/shared/lib/cn'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import {
@@ -39,6 +40,7 @@ import {
   ContextMenuTrigger,
 } from '@/shared/ui/ContextMenu'
 import { Spinner } from '@/shared/ui/Primitives'
+import { Reveal } from '@/shared/ui/Reveal'
 import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
@@ -318,76 +320,80 @@ export function AppShell() {
             </nav>
           </div>
 
-          {favoriteAgents.length > 0 ? (
+          <Reveal open={favoriteAgents.length > 0}>
             <div className="flex flex-col">
               {collapsed ? (
                 <span aria-hidden className="border-border mx-auto my-1.5 w-6 border-t" />
               ) : (
                 <NavSection>{t('nav.favorites')}</NavSection>
               )}
-              <nav aria-label={t('nav.favorites')} className="flex flex-col gap-1">
-                {favoriteAgents.map((agent) => (
-                  <ContextMenu key={agent.id}>
-                    <ContextMenuTrigger asChild>
-                      <div className={cn('group flex items-center', !collapsed && 'gap-1')}>
-                        <Tooltip content={collapsed ? agent.name : null} side="right">
-                          <NavLink
-                            to={`/agents/${agent.id}`}
-                            aria-label={collapsed ? agent.name : undefined}
-                            className={({ isActive }) =>
-                              cn(
-                                'ease-warm relative flex items-center rounded-xl text-[0.8125rem] transition-colors duration-150',
-                                collapsed
-                                  ? 'mx-auto size-10 justify-center'
-                                  : 'min-w-0 flex-1 gap-2.5 px-3 py-2',
-                                isActive
-                                  ? 'bg-accent-soft text-accent-strong'
-                                  : 'text-muted hover:bg-surface-2 hover:text-foreground',
-                              )
-                            }
-                          >
-                            <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
-                            {collapsed ? null : (
-                              <span className="relative min-w-0 flex-1 truncate">{agent.name}</span>
-                            )}
-                          </NavLink>
-                        </Tooltip>
+              <nav aria-label={t('nav.favorites')}>
+                <AnimatedList grouped={false} className="flex flex-col gap-1">
+                  {favoriteAgents.map((agent) => (
+                    <ContextMenu key={agent.id}>
+                      <ContextMenuTrigger asChild>
+                        <div className={cn('group flex items-center', !collapsed && 'gap-1')}>
+                          <Tooltip content={collapsed ? agent.name : null} side="right">
+                            <NavLink
+                              to={`/agents/${agent.id}`}
+                              aria-label={collapsed ? agent.name : undefined}
+                              className={({ isActive }) =>
+                                cn(
+                                  'ease-warm relative flex items-center rounded-xl text-[0.8125rem] transition-colors duration-150',
+                                  collapsed
+                                    ? 'mx-auto size-10 justify-center'
+                                    : 'min-w-0 flex-1 gap-2.5 px-3 py-2',
+                                  isActive
+                                    ? 'bg-accent-soft text-accent-strong'
+                                    : 'text-muted hover:bg-surface-2 hover:text-foreground',
+                                )
+                              }
+                            >
+                              <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
+                              {collapsed ? null : (
+                                <span className="relative min-w-0 flex-1 truncate">
+                                  {agent.name}
+                                </span>
+                              )}
+                            </NavLink>
+                          </Tooltip>
 
-                        {/* A favourite is one click away from running: the button keeps its place
+                          {/* A favourite is one click away from running: the button keeps its place
                             (so nothing shifts on hover) and only the installed agents get one, so
                             the row never offers a command that would be refused. */}
-                        {!collapsed && agent.status === 'installed' ? (
-                          <Tooltip content={t('agents.runInTerminal')} side="left">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="size-7 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
-                              aria-label={`${t('agents.runInTerminal')} — ${agent.name}`}
-                              onClick={() => runInTerminal(agent)}
-                            >
-                              <TerminalIcon className="size-3.5" aria-hidden />
-                            </Button>
-                          </Tooltip>
-                        ) : null}
-                      </div>
-                    </ContextMenuTrigger>
+                          {!collapsed && agent.status === 'installed' ? (
+                            <Tooltip content={t('agents.runInTerminal')} side="left">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="size-7 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
+                                aria-label={`${t('agents.runInTerminal')} — ${agent.name}`}
+                                onClick={() => runInTerminal(agent)}
+                              >
+                                <TerminalIcon className="size-3.5" aria-hidden />
+                              </Button>
+                            </Tooltip>
+                          ) : null}
+                        </div>
+                      </ContextMenuTrigger>
 
-                    {/* The collapsed rail has no room for a second button, so the same action is
+                      {/* The collapsed rail has no room for a second button, so the same action is
                         a right click — the pattern every other surface with actions uses. */}
-                    <ContextMenuContent aria-label={agent.name}>
-                      <ContextMenuLabel>{agent.name}</ContextMenuLabel>
-                      {agent.status === 'installed' ? (
-                        <ContextMenuItem onSelect={() => runInTerminal(agent)}>
-                          <TerminalIcon aria-hidden />
-                          {t('agents.runInTerminal')}
-                        </ContextMenuItem>
-                      ) : null}
-                    </ContextMenuContent>
-                  </ContextMenu>
-                ))}
+                      <ContextMenuContent aria-label={agent.name}>
+                        <ContextMenuLabel>{agent.name}</ContextMenuLabel>
+                        {agent.status === 'installed' ? (
+                          <ContextMenuItem onSelect={() => runInTerminal(agent)}>
+                            <TerminalIcon aria-hidden />
+                            {t('agents.runInTerminal')}
+                          </ContextMenuItem>
+                        ) : null}
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  ))}
+                </AnimatedList>
               </nav>
             </div>
-          ) : null}
+          </Reveal>
         </div>
 
         <div

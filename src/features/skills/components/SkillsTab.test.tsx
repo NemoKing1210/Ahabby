@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { within } from '@testing-library/react'
+import { waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -58,11 +58,16 @@ describe('SkillsTab', () => {
 
     await user.click(within(activity).getByRole('button', { name: 'Off 1' }))
     expect(within(container).getByRole('button', { name: 'parked' })).toBeTruthy()
-    expect(within(container).queryByRole('button', { name: 'alpha' })).toBeNull()
+    // Rows leave through their own exit animation (see `AnimatedList`), never instantly.
+    await waitFor(() =>
+      expect(within(container).queryByRole('button', { name: 'alpha' })).toBeNull(),
+    )
 
     await user.click(within(activity).getByRole('button', { name: 'On 2' }))
     expect(within(container).getByRole('button', { name: 'alpha' })).toBeTruthy()
-    expect(within(container).queryByRole('button', { name: 'parked' })).toBeNull()
+    await waitFor(() =>
+      expect(within(container).queryByRole('button', { name: 'parked' })).toBeNull(),
+    )
   })
 
   it('says so when the chosen state has nothing behind it', async () => {

@@ -5,6 +5,7 @@ import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
 import { formatDuration, shortenPath } from '@/shared/lib/format'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
@@ -90,14 +91,18 @@ export function OverviewTab({
           {agent.features.length > 0 ? (
             <div className="flex flex-col gap-2">
               <h4 className="text-[0.8125rem] font-medium">{t('agent.overview.features')}</h4>
-              <ul className="text-muted flex flex-col gap-1.5 text-[0.8125rem]">
+              <AnimatedList
+                as="ul"
+                grouped={false}
+                className="text-muted flex flex-col gap-1.5 text-[0.8125rem]"
+              >
                 {agent.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2">
+                  <div key={feature} className="flex items-start gap-2">
                     <Check className="text-accent-strong mt-0.5 size-3.5 shrink-0" aria-hidden />
                     {feature}
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </AnimatedList>
             </div>
           ) : null}
         </Card>
@@ -173,9 +178,9 @@ export function OverviewTab({
           {agent.installOptions.length === 0 ? (
             <p className="text-muted text-[0.8125rem]">{t('install.noMethods')}</p>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <AnimatedList as="ul" grouped={false} className="flex flex-col gap-2">
               {agent.installOptions.map((option) => (
-                <li
+                <div
                   key={option.id}
                   className="border-border flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
                 >
@@ -211,9 +216,9 @@ export function OverviewTab({
                     )}
                     {installed ? t('agents.update') : t('agents.install')}
                   </Button>
-                </li>
+                </div>
               ))}
-            </ul>
+            </AnimatedList>
           )}
           {agent.installDocsUrl ? (
             <Button
@@ -230,13 +235,17 @@ export function OverviewTab({
         {agent.warnings.length > 0 ? (
           <Card className="flex flex-col gap-2 p-5">
             <h3 className="text-[0.9375rem]">{t('agent.overview.warnings')}</h3>
-            <ul className="text-muted flex flex-col gap-1 font-mono text-[0.75rem]">
+            <AnimatedList
+              as="ul"
+              grouped={false}
+              className="text-muted flex flex-col gap-1 font-mono text-[0.75rem]"
+            >
               {agent.warnings.map((warning) => (
-                <li key={warning} className="break-all">
+                <div key={warning} className="break-all">
                   · {warning}
-                </li>
+                </div>
               ))}
-            </ul>
+            </AnimatedList>
           </Card>
         ) : null}
 
@@ -246,11 +255,15 @@ export function OverviewTab({
               {agent.unverified.length > 0 ? t('agents.unverified') : t('agent.overview.notes')}
             </h3>
             {agent.unverified.length > 0 ? (
-              <ul className="text-warning-fg flex flex-col gap-1 font-mono text-[0.75rem]">
+              <AnimatedList
+                as="ul"
+                grouped={false}
+                className="text-warning-fg flex flex-col gap-1 font-mono text-[0.75rem]"
+              >
                 {agent.unverified.map((field) => (
-                  <li key={field}>{field}</li>
+                  <div key={field}>{field}</div>
                 ))}
-              </ul>
+              </AnimatedList>
             ) : null}
             {agent.unverified.length > 0 ? (
               <p className="text-muted text-[0.75rem]">{t('agents.unverifiedHint')}</p>

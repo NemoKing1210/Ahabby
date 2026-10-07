@@ -286,8 +286,8 @@ describe('HubPage', () => {
     await user.click(screen.getByRole('button', { name: 'Skills' }))
 
     // The MCP registry is not read at all for a skills-only view — that is a tarball and a
-    // request nobody asked for.
-    expect(within(container).queryByText('MCP Registry')).toBeNull()
+    // request nobody asked for. Its section animates out (see `AnimatedList`) before it is gone.
+    await waitFor(() => expect(within(container).queryByText('MCP Registry')).toBeNull())
     const asked = vi.mocked(ipc.searchHub).mock.calls.map(([sourceId]) => sourceId)
     expect(asked).toContain(SKILLS_SOURCE.id)
     expect(asked).not.toContain(REGISTRY_SOURCE.id)
@@ -466,13 +466,13 @@ describe('HubPage', () => {
 
     // …and the whole list is one click away, in the order the sources declare it.
     await user.click(within(group).getByRole('button', { name: 'Show 4 more' }))
-    expect(row()).toEqual([...many, 'Collapse'])
+    await waitFor(() => expect(row()).toEqual([...many, 'Collapse']))
 
     // A tag picked from the full list stays in the row after it folds: it is the only chip that
-    // can switch that filter off again.
+    // can switch that filter off again. The chips that fold away animate out first.
     await user.click(within(group).getByRole('button', { name: 'mu' }))
     await user.click(within(group).getByRole('button', { name: 'Collapse' }))
-    expect(row()).toEqual([...many.slice(0, 8), 'mu', 'Show 3 more'])
+    await waitFor(() => expect(row()).toEqual([...many.slice(0, 8), 'mu', 'Show 3 more']))
   })
 
   it('offers the card actions from the context menu, including re-reading the collection', async () => {

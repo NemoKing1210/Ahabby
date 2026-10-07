@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { CatalogProblem } from '@/shared/bindings/CatalogProblem'
 import { cn } from '@/shared/lib/cn'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 
 import { Card, CardContent, CardHeader, CardTitle } from './Card'
 
@@ -31,14 +32,18 @@ export function CatalogProblems({
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         <p className="text-muted text-[0.8125rem]">{t('agents.problemsHint')}</p>
-        <ul className="text-muted flex flex-col gap-1 font-mono text-[0.75rem]">
+        <AnimatedList
+          as="ul"
+          grouped={false}
+          className="text-muted flex flex-col gap-1 font-mono text-[0.75rem]"
+        >
           {failures.map((problem, index) => (
-            <li key={`${problem.source}-${index}`} className="break-all">
+            <div key={`${problem.source}-${index}`} className="break-all">
               {problem.manifestId ? `${problem.manifestId}: ` : ''}
               {problem.message}
-            </li>
+            </div>
           ))}
-        </ul>
+        </AnimatedList>
       </CardContent>
     </Card>
   )

@@ -2,6 +2,7 @@ import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { Agent } from '@/shared/bindings/Agent'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
 import { Input } from '@/shared/ui/Input'
@@ -144,20 +145,18 @@ export function AgentFilters({
       {facets.length > 0 ? (
         <>
           <span aria-hidden className="bg-border h-5 w-px shrink-0" />
-          <div
-            role="group"
-            aria-label={t('agents.filters.signals')}
-            className="flex flex-wrap items-center gap-1.5"
-          >
-            {facets.map((facet) => (
-              <Chip
-                key={facet.id}
-                label={t(facet.labelKey)}
-                active={state.facets.has(facet.id)}
-                count={counts.facets[facet.id]}
-                onClick={() => onToggleFacet(facet.id)}
-              />
-            ))}
+          <div role="group" aria-label={t('agents.filters.signals')}>
+            <AnimatedList grouped={false} className="flex flex-wrap items-center gap-1.5">
+              {facets.map((facet) => (
+                <Chip
+                  key={facet.id}
+                  label={t(facet.labelKey)}
+                  active={state.facets.has(facet.id)}
+                  count={counts.facets[facet.id]}
+                  onClick={() => onToggleFacet(facet.id)}
+                />
+              ))}
+            </AnimatedList>
           </div>
         </>
       ) : null}

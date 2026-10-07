@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.28.4`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.28.5`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -205,10 +205,13 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   selectable region when a value is meant to be copied.
 - **Motion**: JS-driven animation goes through `motion` (import from `motion/react`) with the tokens in
   `src/shared/lib/motion.ts`; CSS-driven animation uses the keyframes in `globals.css` and Tailwind's
-  `animate-[…]`. Reuse `AnimatedList` for card stacks and `Reveal` for disclosure content instead of
-  hand-rolling `initial`/`animate` pairs, and build slide-ins on `useSoftSlide` — `reducedMotion="user"`
-  (set in `providers.tsx`) stops layout animation and instant-jumps transforms, but it would still hold a
-  slide offset for the whole tween.
+  `animate-[…]`. **A list of items is an `AnimatedList`** — one stack, grid or chip row of keyed rows that
+  eases each row in, animates a removed row out where it stood (`AnimatePresence` with `mode="popLayout"`,
+  `layout="position"`) and slides the rest into the gap; pass `grouped={false}` when `className` already
+  describes the layout, and `as="ul"` when the rows are a real list. `Reveal` is for disclosure content, and
+  a surface that slides into place is built on `useSoftSlide` — `reducedMotion="user"` (set in
+  `providers.tsx`) stops layout animation and instant-jumps transforms, but it would still hold a slide
+  offset for the whole tween, which is why `useSoftSlide` falls back to a plain fade itself.
 - **Document edits** go through `features/editor` — one `DocumentEditorDialog` for every addressable file
   (configs, MCP source files, `SKILL.md`, instructions/commands/hooks/rules), described by an
   `EditorDocument`. The order is fixed: edit → `previewConfigSave` (diff + validation + hash) → `saveConfig`,
@@ -421,8 +424,9 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   projects, the empty state, adding a folder), the Hub page (a section per source, a kind filter that asks
   only the sources it includes, the read-only preview, the reviewed install request with `confirm: true`, a
   required value gating it, the tags on a card and the tag filter that reaches the backend, and the entry
-  context menu), and the terminal tab store (buffered output,
-  finishing and closing a tab). Hooks are not tested.
+  context menu), the terminal tab store (buffered output,
+  finishing and closing a tab), and the animated list (the row order it renders, and a removed row staying in
+  the tree for its exit before it goes). Hooks are not tested.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch
   the real environment or network. Manifest fixtures use `catalog::parse_manifest(toml, "test")`.

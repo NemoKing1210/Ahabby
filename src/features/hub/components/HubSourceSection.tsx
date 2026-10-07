@@ -134,14 +134,18 @@ export function HubSourceSection({
       ) : null}
 
       {report && report.problems.length > 0 ? (
-        <ul className="text-muted flex flex-col gap-1 text-[0.75rem]">
+        <AnimatedList
+          as="ul"
+          grouped={false}
+          className="text-muted flex flex-col gap-1 text-[0.75rem]"
+        >
           {report.problems.map((problem, index) => (
-            <li key={index} className="flex items-start gap-2">
+            <div key={index} className="flex items-start gap-2">
               <FileText className="text-faint mt-0.5 size-3.5 shrink-0" aria-hidden />
               <span>{problem}</span>
-            </li>
+            </div>
           ))}
-        </ul>
+        </AnimatedList>
       ) : null}
 
       {page.isPending ? <SkeletonList rows={3} /> : null}

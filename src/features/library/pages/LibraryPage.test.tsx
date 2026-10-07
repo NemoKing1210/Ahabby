@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -236,7 +236,8 @@ describe('LibraryPage', () => {
     await user.click(within(container).getByRole('button', { name: 'http 1' }))
 
     expect(within(container).getByText('https://mcp.example.com')).toBeTruthy()
-    expect(within(container).queryByText('npx')).toBeNull()
+    // The row that leaves animates out first (see `AnimatedList`), so it is gone a moment later.
+    await waitFor(() => expect(within(container).queryByText('npx')).toBeNull())
   })
 
   it('narrows a tab to the resources that are switched off', async () => {

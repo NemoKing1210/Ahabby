@@ -6,6 +6,7 @@ import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubFileInfo } from '@/shared/bindings/HubFileInfo'
 import { formatBytes, isKnownNumber } from '@/shared/lib/format'
 import { tagColor } from '@/shared/lib/tagColor'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
@@ -64,13 +65,13 @@ export function HubEntryLinks({ entry, docs }: { entry: HubEntry; docs?: string 
 export function HubTagList({ entry }: { entry: HubEntry }) {
   if (entry.tags.length === 0) return null
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <AnimatedList grouped={false} className="flex flex-wrap items-center gap-1.5">
       {entry.tags.map((tag) => (
         <Badge key={tag} tone="outline" className="ah-tag" style={tagColor(tag)}>
           {tag}
         </Badge>
       ))}
-    </div>
+    </AnimatedList>
   )
 }
 
@@ -112,9 +113,13 @@ export function HubEntryMeta({ entry }: { entry: HubEntry }) {
 export function HubFileList({ files }: { files: HubFileInfo[] }) {
   const { t } = useTranslation()
   return (
-    <ul className="border-border bg-surface-2/40 max-h-56 divide-y overflow-y-auto rounded-lg border">
+    <AnimatedList
+      as="ul"
+      grouped={false}
+      className="border-border bg-surface-2/40 max-h-56 divide-y overflow-y-auto rounded-lg border"
+    >
       {files.map((file) => (
-        <li key={file.path} className="flex items-center gap-3 px-3 py-1.5">
+        <div key={file.path} className="flex items-center gap-3 px-3 py-1.5">
           <span className="text-foreground min-w-0 flex-1 truncate font-mono text-[0.75rem]">
             {file.path}
           </span>
@@ -126,8 +131,8 @@ export function HubFileList({ files }: { files: HubFileInfo[] }) {
           <span className="text-faint w-16 shrink-0 text-right text-[0.6875rem] tabular-nums">
             {formatBytes(file.sizeBytes)}
           </span>
-        </li>
+        </div>
       ))}
-    </ul>
+    </AnimatedList>
   )
 }

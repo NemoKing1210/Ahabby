@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, Plus, RotateCcw, Terminal as TerminalIcon, X } 
 import { cn } from '@/shared/lib/cn'
 import { fileName } from '@/shared/lib/format'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Tooltip } from '@/shared/ui/Tooltip'
 import { toastAppError } from '@/shared/ui/Toast'
@@ -114,51 +115,59 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
           aria-label={t('terminal.tabs')}
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         >
-          {tabs.map((tab) => {
-            const selected = tab.sessionId === active?.sessionId
-            return (
-              <div
-                key={tab.sessionId}
-                className={cn(
-                  'group ease-warm flex shrink-0 items-center gap-0.5 rounded-xl pr-0.5 pl-1.5 transition-colors duration-150',
-                  selected && expanded ? 'bg-accent-soft text-accent-strong' : 'hover:bg-surface-2',
-                )}
-              >
-                <Tooltip content={shortenCommand(tab.command)} side="top">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    onClick={() => activate(tab.sessionId)}
-                    className={cn(
-                      'flex items-center gap-1.5 py-1 pr-1 text-[0.8125rem]',
-                      selected ? 'text-accent-strong' : 'text-muted hover:text-foreground',
-                    )}
-                  >
-                    <AgentIcon name={tab.agentName} icon={icons.get(tab.agentId)} size="xs" />
-                    <span className="max-w-40 truncate">{tab.agentName}</span>
-                    <span className="text-faint max-w-24 truncate text-[0.6875rem]">
-                      {fileName(tab.cwd)}
-                    </span>
-                    {tab.running ? null : (
-                      <span className="text-faint text-[0.6875rem]">
-                        {t('terminal.exitedShort', { code: tab.exitCode ?? '—' })}
-                      </span>
-                    )}
-                  </button>
-                </Tooltip>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6 opacity-60 group-hover:opacity-100"
-                  aria-label={t('terminal.closeTab', { agent: tab.agentName })}
-                  onClick={() => closeTerminal(tab.sessionId)}
+          <AnimatedList
+            grouped={false}
+            itemClassName="shrink-0"
+            className="flex items-center gap-1"
+          >
+            {tabs.map((tab) => {
+              const selected = tab.sessionId === active?.sessionId
+              return (
+                <div
+                  key={tab.sessionId}
+                  className={cn(
+                    'group ease-warm flex shrink-0 items-center gap-0.5 rounded-xl pr-0.5 pl-1.5 transition-colors duration-150',
+                    selected && expanded
+                      ? 'bg-accent-soft text-accent-strong'
+                      : 'hover:bg-surface-2',
+                  )}
                 >
-                  <X className="size-3" aria-hidden />
-                </Button>
-              </div>
-            )
-          })}
+                  <Tooltip content={shortenCommand(tab.command)} side="top">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      onClick={() => activate(tab.sessionId)}
+                      className={cn(
+                        'flex items-center gap-1.5 py-1 pr-1 text-[0.8125rem]',
+                        selected ? 'text-accent-strong' : 'text-muted hover:text-foreground',
+                      )}
+                    >
+                      <AgentIcon name={tab.agentName} icon={icons.get(tab.agentId)} size="xs" />
+                      <span className="max-w-40 truncate">{tab.agentName}</span>
+                      <span className="text-faint max-w-24 truncate text-[0.6875rem]">
+                        {fileName(tab.cwd)}
+                      </span>
+                      {tab.running ? null : (
+                        <span className="text-faint text-[0.6875rem]">
+                          {t('terminal.exitedShort', { code: tab.exitCode ?? '—' })}
+                        </span>
+                      )}
+                    </button>
+                  </Tooltip>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-6 opacity-60 group-hover:opacity-100"
+                    aria-label={t('terminal.closeTab', { agent: tab.agentName })}
+                    onClick={() => closeTerminal(tab.sessionId)}
+                  >
+                    <X className="size-3" aria-hidden />
+                  </Button>
+                </div>
+              )
+            })}
+          </AnimatedList>
         </div>
 
         <Tooltip content={t('terminal.new')} side="top">

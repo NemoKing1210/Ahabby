@@ -1,6 +1,7 @@
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Input } from '@/shared/ui/Input'
 import { PathRow } from '@/shared/ui/PathRow'
@@ -33,30 +34,32 @@ export function SettingsSearchPage() {
             {draft.extraScanPaths.length === 0 ? (
               <p className="text-muted text-[0.8125rem]">{t('settings.scanPathsNone')}</p>
             ) : null}
-            {draft.extraScanPaths.map((path, index) => (
-              <div key={`${index}-${path}`} className="flex items-center gap-2">
-                <Input
-                  value={path}
-                  placeholder={t('settings.pathPlaceholder')}
-                  aria-label={t('settings.scanPaths')}
-                  onChange={(event) => {
-                    const next = [...draft.extraScanPaths]
-                    next[index] = event.target.value
-                    update({ extraScanPaths: next })
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('settings.removePath')}
-                  onClick={() =>
-                    update({ extraScanPaths: draft.extraScanPaths.filter((_, i) => i !== index) })
-                  }
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            ))}
+            <AnimatedList grouped={false} className="flex flex-col gap-2">
+              {draft.extraScanPaths.map((path, index) => (
+                <div key={`${index}-${path}`} className="flex items-center gap-2">
+                  <Input
+                    value={path}
+                    placeholder={t('settings.pathPlaceholder')}
+                    aria-label={t('settings.scanPaths')}
+                    onChange={(event) => {
+                      const next = [...draft.extraScanPaths]
+                      next[index] = event.target.value
+                      update({ extraScanPaths: next })
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('settings.removePath')}
+                    onClick={() =>
+                      update({ extraScanPaths: draft.extraScanPaths.filter((_, i) => i !== index) })
+                    }
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </AnimatedList>
             <Button
               variant="secondary"
               size="sm"

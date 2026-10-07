@@ -153,9 +153,12 @@ describe('AgentsPage filters', () => {
     await user.click(within(container).getByRole('button', { name: 'With warnings 1' }))
 
     expect(within(container).getByText('Codex')).toBeTruthy()
-    expect(within(container).queryByText('Claude Code')).toBeNull()
+    // A row that leaves animates out first (see `AnimatedList`), so it is gone a moment later.
+    await waitFor(() => expect(within(container).queryByText('Claude Code')).toBeNull())
     // Codex has no update, so that chip would only lead to an empty list — it is gone.
-    expect(within(container).queryByRole('button', { name: /^Update available/ })).toBeNull()
+    await waitFor(() =>
+      expect(within(container).queryByRole('button', { name: /^Update available/ })).toBeNull(),
+    )
   })
 
   it('counts every chip against the search box', async () => {

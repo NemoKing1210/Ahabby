@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 
 import type { Agent } from '@/shared/bindings/Agent'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { EmptyState } from '@/shared/ui/EmptyState'
@@ -31,32 +32,31 @@ export function AgentLedger({ agents }: { agents: Agent[] }) {
   }
 
   return (
-    <ul className="grid gap-2 sm:grid-cols-2">
+    <AnimatedList as="ul" grouped={false} className="grid gap-2 sm:grid-cols-2">
       {agents.map((agent) => (
-        <li key={agent.id}>
-          <Link
-            to={`/agents/${agent.id}`}
-            className="group border-border bg-surface hover:border-border-strong hover:bg-surface-2 ease-warm flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors duration-150"
-          >
-            <AgentIcon name={agent.name} icon={agent.icon} size="sm" />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-[0.875rem]">{agent.name}</span>
-              <span className="text-faint truncate font-mono text-[0.6875rem]">
-                {agent.version?.raw ?? t('agents.noVersion')}
-              </span>
+        <Link
+          key={agent.id}
+          to={`/agents/${agent.id}`}
+          className="group border-border bg-surface hover:border-border-strong hover:bg-surface-2 ease-warm flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors duration-150"
+        >
+          <AgentIcon name={agent.name} icon={agent.icon} size="sm" />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[0.875rem]">{agent.name}</span>
+            <span className="text-faint truncate font-mono text-[0.6875rem]">
+              {agent.version?.raw ?? t('agents.noVersion')}
             </span>
-            {agent.update ? (
-              <Badge tone="accent" title={t('agents.updateTo', { version: agent.update.latest })}>
-                {t('agents.updateAvailable')}
-              </Badge>
-            ) : null}
-            <ChevronRight
-              aria-hidden
-              className="text-faint size-4 shrink-0 transition-transform duration-150 group-hover:translate-x-0.5"
-            />
-          </Link>
-        </li>
+          </span>
+          {agent.update ? (
+            <Badge tone="accent" title={t('agents.updateTo', { version: agent.update.latest })}>
+              {t('agents.updateAvailable')}
+            </Badge>
+          ) : null}
+          <ChevronRight
+            aria-hidden
+            className="text-faint size-4 shrink-0 transition-transform duration-150 group-hover:translate-x-0.5"
+          />
+        </Link>
       ))}
-    </ul>
+    </AnimatedList>
   )
 }

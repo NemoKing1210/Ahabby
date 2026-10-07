@@ -5,6 +5,7 @@ import { Copy, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { ConfigFact } from '@/shared/bindings/ConfigFact'
 import { copyText } from '@/shared/lib/clipboard'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { toast, toastAppError } from '@/shared/ui/Toast'
@@ -44,20 +45,26 @@ export function AgentFactsCard({ agent }: { agent: Agent }) {
         <p className="text-muted text-[0.75rem]">{t('agent.facts.hint')}</p>
       </div>
 
-      {groups.map((group) => (
-        <div key={group.key} className="flex flex-col gap-1">
-          <Tooltip content={group.path}>
-            <span className="text-faint w-fit text-[0.6875rem] font-medium tracking-wide">
-              {group.label}
-            </span>
-          </Tooltip>
-          <ul className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-            {group.facts.map((fact) => (
-              <FactRow key={fact.id} agentId={agent.id} fact={fact} />
-            ))}
-          </ul>
-        </div>
-      ))}
+      <AnimatedList grouped={false} className="flex flex-col gap-4">
+        {groups.map((group) => (
+          <div key={group.key} className="flex flex-col gap-1">
+            <Tooltip content={group.path}>
+              <span className="text-faint w-fit text-[0.6875rem] font-medium tracking-wide">
+                {group.label}
+              </span>
+            </Tooltip>
+            <AnimatedList
+              as="ul"
+              grouped={false}
+              className="grid grid-cols-1 gap-x-8 sm:grid-cols-2"
+            >
+              {group.facts.map((fact) => (
+                <FactRow key={fact.id} agentId={agent.id} fact={fact} />
+              ))}
+            </AnimatedList>
+          </div>
+        ))}
+      </AnimatedList>
     </Card>
   )
 }
@@ -73,7 +80,7 @@ function FactRow({ agentId, fact }: { agentId: string; fact: ConfigFact }) {
   const actionable = !fact.masked || shown !== null
 
   return (
-    <li className="flex min-w-0 flex-col gap-0.5 py-1.5">
+    <div className="flex min-w-0 flex-col gap-0.5 py-1.5">
       <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
         {t(`agent.facts.kind.${fact.kind}`)}
       </span>
@@ -138,6 +145,6 @@ function FactRow({ agentId, fact }: { agentId: string; fact: ConfigFact }) {
           </Button>
         ) : null}
       </div>
-    </li>
+    </div>
   )
 }

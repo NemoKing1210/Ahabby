@@ -24,6 +24,7 @@ import type { DiffPreview } from '@/shared/bindings/DiffPreview'
 import { copyText } from '@/shared/lib/clipboard'
 import { cn } from '@/shared/lib/cn'
 import { formatBytes, formatRelative } from '@/shared/lib/format'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { CodeViewer } from '@/shared/ui/CodeViewer'
@@ -465,11 +466,15 @@ export function DocumentEditorDialog({
                 <span className="text-danger-fg text-[0.8125rem]">
                   {t('editor.validationFailed', { format: doc.format.toUpperCase() })}
                 </span>
-                <ul className="text-muted font-mono text-[0.75rem] break-all">
+                <AnimatedList
+                  as="ul"
+                  grouped={false}
+                  className="text-muted font-mono text-[0.75rem] break-all"
+                >
                   {errors.map((error) => (
-                    <li key={error}>{error}</li>
+                    <div key={error}>{error}</div>
                   ))}
-                </ul>
+                </AnimatedList>
               </div>
             ) : null}
 
@@ -512,9 +517,9 @@ export function DocumentEditorDialog({
                   {t('editor.backups')}
                 </span>
                 {backups.data && backups.data.length > 0 ? (
-                  <ul className="flex flex-col gap-1">
+                  <AnimatedList as="ul" grouped={false} className="flex flex-col gap-1">
                     {backups.data.map((backup) => (
-                      <li
+                      <div
                         key={backup.path}
                         className="flex items-center justify-between gap-3 rounded-lg px-1 py-1"
                       >
@@ -538,9 +543,9 @@ export function DocumentEditorDialog({
                             {t('editor.restore')}
                           </Button>
                         </div>
-                      </li>
+                      </div>
                     ))}
-                  </ul>
+                  </AnimatedList>
                 ) : (
                   <p className="text-muted text-[0.75rem]">{t('editor.noBackups')}</p>
                 )}
