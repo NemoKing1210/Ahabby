@@ -13,6 +13,9 @@ import type { AgentRemoval } from '@/shared/bindings/AgentRemoval'
 import type { BackupEntry } from '@/shared/bindings/BackupEntry'
 import type { ConfigSnapshot } from '@/shared/bindings/ConfigSnapshot'
 import type { DiffPreview } from '@/shared/bindings/DiffPreview'
+import type { ExtensionAction } from '@/shared/bindings/ExtensionAction'
+import type { ExtensionRemoval } from '@/shared/bindings/ExtensionRemoval'
+import type { ExtensionToggle } from '@/shared/bindings/ExtensionToggle'
 import type { HiddenAgent } from '@/shared/bindings/HiddenAgent'
 import type { HubEntryDetail } from '@/shared/bindings/HubEntryDetail'
 import type { HubInstall } from '@/shared/bindings/HubInstall'
@@ -92,6 +95,28 @@ export const ipc = {
     invoke<MutationResult<SkillRemoval>>('delete_skill', { agentId, skillId, confirm }),
   setSkillEnabled: (agentId: string, skillId: string, enabled: boolean) =>
     invoke<MutationResult<SkillToggle>>('set_skill_enabled', { agentId, skillId, enabled }),
+
+  // --- extensions ---------------------------------------------------------------------
+  /** Moves a local extension's files to the OS trash (a package is removed through its CLI). */
+  deleteExtension: (agentId: string, extensionId: string, confirm: boolean) =>
+    invoke<MutationResult<ExtensionRemoval>>('delete_extension', { agentId, extensionId, confirm }),
+  /** Renames a local extension's entry file aside, or back. Nothing is deleted. */
+  setExtensionEnabled: (agentId: string, extensionId: string, enabled: boolean) =>
+    invoke<MutationResult<ExtensionToggle>>('set_extension_enabled', {
+      agentId,
+      extensionId,
+      enabled,
+    }),
+  /** The exact command the agent's own CLI would run for one package, resolved by the backend. */
+  planExtensionAction: (agentId: string, extensionId: string, action: ExtensionAction) =>
+    invoke<InstallPlan>('plan_extension_action', { agentId, extensionId, action }),
+  /** Starts that command as a job. Returns the job id; output arrives on `job://output`. */
+  runExtensionAction: (
+    agentId: string,
+    extensionId: string,
+    action: ExtensionAction,
+    confirm = false,
+  ) => invoke<string>('run_extension_action', { agentId, extensionId, action, confirm }),
 
   // --- hub ----------------------------------------------------------------------------
   /** The collections the hub reads, plus the ones that failed to load. */

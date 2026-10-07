@@ -8,9 +8,10 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 
 use crate::domain::{
-    AgentManifest, ConfigFile, ConfigFormat, ConfigSpec, Detection, InstallAction, InstallPlan,
-    Manager, McpEntryShape, McpServer, McpServerDraft, McpSpec, OtherResource, OtherSpec, Scope,
-    Skill, SkillDraft, SkillFormat, SkillInstall, SkillInstallFile, Version,
+    AgentManifest, ConfigFile, ConfigFormat, ConfigSpec, Detection, Extension, ExtensionAction,
+    ExtensionFormat, InstallAction, InstallPlan, Manager, McpEntryShape, McpServer, McpServerDraft,
+    McpSpec, OtherResource, OtherSpec, Scope, Skill, SkillDraft, SkillFormat, SkillInstall,
+    SkillInstallFile, Version,
 };
 use crate::error::{AppError, Result};
 use crate::platform::{self, PlatformContext};
@@ -352,6 +353,23 @@ impl ManifestAdapter {
             return Err(AppError::NotFound(server.source_config.clone()));
         }
         Ok((target, spec))
+    }
+
+    /// The extensions surface an extension was read from, found by the id every row carries.
+    ///
+    /// A manifest may declare several extension directories, and a package's files live wherever
+    /// the agent put them — so the row itself, not the path, names its surface.
+    fn extension_spec(&self, extension: &Extension) -> Result<&crate::domain::ExtensionSpec> {
+        self.manifest
+            .extensions
+            .iter()
+            .find(|spec| spec.id == extension.surface)
+            .ok_or_else(|| {
+                AppError::CommandNotAllowed(format!(
+                    "{} is not declared by {}",
+                    extension.source, self.manifest.id
+                ))
+            })
     }
 
     fn config_entry(&self, spec: &ConfigSpec, path: PathBuf) -> ConfigFile {
@@ -925,6 +943,52 @@ impl AgentAdapter for ManifestAdapter {
         doc_edit::validate(spec.format, &updated, &server.source_config)?;
         platform::write_atomic(&target, &updated, Some(&ctx.backup_root))?;
         Ok(())
+    }
+
+    /// Extensions this agent loads, read from every declared extensions surface.
+    async fn list_extensions(&self, ctx: &PlatformContext) -> Result<Vec<Extension>> {
+        if self.manifest.extensions.is_empty() {
+            return Ok(Vec::new());
+        }
+        let agent = self.agent_ref();
+        let unverified = is_unverified(&self.manifest, "extensions.path");
+        let mut found: Vec<Extension> = Vec::new();
+        for spec in &self.manifest.extensions {
+            match spec.format {
+                ExtensionFormat::Pi => {
+                    found.extend(super::extensions::read(ctx, spec, &agent, unverified)?)
+                }
+            }
+        }
+        found.sort_by_key(|extension| extension.name.to_lowercase());
+        // The same path can be declared twice; an extension's id is derived from it, so the rows
+        // collapse here exactly like duplicate skills do.
+        found.dedup_by(|a, b| a.id == b.id);
+        Ok(found)
+    }
+
+    async fn remove_extension(&self, ctx: &PlatformContext, extension: &Extension) -> Result<()> {
+        let spec = self.extension_spec(extension)?;
+        super::extensions::remove(ctx, spec, self.owner_id(), extension)
+    }
+
+    async fn set_extension_enabled(
+        &self,
+        ctx: &PlatformContext,
+        extension: &Extension,
+        enabled: bool,
+    ) -> Result<()> {
+        let spec = self.extension_spec(extension)?;
+        super::extensions::set_enabled(ctx, spec, self.owner_id(), extension, enabled)
+    }
+
+    async fn extension_plan(
+        &self,
+        ctx: &PlatformContext,
+        extension: &Extension,
+        action: ExtensionAction,
+    ) -> Result<InstallPlan> {
+        super::extensions::plan(ctx, &self.manifest, extension, action)
     }
 
     /// Write a new skill as `<skills dir>/<slug>/SKILL.md` with YAML frontmatter.

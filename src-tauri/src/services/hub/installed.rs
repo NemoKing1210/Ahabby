@@ -357,6 +357,8 @@ mod tests {
             skills,
             mcp_servers: servers,
             other: Vec::new(),
+            extensions: Vec::new(),
+            extensions_supported: false,
             update: None,
             unverified: Vec::new(),
             notes: None,

@@ -12,9 +12,9 @@ use tracing::warn;
 use crate::adapters::AgentAdapter;
 use crate::catalog::{self, Catalog};
 use crate::domain::{
-    is_project_owner, Agent, AgentManifest, AgentRemoval, ConfigFile, ConfigFormat, HiddenAgent,
-    ManifestSource, McpServer, OtherResource, Project, ProjectFolder, Proxy, RemovalKind,
-    RemovalMode, Skill, TerminalExit, TerminalOutput, SHARED_OWNER_ID,
+    is_project_owner, Agent, AgentManifest, AgentRemoval, ConfigFile, ConfigFormat, Extension,
+    HiddenAgent, ManifestSource, McpServer, OtherResource, Project, ProjectFolder, Proxy,
+    RemovalKind, RemovalMode, Skill, TerminalExit, TerminalOutput, SHARED_OWNER_ID,
 };
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
@@ -121,25 +121,28 @@ pub struct DocumentTarget {
 ///
 /// Order matters: a declared config wins (manifests describe their formats precisely), then
 /// a non-directory `other` resource (instructions, commands, hooks, rules), then a skill's
-/// entry file. Skills are writable exactly when Ahabby would also delete them — a
-/// plugin-managed skill stays read-only, because its owner is the plugin manager.
+/// entry file, then an extension's entry file. Skills are writable exactly when Ahabby would
+/// also delete them — a plugin-managed skill stays read-only, because its owner is the plugin
+/// manager.
 pub fn resolve_document(agent: &Agent, path: &str) -> Result<DocumentTarget> {
     resolve_in(
         &agent.configs,
         &agent.other,
         &agent.skills,
+        &agent.extensions,
         &agent.name,
         path,
     )
 }
 
-/// The same resolution for any owner: the three lists a document can live in, plus the name
-/// used in the refusal. Split out so the shared surface — which has no `Agent` — is resolved
-/// by exactly the rules (and refusals) that guard an agent's documents.
+/// The same resolution for any owner: the lists a document can live in, plus the name used in
+/// the refusal. Split out so the shared surface — which has no `Agent` — is resolved by exactly
+/// the rules (and refusals) that guard an agent's documents.
 pub fn resolve_in(
     configs: &[ConfigFile],
     other: &[OtherResource],
     skills: &[Skill],
+    extensions: &[Extension],
     owner: &str,
     path: &str,
 ) -> Result<DocumentTarget> {
@@ -170,6 +173,19 @@ pub fn resolve_in(
             path: PathBuf::from(path),
             format: ConfigFormat::Markdown,
             editable: skill.removable,
+        });
+    }
+
+    if let Some(extension) = extensions
+        .iter()
+        .find(|extension| extension.entry_path.as_deref() == Some(path))
+    {
+        return Ok(DocumentTarget {
+            path: PathBuf::from(path),
+            // An extension is a script, whatever the manifest calls it.
+            format: ConfigFormat::Text,
+            // Only a local extension, whose entry file Ahabby also switches, is editable.
+            editable: extension.can_toggle,
         });
     }
 
@@ -547,6 +563,16 @@ impl AppState {
             .into_iter()
             .find(|server| server.id == server_id)
             .ok_or_else(|| AppError::NotFound(format!("mcp server '{server_id}'")))
+    }
+
+    /// One extension of one scanned agent. Extensions belong to an agent alone: the shared
+    /// surface and a project declare none, so there is no second branch here on purpose.
+    pub fn extension(&self, agent_id: &str, extension_id: &str) -> Result<Extension> {
+        self.agent(agent_id)?
+            .extensions
+            .into_iter()
+            .find(|extension| extension.id == extension_id)
+            .ok_or_else(|| AppError::NotFound(format!("extension '{extension_id}'")))
     }
 
     pub fn jobs(&self) -> Arc<JobRunner> {

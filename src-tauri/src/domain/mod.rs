@@ -6,6 +6,7 @@
 pub mod agent;
 pub mod catalog;
 pub mod config;
+pub mod extension;
 pub mod fact;
 pub mod hub;
 pub mod library;
@@ -29,6 +30,10 @@ pub use agent::{
 };
 pub use catalog::CatalogProblem;
 pub use config::{BackupEntry, ConfigFile, ConfigFormat, ConfigSnapshot, DiffPreview, SaveResult};
+pub use extension::{
+    Extension, ExtensionAction, ExtensionKind, ExtensionManager, ExtensionRemoval,
+    ExtensionResources, ExtensionToggle,
+};
 pub use fact::{ConfigFact, FactKind};
 pub use hub::{
     normalize_tags, plain_git_ref, plain_relative_path, plain_repository, tag_rule_matches,
@@ -38,9 +43,9 @@ pub use hub::{
 };
 pub use library::{Library, LibraryStats};
 pub use manifest::{
-    AgentManifest, BinarySpec, ConfigSpec, InstallMethodSpec, Manager, ManifestProblem,
-    ManifestSource, McpEntryShape, McpSpec, OsPathMap, OtherKind, OtherSpec, SearchPathSpec,
-    Severity, SkillFormat, SkillSpec, VersionExtract,
+    AgentManifest, BinarySpec, ConfigSpec, ExtensionFormat, ExtensionSpec, InstallMethodSpec,
+    Manager, ManifestProblem, ManifestSource, McpEntryShape, McpSpec, OsPathMap, OtherKind,
+    OtherSpec, SearchPathSpec, Severity, SkillFormat, SkillSpec, VersionExtract,
 };
 pub use mcp::{EnvVar, McpDraftTransport, McpKeyValue, McpServer, McpServerDraft, McpTransport};
 pub use os::Os;

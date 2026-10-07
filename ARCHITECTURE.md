@@ -180,13 +180,17 @@ src/
 - `CodeViewer` (CodeMirror) is lazy-loaded: the initial bundle is ~730 kB, the editor arrives on demand. The
   terminal dock is loaded the same way, the first time a session exists, for xterm.js.
 - The terminal is a real emulator over a real PTY: `services::terminal` starts the user's own shell in a
-  ConPTY/`openpty` session, types the agent's quoted executable into it (so npm's `.cmd`/`.ps1` shims work on
-  Windows) and streams raw bytes as base64 on `terminal://output`. xterm draws them, `terminal://exit` closes
-  the loop, and closing a tab closes the console — which is what terminates the agent together with the shell.
-  The dock belongs to the shell, not to a screen: its tab strip is always visible, collapsing it only sets the
-  body to zero height (the terminals stay mounted, so nothing loses its scrollback), and the top edge is a drag
-  handle. Which terminal a "run in terminal" button uses is `Settings::terminal`: the built-in one opens a tab in
-  the dock, `platform::terminals` detects and launches the installed ones it knows how to (Warp is
+  ConPTY/`openpty` session — with the `TERM`/`COLORTERM` a GUI launch does not inherit — and types the agent's
+  quoted executable into it (so npm's `.cmd`/`.ps1` shims work on Windows) once the shell has drawn its first
+  prompt, which is what makes the agent start every time. Raw bytes stream as base64 on `terminal://output`;
+  xterm draws them, `terminal://exit` closes the loop, and closing a tab closes the console — which is what
+  terminates the agent together with the shell. The dock belongs to the shell, not to a screen: its tab strip is
+  always visible, collapsing it only sets the body to zero height (the terminals stay mounted, so nothing loses
+  its scrollback), and the top edge is a drag handle. **The emulator is the session's, not the component's**
+  (`lib/terminals.ts` creates one xterm per session and re-homes it on every attach), so a remount shows the same
+  screen instead of a blank one; a tab whose session is gone is shown as ended rather than swallowing keys.
+  Which terminal a "run in terminal" button uses is `Settings::terminal`: the built-in one opens a tab in the
+  dock, `platform::terminals` detects and launches the installed ones it knows how to (Warp is
   `opensDirectory` — it has no CLI to run a command).
 - Theming: every colour, radius, font and easing lives in CSS variables that `@theme inline` maps into
   Tailwind utilities, so `bg-surface`, `text-muted`, `border-border` follow the automatic dark mode without
@@ -241,9 +245,12 @@ Recorded here because the task intentionally left them open:
     Library together.
 16. **A terminal session runs the user's own shell, not the agent binary directly.** Windows installs `.cmd`
     and `.ps1` shims that `CreateProcess` cannot start, and a shell is also what leaves the user at a prompt in
-    the right directory once the agent exits — so the agent is handed to the shell as one typed line. The
-    shell is `pwsh` → Windows PowerShell → `cmd.exe` on Windows and `$SHELL` (falling back to a POSIX shell)
-    elsewhere; sessions are capped at 24 and finished ones are pruned after ten minutes.
+    the right directory once the agent exits — so the agent is handed to the shell as one typed line, and only
+    after the shell's own first output (a shell that has not finished starting is not reading its console yet).
+    The PTY is given the terminal environment a desktop launch lacks, the session is published only once its
+    reader/typing/waiter threads are running, output bursts are coalesced, and the shell is `pwsh` → Windows
+    PowerShell → `cmd.exe` on Windows and `$SHELL` (falling back to a POSIX shell) elsewhere; sessions are capped
+    at 24 and finished ones are pruned after ten minutes.
 17. **External terminals are a fixed, curated table, not a guess.** Every entry carries its own documented
     launch contract (`-e`/`--command`, Windows Terminal's `-w 0 nt -d`, macOS's AppleScript `do script`, or
     Warp's URI scheme), and it is offered only after `detect()` found it on this machine. A terminal that

@@ -2,6 +2,7 @@
 import type { AgentStatus } from "./AgentStatus";
 import type { ConfigFact } from "./ConfigFact";
 import type { ConfigFile } from "./ConfigFile";
+import type { Extension } from "./Extension";
 import type { InstallOption } from "./InstallOption";
 import type { ManifestSource } from "./ManifestSource";
 import type { McpServer } from "./McpServer";
@@ -48,7 +49,16 @@ canUninstall: boolean, configs: Array<ConfigFile>,
  * Noteworthy values lifted out of those configs (model, provider, endpoint, tokens) —
  * the "quick info" panel of the agent's overview.
  */
-facts: Array<ConfigFact>, skills: Array<Skill>, mcpServers: Array<McpServer>, other: Array<OtherResource>, update?: UpdateInfo | null, 
+facts: Array<ConfigFact>, skills: Array<Skill>, mcpServers: Array<McpServer>, other: Array<OtherResource>, 
+/**
+ * Extensions the agent loads. Empty for an agent whose manifest declares no extensions
+ * surface — which `extensions_supported` distinguishes from "declared but none installed".
+ */
+extensions: Array<Extension>, 
+/**
+ * `true` when the manifest declares an extensions surface at all.
+ */
+extensionsSupported: boolean, update?: UpdateInfo | null, 
 /**
  * Dotted manifest paths that still need a docs check (see `ARCHITECTURE.md`).
  */

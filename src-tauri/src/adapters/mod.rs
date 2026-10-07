@@ -12,6 +12,7 @@
 pub mod claude;
 pub mod config_facts;
 pub mod doc_edit;
+pub mod extensions;
 pub mod frontmatter;
 pub mod jsonc;
 pub mod manifest_adapter;
@@ -29,8 +30,9 @@ pub use project::ProjectAdapter;
 pub use registry::AdapterRegistry;
 
 use crate::domain::{
-    AgentManifest, AgentRef, ConfigFile, Detection, InstallAction, InstallPlan, Manager, McpServer,
-    McpServerDraft, OsPathMap, OtherResource, Skill, SkillDraft, SkillInstall, Version,
+    AgentManifest, AgentRef, ConfigFile, Detection, Extension, ExtensionAction, InstallAction,
+    InstallPlan, Manager, McpServer, McpServerDraft, OsPathMap, OtherResource, Skill, SkillDraft,
+    SkillInstall, Version,
 };
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
@@ -133,6 +135,56 @@ pub trait AgentAdapter: Send + Sync {
     ) -> Result<Skill> {
         Err(AppError::NotSupported(format!(
             "{} does not support installing skills from Ahabby",
+            self.manifest().name
+        )))
+    }
+
+    /// Extensions the agent loads: packages it tracks, modules dropped into its extensions
+    /// directory and the ones it ships itself.
+    ///
+    /// An agent with no extension mechanism declares none and legitimately yields nothing — which
+    /// is why this defaults to an empty list rather than an error, and why the report carries
+    /// `extensions_supported` next to the list.
+    async fn list_extensions(&self, _ctx: &PlatformContext) -> Result<Vec<Extension>> {
+        Ok(Vec::new())
+    }
+
+    /// Moves a local extension's files to the OS trash. A package is removed through the agent's
+    /// own CLI instead, because the agent owns where it put it (see
+    /// [`AgentAdapter::extension_plan`]).
+    async fn remove_extension(&self, _ctx: &PlatformContext, _extension: &Extension) -> Result<()> {
+        Err(AppError::NotSupported(format!(
+            "{} cannot remove extensions from Ahabby",
+            self.manifest().name
+        )))
+    }
+
+    /// Switches a local extension off or back on. Off renames its entry file to
+    /// `<entry>.disabled`, which the agent stops matching; nothing is deleted.
+    async fn set_extension_enabled(
+        &self,
+        _ctx: &PlatformContext,
+        _extension: &Extension,
+        _enabled: bool,
+    ) -> Result<()> {
+        Err(AppError::NotSupported(format!(
+            "{} cannot switch extensions off from Ahabby",
+            self.manifest().name
+        )))
+    }
+
+    /// Resolve the command the agent's own CLI runs to update or remove one **package**.
+    ///
+    /// Like [`AgentAdapter::install_plan`] this is the only way the UI can ask for such a command:
+    /// it sends an extension id and an action, and the source comes from the last scan.
+    async fn extension_plan(
+        &self,
+        _ctx: &PlatformContext,
+        _extension: &Extension,
+        _action: ExtensionAction,
+    ) -> Result<InstallPlan> {
+        Err(AppError::NotSupported(format!(
+            "{} does not manage extension packages from Ahabby",
             self.manifest().name
         )))
     }

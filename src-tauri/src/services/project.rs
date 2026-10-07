@@ -385,6 +385,8 @@ pub fn resolve_document(project: &Project, path: &str) -> Result<DocumentTarget>
         &project.configs,
         &project.other,
         &project.skills,
+        // The project surface declares no extensions.
+        &[],
         &project.name,
         path,
     )

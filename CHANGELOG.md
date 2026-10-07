@@ -5,6 +5,71 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.1] - 2026-10-07
+
+### Changed
+
+- **Every picker that offers an agent lists the favourites first.** The owner picker of a new
+  skill or MCP server (and of a Hub install), the agent select of a new terminal, the Library's
+  agent filter and the "run an agent here" picker all follow the same order as the agents list:
+  pinned agents first — in the order they were pinned — then the rest. Where the agent-neutral
+  shared surface is one of the answers it stays first, because it is the default of those forms
+  rather than an agent.
+
+## [0.37.0] - 2026-10-07
+
+### Added
+
+- **An Extensions tab on every agent page.** The tab is always there, and for an agent whose
+  manifest declares no extensions surface it says so instead of showing an empty list.
+- **Extensions of Pi are read and managed.** Ahabby lists the packages the settings declare (npm,
+  git and local, with the version, description, author and links read from the installed
+  `package.json`), the modules in the extensions directory and the ones Pi ships itself. Each row
+  opens a details dialog, a package is updated or removed through Pi's own CLI (with the resolved
+  command confirmed first and its output streamed in the job console), a local module is switched
+  off by renaming its entry file or removed to the OS trash, and its source can be opened in the
+  editor.
+- **`[[extensions]]` in the manifest schema.** A manifest opts into the surface with one entry
+  (`format = "pi"`, the extensions directory, the settings document that declares packages and the
+  built-in names); an agent without one has no extensions tab content.
+- **The extensions list opens on the packages.** The modules in the extensions directory and the
+  ones Pi ships itself are behind a type filter with counts, so the list starts with what the user
+  actually installed — and a filter that hides everything always offers a way back.
+
+### Changed
+
+- A document the editor can open now also covers an extension's entry file, resolved through the
+  same scan-backed path checks as a config or a skill.
+
+## [0.36.1] - 2026-10-07
+
+### Fixed
+
+- **An agent starts in the terminal every time.** The command line is handed to the shell only once
+  the shell has drawn its first prompt, instead of being written into a console that may not be
+  listening yet — a line swallowed at startup was an agent that never appeared. The PTY is also
+  given the `TERM` and `COLORTERM` a desktop launch does not inherit, so a full-screen agent no
+  longer drops its colours, its frames or its box drawing, or refuses to start at all.
+- **A terminal keeps what it has already painted.** The emulator now belongs to the session rather
+  than to the component that shows it, so a screen that React mounts twice (which is what
+  development does) shows the same scrollback again instead of a blank terminal that only fills in
+  once the agent prints something new.
+- **A tab never claims to be alive when it is not.** A process that ends before its tab is painted,
+  a session the backend no longer holds, and a keystroke sent to a session that is already gone all
+  now end up shown as ended — with the restart button — instead of swallowing input silently.
+  Reconciling after a reload also finishes the tabs of sessions that no longer exist, next to
+  closing the sessions that no tabs can reach.
+- **The “process ended” strip no longer covers the terminal.** It takes its own row under the
+  output, so the last lines an agent printed — the ones that say why it ended — stay readable.
+- **The New terminal dialog works while the scan is still running.** It falls back to the first
+  installed agent instead of opening with a choice nothing could ever select.
+
+### Changed
+
+- A burst of PTY output is coalesced into far fewer events, and a session is published to the
+  frontend only once every thread that keeps it alive is running — a failure to start the reader
+  leaves no console behind.
+
 ## [0.36.0] - 2026-10-07
 
 ### Added

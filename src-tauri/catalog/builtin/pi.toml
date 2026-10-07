@@ -122,6 +122,16 @@ format = "markdown"
 glob = "**/*.md"
 path = { windows = "${USERPROFILE}/.pi/agent/prompts", macos = "${HOME}/.pi/agent/prompts", linux = "${HOME}/.pi/agent/prompts" }
 
+# SOURCE: https://pi.dev/docs/latest/extensions (checked 2026-10-07)
+# SOURCE: https://pi.dev/docs/latest/packages (checked 2026-10-07)
+[[extensions]]
+id = "extensions"
+format = "pi"
+description = "TypeScript extension modules, plus the Pi packages that ship extensions, skills, prompts and themes."
+path = { windows = "${USERPROFILE}/.pi/agent/extensions", macos = "${HOME}/.pi/agent/extensions", linux = "${HOME}/.pi/agent/extensions" }
+settings = { windows = "${USERPROFILE}/.pi/agent/settings.json", macos = "${HOME}/.pi/agent/settings.json", linux = "${HOME}/.pi/agent/settings.json" }
+builtins = ["mcp", "llama.cpp", "codemode", "tool-search"]
+
 # --- install methods ------------------------------------------------------------------
 # SOURCE: https://pi.dev/docs/latest/quickstart (checked 2026-10-05)
 [[methods]]

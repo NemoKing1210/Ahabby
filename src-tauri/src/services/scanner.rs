@@ -278,11 +278,12 @@ async fn scan_agent(
             ));
         }
 
-        let (configs, skills, mcp_servers, other) = futures::join!(
+        let (configs, skills, mcp_servers, other, extensions) = futures::join!(
             adapter.config_files(ctx),
             adapter.list_skills(ctx),
             adapter.list_mcp_servers(ctx),
             adapter.list_other_resources(ctx),
+            adapter.list_extensions(ctx),
         );
 
         match configs {
@@ -306,6 +307,10 @@ async fn scan_agent(
                 agent.other = resources;
             }
             Err(error) => warnings.push(format!("other resources: {error}")),
+        }
+        match extensions {
+            Ok(extensions) => agent.extensions = extensions,
+            Err(error) => warnings.push(format!("extensions: {error}")),
         }
     }
 
@@ -368,6 +373,8 @@ fn skeleton_agent(manifest: &crate::domain::AgentManifest) -> Agent {
         skills: Vec::new(),
         mcp_servers: Vec::new(),
         other: Vec::new(),
+        extensions: Vec::new(),
+        extensions_supported: !manifest.extensions.is_empty(),
         update: None,
         unverified: manifest.unverified.clone(),
         notes: manifest.notes.clone(),

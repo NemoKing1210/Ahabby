@@ -8,13 +8,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Copy, Eraser, Search, TextSelect, X } from 'lucide-react'
-import { SearchAddon } from '@xterm/addon-search'
-import { FitAddon } from '@xterm/addon-fit'
-import { WebLinksAddon } from '@xterm/addon-web-links'
-import { Terminal } from '@xterm/xterm'
-import '@xterm/xterm/css/xterm.css'
 
-import { ipc } from '@/shared/api/ipc'
 import { copyText, readText } from '@/shared/lib/clipboard'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
@@ -32,8 +26,14 @@ import { useBrowser } from '@/features/browser/context'
 import { useSettings } from '@/features/settings/api/hooks'
 
 import type { TerminalTab } from '../store'
-import { registerTerminal, unregisterTerminal } from '../lib/session'
-import { terminalFont, terminalTheme, terminalTokens } from '../lib/theme'
+import { useTerminalStore } from '../store'
+import {
+  attachTerminal,
+  disposeTerminal,
+  paintTerminal,
+  type TerminalHandle,
+} from '../lib/terminals'
+import { terminalTokens } from '../lib/theme'
 
 /**
  * One tab's terminal.
@@ -43,6 +43,11 @@ import { terminalFont, terminalTheme, terminalTokens } from '../lib/theme'
  * from a terminal is therefore here by construction — Ctrl+C is SIGINT, full-screen agents work,
  * and the tool can be resized — while the parts a desktop terminal adds on top (copy, paste,
  * find, clear, links through the OS opener) are wired by hand below.
+ *
+ * The emulator itself is *not* created here: it belongs to the session and lives in
+ * `lib/terminals.ts`, so taking this component down and back up — which React does twice for every
+ * mount in development — shows the same screen again instead of an empty terminal. What this
+ * component owns is the host element, the look, and the keyboard.
  *
  * Every tab mounts its terminal and stays mounted (an inactive one is only made invisible), so a
  * background agent keeps painting into its own buffer instead of losing the frames it printed
@@ -65,9 +70,7 @@ export function TerminalView({
   const { t } = useTranslation()
   const browser = useBrowser()
   const hostRef = useRef<HTMLDivElement>(null)
-  const termRef = useRef<Terminal | null>(null)
-  const fitRef = useRef<FitAddon | null>(null)
-  const searchRef = useRef<SearchAddon | null>(null)
+  const handleRef = useRef<TerminalHandle | null>(null)
   const [finding, setFinding] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<{ index: number; count: number } | null>(null)
@@ -81,22 +84,27 @@ export function TerminalView({
   // design tokens; for a fixed scheme they are re-declared from the scheme's own palette here, so
   // the panel does not wear the app's colours around a differently painted canvas.
   const surface = useMemo(() => terminalTokens(scheme), [scheme])
+
+  // The emulator outlives this component, and so does the handler that opens a link in it: the
+  // ref is what keeps that handler pointing at the browser of the *current* render.
+  const openLink = useRef(browser.open)
+  useEffect(() => {
+    openLink.current = browser.open
+  }, [browser.open])
+
   const fit = useCallback(() => {
     // `fit` on a zero-sized element would resize the terminal to nonsense; that happens while the
     // page is laying out, when the window is minimised, and whenever the dock is collapsed.
     const host = hostRef.current
     if (!host || host.clientWidth === 0 || host.clientHeight === 0) return
-    fitRef.current?.fit()
+    handleRef.current?.fit.fit()
   }, [])
 
   /** Re-read the tokens and repaint: theme, accent, scheme and font can change while we are open. */
   const applyLook = useCallback(() => {
-    const term = termRef.current
-    if (!term) return
-    const font = terminalFont()
-    term.options.theme = terminalTheme(scheme)
-    term.options.fontFamily = font.fontFamily
-    term.options.fontSize = font.fontSize
+    const handle = handleRef.current
+    if (!handle) return
+    paintTerminal(handle, scheme)
     // A different font means different cell sizes, so the grid has to be recomputed.
     fit()
   }, [fit, scheme])
@@ -108,46 +116,14 @@ export function TerminalView({
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    const font = terminalFont()
-    const term = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'bar',
-      fontFamily: font.fontFamily,
-      fontSize: font.fontSize,
-      lineHeight: 1.2,
-      macOptionIsMeta: true,
-      // A terminal is a scrollback, not a document: keep a generous history, like a desktop one.
-      scrollback: 10_000,
-      theme: terminalTheme(scheme),
-    })
-    const fitAddon = new FitAddon()
-    const search = new SearchAddon()
-    term.loadAddon(fitAddon)
-    term.loadAddon(search)
-    term.loadAddon(
-      new WebLinksAddon((event, uri) => {
-        event.preventDefault()
-        browser.open(uri)
-      }),
-    )
-    term.open(host)
-    termRef.current = term
-    fitRef.current = fitAddon
-    searchRef.current = search
-
-    const dataSub = term.onData((data) => {
-      void ipc.writeTerminal(sessionId, data).catch(() => undefined)
-    })
-    const resizeSub = term.onResize(({ cols, rows }) => {
-      void ipc.resizeTerminal(sessionId, cols, rows).catch(() => undefined)
-    })
-    const resultsSub = search.onDidChangeResults(({ resultIndex, resultCount }) => {
+    const handle = attachTerminal(sessionId, host, (uri) => openLink.current(uri))
+    handleRef.current = handle
+    const resultsSub = handle.search.onDidChangeResults(({ resultIndex, resultCount }) => {
       setResults({ index: resultIndex, count: resultCount })
     })
 
-    registerTerminal(sessionId, (data) => term.write(data))
     fit()
-    term.focus()
+    handle.term.focus()
 
     // The container changes size when the window, the sidebar or another tab's presence changes.
     const observer = new ResizeObserver(() => fit())
@@ -162,17 +138,18 @@ export function TerminalView({
     return () => {
       observer.disconnect()
       appearance.disconnect()
-      dataSub.dispose()
-      resizeSub.dispose()
       resultsSub.dispose()
-      unregisterTerminal(sessionId)
-      term.dispose()
-      termRef.current = null
-      fitRef.current = null
-      searchRef.current = null
+      handleRef.current = null
+      // The emulator goes with the *tab*, not with this component: React may take the component
+      // down for reasons of its own (development mounts everything twice), and rebuilding the
+      // terminal then would throw away the screen the agent has already painted. Only a tab the
+      // store no longer lists is really gone.
+      if (!useTerminalStore.getState().tabs.some((tab) => tab.sessionId === sessionId)) {
+        disposeTerminal(sessionId)
+      }
     }
-    // Recreating the terminal would drop its scrollback, so it is bound to the session, not to
-    // the callbacks (which only ever touch refs).
+    // Re-attaching would drop nothing (the emulator survives), but the host is bound to the
+    // session, not to the callbacks — which only ever touch refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
@@ -187,15 +164,15 @@ export function TerminalView({
     if (!active || !focusable) {
       // A collapsed dock has no room for the terminal: it must not keep the keyboard either, or
       // every key the rest of the app expects would be typed into the PTY instead.
-      if (!focusable) termRef.current?.blur()
+      if (!focusable) handleRef.current?.term.blur()
       return
     }
     fit()
-    termRef.current?.focus()
+    handleRef.current?.term.focus()
   }, [active, focusable, fit])
 
   const copySelection = useCallback(async () => {
-    const term = termRef.current
+    const term = handleRef.current?.term
     if (!term) return
     const selection = term.getSelection()
     if (!selection) return
@@ -209,22 +186,28 @@ export function TerminalView({
       toast.error(t('terminal.pasteUnavailable'))
       return
     }
-    if (text.length > 0) termRef.current?.paste(text)
+    if (text.length > 0) handleRef.current?.term.paste(text)
   }, [t])
 
   const find = useCallback((direction: 'next' | 'previous', value: string) => {
-    const search = searchRef.current
+    const search = handleRef.current?.search
     if (!search || value.length === 0) return
     if (direction === 'next') search.findNext(value)
     else search.findPrevious(value)
   }, [])
 
+  const closeFindBar = useCallback(() => {
+    setFinding(false)
+    handleRef.current?.search.clearDecorations()
+    handleRef.current?.term.focus()
+  }, [])
+
   // Terminal key bindings a desktop terminal user expects, on top of xterm's own map. Returning
   // `false` tells xterm the event is ours, so `Ctrl+C` without a modifier still sends SIGINT.
-  useEffect(() => {
-    const term = termRef.current
-    if (!term) return
-    term.attachCustomKeyEventHandler((event) => {
+  // The emulator is the session's, so the handler is (re)installed on every attach — xterm keeps
+  // exactly one, and this one always closes over the current state.
+  const onTerminalKeyDown = useCallback(
+    (event: KeyboardEvent): boolean => {
       if (event.type !== 'keydown') return true
       const mod = event.ctrlKey || event.metaKey
       const shift = event.shiftKey
@@ -245,7 +228,7 @@ export function TerminalView({
       }
       if (mod && event.code === 'KeyF') {
         setFinding((open) => {
-          if (open) searchRef.current?.clearDecorations()
+          if (open) handleRef.current?.search.clearDecorations()
           return !open
         })
         return false
@@ -254,13 +237,17 @@ export function TerminalView({
       // `Ctrl+`` belongs to the shell (it toggles the dock), so the PTY never sees it.
       if (mod && event.code === 'Backquote') return false
       if (event.code === 'Escape' && finding) {
-        setFinding(false)
-        term.focus()
+        closeFindBar()
         return false
       }
       return true
-    })
-  }, [copySelection, finding, paste])
+    },
+    [closeFindBar, copySelection, finding, paste],
+  )
+
+  useEffect(() => {
+    handleRef.current?.term.attachCustomKeyEventHandler(onTerminalKeyDown)
+  }, [onTerminalKeyDown])
 
   // The find bar takes focus while it is open, so a key press there must not reach the agent.
   const onFindKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -270,9 +257,7 @@ export function TerminalView({
     }
     if (event.key === 'Escape') {
       event.preventDefault()
-      setFinding(false)
-      searchRef.current?.clearDecorations()
-      termRef.current?.focus()
+      closeFindBar()
     }
   }
 
@@ -328,11 +313,7 @@ export function TerminalView({
                 variant="ghost"
                 size="icon-sm"
                 aria-label={t('common.close')}
-                onClick={() => {
-                  setFinding(false)
-                  searchRef.current?.clearDecorations()
-                  termRef.current?.focus()
-                }}
+                onClick={closeFindBar}
               >
                 <X className="size-3.5" aria-hidden />
               </Button>
@@ -350,7 +331,7 @@ export function TerminalView({
           <Copy aria-hidden />
           {t('terminal.copy')}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => termRef.current?.selectAll()}>
+        <ContextMenuItem onSelect={() => handleRef.current?.term.selectAll()}>
           <TextSelect aria-hidden />
           {t('terminal.selectAll')}
         </ContextMenuItem>
@@ -359,7 +340,7 @@ export function TerminalView({
           <Search aria-hidden />
           {t('terminal.find')}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => termRef.current?.clear()}>
+        <ContextMenuItem onSelect={() => handleRef.current?.term.clear()}>
           <Eraser aria-hidden />
           {t('terminal.clear')}
         </ContextMenuItem>

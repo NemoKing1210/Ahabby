@@ -49,6 +49,8 @@ function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): Agent {
     skills: [],
     mcpServers: [],
     other: [],
+    extensions: [],
+    extensionsSupported: false,
     update: null,
     unverified: [],
     notes: null,

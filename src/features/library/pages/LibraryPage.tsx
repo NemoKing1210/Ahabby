@@ -24,8 +24,9 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 import { anyAgentOption, ownerOption } from '@/shared/ui/agentOptions'
 
 import { useScanRefresh } from '@/features/agents/api/scan'
-import { useAgents } from '@/features/agents/api/queries'
+import { useAgents, useFavoriteAgents } from '@/features/agents/api/queries'
 import { OTHER_KIND_ORDER, OtherTab } from '@/features/agents/components/OtherTab'
+import { orderByFavorite } from '@/features/agents/lib/favorites'
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { useDeleteMcpServer, useSetMcpServerEnabled } from '@/features/mcp/api/hooks'
 import { CreateMcpServerDialog } from '@/features/mcp/components/CreateMcpServerDialog'
@@ -160,6 +161,7 @@ export function LibraryPage() {
   const { t, i18n } = useTranslation()
   const { data, isLoading, error, refetch } = useLibrary()
   const agents = useAgents()
+  const favoriteIds = useFavoriteAgents()
   const rescan = useScanRefresh()
   const removeSkill = useDeleteSkill()
   const removeServer = useDeleteMcpServer()
@@ -184,16 +186,20 @@ export function LibraryPage() {
   const [createTarget, setCreateTarget] = useState<LibraryTab | null>(null)
 
   // Owners a new skill or server can belong to: the agent-neutral shared surface first (the
-  // general case, and the default), then every installed agent. A resource written for an
-  // agent that is not installed would not be scanned, so those are left out.
+  // general case, and the default), then every installed agent — the pinned ones first, as in
+  // every other picker. A resource written for an agent that is not installed would not be
+  // scanned, so those are left out.
   const owners = useMemo<AgentRef[]>(
     () => [
       SHARED_OWNER,
-      ...(agents.data?.agents ?? [])
-        .filter((agent) => agent.status === 'installed')
-        .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
+      ...orderByFavorite(
+        (agents.data?.agents ?? [])
+          .filter((agent) => agent.status === 'installed')
+          .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
+        favoriteIds,
+      ),
     ],
-    [agents.data],
+    [agents.data, favoriteIds],
   )
 
   const toggleSkill = (skill: Skill, enabled: boolean) => {
@@ -341,6 +347,7 @@ export function LibraryPage() {
 
   // The agent filter lists what the *unfiltered* library holds, with the number of resources
   // each agent contributes, so the options never shift while the user is narrowing the list.
+  // The pinned agents come first (the order every other agent list uses), the rest by name.
   const agentRefs = new Map<string, AgentRef>()
   const agentCounts = new Map<string, number>()
   const countAgent = (agent: AgentRef) => {
@@ -355,9 +362,12 @@ export function LibraryPage() {
       t('common.all'),
       String(data.skills.length + data.mcpServers.length + data.other.length),
     ),
-    ...[...agentRefs.values()]
-      .sort((a, b) => ownerName(a, sharedLabel).localeCompare(ownerName(b, sharedLabel)))
-      .map((agent) => ownerOption(agent, sharedLabel, String(agentCounts.get(agent.id) ?? 0))),
+    ...orderByFavorite(
+      [...agentRefs.values()].sort((a, b) =>
+        ownerName(a, sharedLabel).localeCompare(ownerName(b, sharedLabel)),
+      ),
+      favoriteIds,
+    ).map((agent) => ownerOption(agent, sharedLabel, String(agentCounts.get(agent.id) ?? 0))),
   ]
 
   const dirty =

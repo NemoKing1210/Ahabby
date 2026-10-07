@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.36.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.37.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -102,29 +102,29 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 
 ## Key Directories
 
-| Path                               | Purpose                                                                                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                                     |
-| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, hub, browser, projects, install, settings, terminal |
-| `src/features/browser/`            | Ahabby's own browser: the one click listener, the modal window, the sanitizer and the image proxy                                          |
-| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                                    |
-| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                                        |
-| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                                     |
-| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard, `links` (where a link leads)                                                                  |
-| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                           |
-| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                                        |
-| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                                       |
-| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services                        |
-| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                          |
-| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                                       |
-| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                            |
-| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                          |
-| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time                        |
-| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                                 |
-| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, paging) + `parse.rs` (the three formats, pure) + `installed.rs` (what this machine already has)                    |
-| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its owners and installed state, the preview, the install dialog                |
-| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                               |
-| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                                       |
+| Path                               | Purpose                                                                                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                                                 |
+| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, extensions, library, hub, browser, projects, install, settings, terminal |
+| `src/features/browser/`            | Ahabby's own browser: the one click listener, the modal window, the sanitizer and the image proxy                                                      |
+| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                                                |
+| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                                                    |
+| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                                                 |
+| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard, `links` (where a link leads)                                                                              |
+| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                                       |
+| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                                                    |
+| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                                                   |
+| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services                                    |
+| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                                      |
+| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                                                   |
+| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                                        |
+| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                                      |
+| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time                                    |
+| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                                             |
+| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, paging) + `parse.rs` (the three formats, pure) + `installed.rs` (what this machine already has)                                |
+| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its owners and installed state, the preview, the install dialog                            |
+| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                                           |
+| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                                                   |
 
 ## Development Commands
 
@@ -254,7 +254,12 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   index also pulls the library's `Avatar` wrapper, dragging `@lobehub/ui` and `antd` into the bundle.
   Every select that chooses an agent builds its rows with `agentOptions.tsx` (`agentOption`/`ownerOption`,
   plus `anyAgentOption` for the "no filter" row, whose `NeutralTile` keeps the logo column straight), so a
-  picker shows the brand tile in the closed trigger and in every row. Radix drops the `className` given to
+  picker shows the brand tile in the closed trigger and in every row. **The agent rows of every picker are
+  ordered favourite-first** (`orderByFavorite` / `installedAgents`, read with `useFavoriteAgents`), so the
+  select of a new terminal, the agents list, the Library's agent filter and the "run an agent here" picker
+  open on the agent the user pinned; a non-agent row a caller mixes in — the agent-neutral shared surface,
+  a project — keeps the place the caller gave it, which is why the owner pickers still open on the shared
+  surface. Radix drops the `className` given to
   `Select.Value` and `SelectItemText`, which is why the trigger paints the selected option itself and a row
   keeps its spacing in a wrapper of its own. `ManagerIcon` gives a package manager the same treatment from
   `src/shared/ui/managerBrands.ts` (`simple-icons`, CC0, for the managers that publish a mark, and two paths
@@ -269,13 +274,18 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   other screens should not pay for). The dock's tab strip is always on screen; collapsing it sets the body to
   zero height instead of unmounting it, so a background agent goes on painting into its own scrollback, and
   `focusable={false}` is what stops a hidden terminal from keeping the keyboard. The tab store is the source of
-  truth for the backend sessions (anything it does not know is closed on startup), and `app/providers.tsx`
-  routes `terminal://output` into it, buffering the bytes of a tab whose terminal is not mounted yet. The xterm
-  theme is read from the design tokens (`lib/theme.ts`) because a canvas cannot use `var(--…)`; ANSI colours
-  come from the token palette with a light and a dark variant. `Settings::terminal_theme` can replace that with
-  a fixed scheme (`lib/themes.ts` holds the palettes, keyed by the ids the Rust enum validates): `TerminalView`
-  reads it from the settings query, so a save repaints every open tab, and the same resolver paints the
-  Settings preview.
+  truth for the backend sessions (anything it does not know is closed on startup, and a tab whose session is
+  gone is finished rather than left swallowing keystrokes), and `app/providers.tsx` routes `terminal://output`
+  into `lib/session.ts`, which buffers the bytes of a tab whose emulator is not attached yet. **The emulator is
+  the session's, not the component's**: `lib/terminals.ts` (loaded with the dock, never with the shell) creates
+  one xterm per session and re-homes its element on every attach, so a remount — which React does twice per
+  mount in development — shows the same scrollback instead of a blank terminal, and only a tab the store has
+  forgotten disposes it; the same module owns the keystroke, resize and link handlers, because those belong to
+  the session too. The xterm theme is read from the design tokens (`lib/theme.ts`) because a canvas cannot use
+  `var(--…)`; ANSI colours come from the token palette with a light and a dark variant. `Settings::terminal_theme`
+  can replace that with a fixed scheme (`lib/themes.ts` holds the palettes, keyed by the ids the Rust enum
+  validates): `paintTerminal` repaints an attached terminal, the settings query is what tells it to, so a save
+  repaints every open tab, and the same resolver paints the Settings preview.
 - **Run in terminal**: every entry point (agent page, card, context menu, and the sidebar's favourite rows —
   a hover action beside the agent, plus a one-item menu on the row itself so the collapsed rail has it too)
   calls the same `useRunAgentInTerminal` hook, which follows `Settings::terminal`: the built-in terminal opens
@@ -383,15 +393,34 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   config file (`doc_edit::move_entry`, byte-preserving for JSON/JSONC). Both stay in the scan with
   `enabled = false`, and an MCP server's `key_path` always addresses its _enabled_ position, so every reader of
   a single entry has to go through `adapters::mcp_entry_location`.
+- **An extension is one row whatever its origin, and only a local one is Ahabby's to touch.** `[[extensions]]`
+  declares the surface (`format = "pi"`, the extensions directory, the settings document that holds the
+  `packages` list and the built-in names); `adapters::extensions` reads Pi's own layout — a package resolved to
+  `<agent dir>/npm/node_modules/<name>`, `<agent dir>/git/<host>/<path>` or a path, with its metadata from the
+  installed `package.json`, plus the `.ts`/`.js` modules of the directory — and every row carries the `surface`
+  id it was read from, because a package's files live wherever the agent put them. A local module is switched
+  off by renaming its entry file to `<entry>.disabled` (the skill convention; the id is derived from the
+  un-suffixed path, so it survives the switch) and removed to the OS trash. A package is only ever updated or
+  removed through the agent's own CLI: `extension_plan` resolves `pi update|remove <source>` from the detected
+  binary and the source the last scan reported, and the result runs as an ordinary job — `plan` → confirm → the
+  same console, cancellation and rescan an install uses. The tab opens on the packages alone: the modules of the
+  directory and the agent's own built-ins are behind a type filter with their counts (kept for the session like
+  every other filter), so the list starts with what the user actually installed.
 - **A terminal session is derived, never dictated.** `commands/terminal.rs` resolves the agent id through
   `AppState::agent` (installed + `binary_path` from the scan) and hands it to `services::terminal`, which
   starts the user's own shell in a PTY (`native_pty_system`) and _types_ the quoted executable into it — that
   is what makes npm's `.cmd`/`.ps1` shims work on Windows. Output crosses the boundary base64-encoded (a read
   can split a UTF-8 sequence) on `terminal://output`; closing a tab drops the master, which closes the console
-  and takes the agent down with the shell. Two consequences worth remembering: ConPTY asks the terminal for its
-  cursor position (`ESC[6n`) and holds output back until it is answered (xterm does; the backend tests answer it
-  themselves), and `ChildKiller::kill()` in portable-pty 0.9 reports failure even on success, so it is
-  best-effort and closing the console is what actually ends the session.
+  and takes the agent down with the shell. Three rules keep that startup reliable: the line is typed only after
+  the shell's own first output (a shell that has not finished starting is not reading its console yet, and a
+  line handed to it too early is an agent that never appears) with a bounded wait, so a silent shell is typed
+  to anyway; the session is published to the manager only once the reader, the starter and the waiter threads
+  are all running, so a half-built session can never leave an orphaned console; and the PTY is given the `TERM`
+  and `COLORTERM` a desktop launch does not inherit (`platform::shell::terminal_env`), without which a
+  full-screen agent drops its colours or refuses to start. Two consequences worth remembering: ConPTY asks the
+  terminal for its cursor position (`ESC[6n`) and holds output back until it is answered (xterm does; the backend
+  tests answer it themselves), and `ChildKiller::kill()` in portable-pty 0.9 reports failure even on success, so
+  it is best-effort and closing the console is what actually ends the session.
 - **External terminals are a table, not a guess.** `platform/terminals.rs` holds every supported terminal with
   its per-OS detection candidates and its documented launch contract (`-e`, Windows Terminal's `-w 0 nt -d`,
   AppleScript `do script`, or Warp's URI, which is why Warp is offered as `opensDirectory` — it cannot be told
@@ -457,12 +486,16 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   five MCP sources). A manifest written before that — `[skills]` as a single table — still parses
   (`domain::manifest::one_or_many`), so existing user overrides keep working. The **first** entry of each list
   is what a new skill or server is written into.
+- `[[extensions]]` is **opt-in**: an agent whose manifest declares none has no extensions surface, and its page
+  says exactly that instead of showing an empty list. The only `format` so far is `pi`, which reads the
+  conventional extensions directory plus the `packages` list of a settings JSON document — hence `settings` is
+  required with it. Like the other surfaces it is a list, parsed through `one_or_many`.
 - `catalog/project.toml` and `catalog/shared.toml` describe a surface rather than an agent. Every path in the
   project surface is _relative_ and is resolved against the project being read; both files live outside
   `catalog/builtin/`, so `build.rs` never embeds them, and their ids (`project`, `shared`) are reserved in
   `catalog::loader`.
 - Top-level keys: `id, name, description, tagline, website, docs, icon, category, popular, vendor, features,
-github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, unverified, notes, source`.
+github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other, methods, unverified, notes, source`.
   `claude-code.toml` is the fullest example; `SCHEMA.md` has a complete minimal example.
 
 ## Important Files
@@ -510,8 +543,10 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   only the sources it includes, the read-only preview, the reviewed install request with `confirm: true`, a
   required value gating it, the tags on a card and the tag filter that reaches the backend, the owners an
   entry is already installed for with the name a chosen owner already holds refused, and the entry
-  context menu), the terminal tab store (buffered output,
-  finishing and closing a tab), the animated list (the row order it renders, and a removed row staying in
+  context menu), the terminal tab store (buffered output, finishing and closing a tab, an exit that beat its
+  tab, and reconciling with the backend in both directions), `TerminalView` (the scheme it paints the panel
+  with, and that a remount shows the session's own emulator again rather than a fresh, blank one), the animated
+  list (the row order it renders, and a removed row staying in
   the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
   composed within one tick, and one key not leaking into another), the Settings areas (appearance, and
   window & tray: what the document says, and that a hidden window needs the tray icon), and Ahabby's own
@@ -530,7 +565,11 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   on again, and an MCP server added to the project's `.mcp.json`). `services::project` and `adapters::project`
   hold the unit tests around discovery, markers, the reserved owner ids and the re-rooted reads.
   `services::terminal` tests are the only ones that spawn a real process (a PTY is the product): they run the
-  user's own shell, answer ConPTY's cursor query themselves, and cover output, input, resize and closing.
+  user's own shell, answer ConPTY's cursor query themselves, and cover output, input, resize and closing —
+  plus the rules that make that startup reliable: the wait for the shell's first prompt (and that a session
+  whose console is gone, or that says nothing at all, is not waited out), and that a program which cannot be
+  started leaves no session behind. `platform::shell` covers the invocation and quoting per shell kind and the
+  terminal environment a GUI launch has to supply.
   `services::web` is tested on its pure parts only — which URLs it refuses (`file:`, a bare path, a URL with
   credentials in it), what a `Content-Type` means, and the charset it decodes with, header or `<meta>` — since
   no test in the suite touches the network.

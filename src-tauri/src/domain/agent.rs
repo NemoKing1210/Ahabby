@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::config::ConfigFile;
+use super::extension::Extension;
 use super::manifest::ManifestSource;
 use super::mcp::McpServer;
 use super::resource::OtherResource;
@@ -207,6 +208,13 @@ pub struct Agent {
     pub skills: Vec<Skill>,
     pub mcp_servers: Vec<McpServer>,
     pub other: Vec<OtherResource>,
+    /// Extensions the agent loads. Empty for an agent whose manifest declares no extensions
+    /// surface — which `extensions_supported` distinguishes from "declared but none installed".
+    #[serde(default)]
+    pub extensions: Vec<Extension>,
+    /// `true` when the manifest declares an extensions surface at all.
+    #[serde(default)]
+    pub extensions_supported: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub update: Option<UpdateInfo>,
     /// Dotted manifest paths that still need a docs check (see `ARCHITECTURE.md`).

@@ -195,19 +195,23 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
       <div
         // Collapsed means zero height, not unmounted: the terminals keep their scrollback.
         style={{ height: expanded ? height : 0 }}
-        className="relative min-h-0 overflow-hidden"
+        className="relative flex min-h-0 flex-col overflow-hidden"
       >
-        {tabs.map((tab) => (
-          <TerminalView
-            key={tab.sessionId}
-            session={tab}
-            active={tab.sessionId === active?.sessionId}
-            focusable={expanded}
-          />
-        ))}
+        <div className="relative min-h-0 flex-1">
+          {tabs.map((tab) => (
+            <TerminalView
+              key={tab.sessionId}
+              session={tab}
+              active={tab.sessionId === active?.sessionId}
+              focusable={expanded}
+            />
+          ))}
+        </div>
 
-        {expanded && active && !active.running ? (
-          <div className="border-border bg-surface-2/95 absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-between gap-3 border-t px-3 py-2 backdrop-blur">
+        {/* The ended session takes its own strip instead of floating over the terminal: the last
+            rows an agent printed are exactly the ones a user needs to read. */}
+        {active && !active.running ? (
+          <div className="border-border bg-surface-2 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-3 py-2">
             <span className="text-muted text-[0.8125rem]">
               {t('terminal.exited', { code: active.exitCode ?? '—' })}
             </span>

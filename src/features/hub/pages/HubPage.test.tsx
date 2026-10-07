@@ -10,6 +10,7 @@ import type { HubPage as HubPageResult } from '@/shared/bindings/HubPage'
 import type { HubSource } from '@/shared/bindings/HubSource'
 import type { HubSourceReport } from '@/shared/bindings/HubSourceReport'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
+import type { Settings } from '@/shared/bindings/Settings'
 import { tagHue } from '@/shared/lib/tagColor'
 import { renderWithProviders } from '@/test/render'
 
@@ -22,9 +23,17 @@ vi.mock('@/shared/api/ipc', () => ({
     getHubEntry: vi.fn(),
     installHubResource: vi.fn(),
     cachedAgents: vi.fn(),
+    getSettings: vi.fn(),
     openUrl: vi.fn(),
   },
 }))
+
+// Radix opens the list on pointerdown and scrolls the active row into view; jsdom has neither
+// pointer capture nor `scrollIntoView` (see `shared/ui/Select.test.tsx`).
+Element.prototype.hasPointerCapture = () => false
+Element.prototype.setPointerCapture = () => {}
+Element.prototype.releasePointerCapture = () => {}
+Element.prototype.scrollIntoView = () => {}
 
 const SKILLS_SOURCE: HubSource = {
   id: 'example-skills',
@@ -129,47 +138,52 @@ function page(overrides: Partial<HubPageResult> = {}): HubPageResult {
   return { entries: [entry()], report: report(), fetchedAtMs: 0, ...overrides }
 }
 
-/** A scan report with one installed agent and one project: both are install targets. */
+/** One installed agent of the fixture report; the two differ only in id, name and binary. */
+function installedAgent(id: string, name: string) {
+  return {
+    id,
+    name,
+    description: 'Fixture agent',
+    tagline: null,
+    icon: null,
+    category: null,
+    website: null,
+    docs: null,
+    vendor: null,
+    features: [],
+    github: null,
+    popular: false,
+    status: 'installed' as const,
+    binaryPath: `/bin/${id}`,
+    foundIn: 'path' as const,
+    version: null,
+    installedVia: null,
+    installOptions: [],
+    canInstall: false,
+    installDocsUrl: null,
+    canUpdate: false,
+    canUninstall: false,
+    configs: [],
+    facts: [],
+    skills: [],
+    mcpServers: [],
+    other: [],
+    extensions: [],
+    extensionsSupported: false,
+    update: null,
+    unverified: [],
+    notes: null,
+    manifestSource: { kind: 'builtin' as const },
+    removal: 'hidden' as const,
+    warnings: [],
+    scanMs: 1,
+  }
+}
+
+/** A scan report with two installed agents and one project: all of them are install targets. */
 function scanReport(): ScanReport {
   return {
-    agents: [
-      {
-        id: 'demo',
-        name: 'Demo Agent',
-        description: 'Fixture agent',
-        tagline: null,
-        icon: null,
-        category: null,
-        website: null,
-        docs: null,
-        vendor: null,
-        features: [],
-        github: null,
-        popular: false,
-        status: 'installed',
-        binaryPath: '/bin/demo',
-        foundIn: 'path',
-        version: null,
-        installedVia: null,
-        installOptions: [],
-        canInstall: false,
-        installDocsUrl: null,
-        canUpdate: false,
-        canUninstall: false,
-        configs: [],
-        facts: [],
-        skills: [],
-        mcpServers: [],
-        other: [],
-        update: null,
-        unverified: [],
-        notes: null,
-        manifestSource: { kind: 'builtin' },
-        removal: 'hidden',
-        warnings: [],
-        scanMs: 1,
-      },
-    ],
+    agents: [installedAgent('demo', 'Demo Agent'), installedAgent('warp', 'Warp')],
     problems: [],
     scannedAtMs: 0,
     durationMs: 0,
@@ -198,6 +212,34 @@ function scanReport(): ScanReport {
       durationMs: 0,
     },
   }
+}
+
+const SETTINGS: Settings = {
+  language: 'en',
+  theme: 'system',
+  accent: 'clay',
+  accentCustom: null,
+  interfaceScale: 100,
+  textScale: 100,
+  fontFamily: 'inter',
+  monoFont: 'jetbrains',
+  extraScanPaths: [],
+  networkVersionChecks: true,
+  backupDir: null,
+  versionCacheMinutes: 60,
+  proxyMode: 'none',
+  proxyUrl: null,
+  terminal: 'builtin',
+  terminalTheme: 'auto',
+  hiddenAgents: [],
+  favoriteAgents: [],
+  projectFolders: [],
+  launchAtLogin: false,
+  trayIcon: true,
+  closeToTray: true,
+  startMinimized: false,
+  sidebarCollapsed: false,
+  lastRoute: null,
 }
 
 function skillDetail(): HubEntryDetail {
@@ -255,6 +297,8 @@ function renderPage() {
 describe('HubPage', () => {
   beforeEach(() => {
     vi.mocked(ipc.cachedAgents).mockResolvedValue(scanReport())
+    // The pinned agent is the one an agent picker offers first.
+    vi.mocked(ipc.getSettings).mockResolvedValue({ ...SETTINGS, favoriteAgents: ['warp'] })
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE, REGISTRY_SOURCE],
       problems: [],
@@ -384,8 +428,19 @@ describe('HubPage', () => {
     expect(await screen.findByText('What will be written')).toBeTruthy()
     expect(screen.getByText('scripts/fill.py')).toBeTruthy()
     expect(screen.getByText(/scripts the agent may run/)).toBeTruthy()
-    // The owner picker offers the shared surface, the installed agent and the project.
-    expect(screen.getByText('Shared')).toBeTruthy()
+    // The owner picker offers the shared surface, then the installed agents — the pinned one
+    // first — and then the project. The general case stays the default.
+    const target = screen.getByRole('combobox', { name: 'Install for' })
+    expect(target).toHaveTextContent('Shared')
+    await user.click(target)
+    const owners = await screen.findAllByRole('option')
+    expect(
+      owners.map((row) => row.querySelector('span[id] > span > span:last-child')?.textContent),
+    ).toEqual(['Shared', 'Warp', 'Demo Agent', 'app'])
+
+    // The list has to be closed again before the review step is read: a modal Radix select
+    // hides everything else — this dialog included — from the accessibility tree.
+    await user.keyboard('{Escape}')
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Install' }))
 

@@ -167,6 +167,33 @@ Non-config resources: instructions, slash commands, sub-agents, hooks, rules, pr
 | `scope`       | scope, default `global`                                                                              |                                                              |
 | `description` | string                                                                                               |                                                              |
 
+## `[[extensions]]` (optional, repeatable)
+
+Extensions an agent loads: small modules that add tools, commands or behaviour. This surface is
+**opt-in** — an agent with no extension mechanism declares none, and its page says so instead of
+showing an empty list. Today one `format` exists, `pi`, read from Pi's own layout.
+
+| key           | type                 | notes                                                                                                                                          |
+| ------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | string, required     | unique inside the manifest                                                                                                                     |
+| `format`      | `pi`, required       | how the agent stores and loads extensions                                                                                                      |
+| `path`        | per-OS map, required | the extensions directory the agent discovers modules in                                                                                        |
+| `settings`    | per-OS map           | the JSON document whose `packages` list declares installed packages and whose `extensions` list carries the on/off overrides. Required by `pi` |
+| `builtins`    | [string]             | names of the extensions the agent ships itself; listed read-only                                                                               |
+| `description` | string               |                                                                                                                                                |
+
+What the `pi` reader reports: the packages the settings declare (`npm:`, `git:` and local paths,
+with the version, description, author and links read from the installed `package.json` and the
+resource counts of its `pi` manifest), the modules found in the extensions directory (a `.ts`/`.js`
+file, or a directory with an `index.ts`/`index.js` or a `pi.extensions` manifest), and the
+built-ins. A module is switched off by the same convention skills use — its entry file is renamed
+to `<name>.disabled` — and a package is removed or updated through the agent's own CLI, with the
+command resolved inside the backend. The tab opens on the packages: the modules of the directory
+and the built-ins are listed behind a type filter (with their counts), never hidden for good.
+Paths are read from the extensions directory and the settings
+document only; the directory's own `.gitignore`/`.ignore` files are not applied, so a module Pi
+skips at load time is still listed (and manageable) here.
+
 ## `[[methods]]` (optional, repeatable)
 
 Install / update / uninstall recipes. **The UI can only ever run a command that exists here.**

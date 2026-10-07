@@ -105,6 +105,33 @@ pub fn kind_of(program: &str) -> ShellKind {
     }
 }
 
+/// The environment variables a PTY session needs so the program inside it believes it is talking
+/// to a real terminal.
+///
+/// A desktop application inherits no `TERM` — the launcher that started it has none — and a CLI
+/// that reads `TERM=dumb` (or an empty one) drops its colours, its box drawing, or refuses to
+/// start at all; a full-screen agent is exactly such a program. The values are the ones VS Code's
+/// integrated terminal uses on every platform, which is what a program written against a modern
+/// terminal expects to find.
+///
+/// `current` reports what the session's own environment already says, so these are defaults: a
+/// user who exports `TERM` in their shell keeps it, and only a missing (or `dumb`) value is
+/// replaced.
+pub fn terminal_env(current: &dyn Fn(&str) -> Option<String>) -> Vec<(&'static str, &'static str)> {
+    let mut vars = Vec::new();
+    let term = current("TERM").unwrap_or_default();
+    if term.trim().is_empty() || term.trim().eq_ignore_ascii_case("dumb") {
+        vars.push(("TERM", "xterm-256color"));
+    }
+    if current("COLORTERM")
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(true)
+    {
+        vars.push(("COLORTERM", "truecolor"));
+    }
+    vars
+}
+
 /// A program plus arguments as one line for `kind`, quoted so the shell runs it verbatim.
 ///
 /// The program is an absolute path resolved by the scan, so quoting only has to survive the
@@ -238,6 +265,30 @@ mod tests {
         assert_eq!(
             quote_command(ShellKind::Posix, "/home/a b/claude", &args),
             r"'/home/a b/claude' '--foo bar'"
+        );
+    }
+
+    #[test]
+    fn a_session_is_given_a_terminal_it_can_trust() {
+        // A GUI launch has no `TERM` at all — the program inside the PTY still has to see a
+        // terminal that supports colour and 256 colours.
+        let empty = |_: &str| None;
+        assert_eq!(
+            terminal_env(&empty),
+            vec![("TERM", "xterm-256color"), ("COLORTERM", "truecolor")]
+        );
+
+        // A user who says what they want keeps it; `dumb` is the one value that is not a choice.
+        let set = |name: &str| match name {
+            "TERM" => Some("/bin".to_string()),
+            _ => Some("24bit".to_string()),
+        };
+        assert!(terminal_env(&set).is_empty());
+
+        let dumb = |name: &str| (name == "TERM").then(|| "dumb".to_string());
+        assert_eq!(
+            terminal_env(&dumb),
+            vec![("TERM", "xterm-256color"), ("COLORTERM", "truecolor")]
         );
     }
 

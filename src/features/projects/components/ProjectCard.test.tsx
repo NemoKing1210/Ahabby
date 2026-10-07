@@ -11,7 +11,11 @@ import { renderWithProviders } from '@/test/render'
 import { ProjectCard } from './ProjectCard'
 
 vi.mock('@/shared/api/ipc', () => ({
-  ipc: { cachedAgents: vi.fn(), revealPath: vi.fn().mockResolvedValue(undefined) },
+  ipc: {
+    cachedAgents: vi.fn(),
+    getSettings: vi.fn(),
+    revealPath: vi.fn().mockResolvedValue(undefined),
+  },
 }))
 
 const EMPTY_REPORT: ScanReport = {

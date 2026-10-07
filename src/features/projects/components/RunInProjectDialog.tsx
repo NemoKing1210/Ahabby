@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Terminal as TerminalIcon } from 'lucide-react'
 
@@ -14,7 +15,8 @@ import {
 } from '@/shared/ui/Dialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
 
-import { useAgents } from '@/features/agents/api/queries'
+import { useAgents, useFavoriteAgents } from '@/features/agents/api/queries'
+import { orderByFavorite } from '@/features/agents/lib/favorites'
 import { useRunAgentInTerminal } from '@/features/terminal/api/hooks'
 
 /**
@@ -32,11 +34,20 @@ export function RunInProjectDialog({
 }) {
   const { t } = useTranslation()
   const { data } = useAgents()
+  const favoriteIds = useFavoriteAgents()
   const run = useRunAgentInTerminal()
 
-  const agents = (data?.agents ?? [])
-    .filter((agent) => agent.status === 'installed')
-    .sort((a, b) => a.name.localeCompare(b.name))
+  // The pinned agents come first, then the rest by name — the order every agent picker offers.
+  const agents = useMemo(
+    () =>
+      orderByFavorite(
+        (data?.agents ?? [])
+          .filter((agent) => agent.status === 'installed')
+          .sort((a, b) => a.name.localeCompare(b.name)),
+        favoriteIds,
+      ),
+    [data, favoriteIds],
+  )
 
   const start = (agent: Agent) => {
     run(agent, project.root)

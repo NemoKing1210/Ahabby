@@ -3,9 +3,11 @@
  *
  * Two responsibilities that do not belong in the store or in a component:
  * * routing `terminal://output` to the right terminal — a tab whose terminal is not mounted yet
- *   buffers its bytes in the store instead of losing them;
- * * dropping backend sessions no tab knows about, which happens after a reload in development
- *   (the webview restarts, the backend keeps its shells).
+ *   buffers its bytes in the store instead of losing them (the emulators themselves are owned by
+ *   `lib/terminals.ts`, which is loaded with the dock and not with the shell);
+ * * dropping backend sessions no tab knows about, and finishing tabs whose session is gone, which
+ *   is what a reload in development leaves behind (the webview restarts, the backend keeps its
+ *   shells).
  */
 
 import { ipc } from '@/shared/api/ipc'
@@ -47,19 +49,27 @@ export function writeTerminalOutput(event: TerminalOutput): void {
 }
 
 /**
- * Close backend sessions that no tab knows about.
+ * Make the tab list and the backend agree, in both directions.
  *
- * The tab list is the truth: a session the window cannot show is a shell nobody can reach, so it
- * is closed rather than left running out of sight.
+ * The tab list is the truth about what the window can show: a backend session no tab knows about
+ * is a shell nobody can reach (it happens after a reload in development — the webview restarts,
+ * the backend keeps its shells), so it is closed rather than left running out of sight. The
+ * reverse is true as well, and matters more: a tab whose session the backend no longer holds can
+ * never be typed into again, so it is marked finished instead of quietly swallowing keystrokes.
  */
 export async function reconcileTerminalSessions(): Promise<void> {
+  const store = useTerminalStore.getState()
   const sessions = await ipc.listTerminalSessions()
-  if (sessions.length === 0) return
-  const known = new Set(useTerminalStore.getState().tabs.map((tab) => tab.sessionId))
+  const live = new Set(sessions.map((session) => session.id))
+
   await Promise.all(
     sessions
-      .filter((session) => !known.has(session.id))
+      .filter((session) => !store.tabs.some((tab) => tab.sessionId === session.id))
       // A session that is already gone is not a failure worth surfacing.
       .map((session) => ipc.closeTerminal(session.id).catch(() => undefined)),
   )
+
+  for (const tab of store.tabs) {
+    if (!live.has(tab.sessionId)) useTerminalStore.getState().finish(tab.sessionId, null)
+  }
 }

@@ -5,6 +5,7 @@
 
 pub mod agents;
 pub mod configs;
+pub mod extensions;
 pub mod hub;
 pub mod install;
 pub mod mcp;
@@ -19,6 +20,9 @@ use ts_rs::TS;
 
 use crate::error::{AppError, Result};
 use crate::services::ScanReport;
+
+/// The two payloads of the extension commands, defined with the model they describe.
+pub use crate::domain::{ExtensionRemoval, ExtensionToggle};
 
 /// A mutation result plus the state of the world afterwards.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

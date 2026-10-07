@@ -12,8 +12,9 @@ use ahabby_lib::adapters::doc_edit;
 use ahabby_lib::adapters::AgentAdapter;
 use ahabby_lib::catalog;
 use ahabby_lib::domain::{
-    AgentStatus, ConfigFormat, InstallAction, Manager, McpDraftTransport, McpKeyValue,
-    McpServerDraft, Os, Severity, SkillDraft, SkillInstall, SkillInstallFile,
+    AgentStatus, ConfigFormat, ExtensionAction, ExtensionKind, ExtensionManager, InstallAction,
+    Manager, McpDraftTransport, McpKeyValue, McpServerDraft, Os, Severity, SkillDraft,
+    SkillInstall, SkillInstallFile,
 };
 use ahabby_lib::platform::PlatformContext;
 use ahabby_lib::services::{self, aggregate, Scanner};
@@ -63,6 +64,14 @@ kind = "instructions"
 label = "AGENTS.md"
 format = "markdown"
 path = { windows = "${HOME}/.pipeline/AGENTS.md", macos = "${HOME}/.pipeline/AGENTS.md", linux = "${HOME}/.pipeline/AGENTS.md" }
+
+[[extensions]]
+id = "extensions"
+format = "pi"
+description = "Fixture extensions."
+path = { windows = "${HOME}/.pipeline/extensions", macos = "${HOME}/.pipeline/extensions", linux = "${HOME}/.pipeline/extensions" }
+settings = { windows = "${HOME}/.pipeline/settings.json", macos = "${HOME}/.pipeline/settings.json", linux = "${HOME}/.pipeline/settings.json" }
+builtins = ["codemode"]
 
 [[methods]]
 id = "official-script"
@@ -154,6 +163,7 @@ impl Fixture {
             agent_dir.join("settings.json"),
             r#"{
   "theme": "dark",
+  "packages": ["npm:demo-pkg@1.2.0"],
   "mcpServers": {
     "github": {
       "command": "npx",
@@ -174,6 +184,21 @@ impl Fixture {
         fs::write(
             agent_dir.join("AGENTS.md"),
             "# Agent rules\n\nBe careful.\n",
+        )
+        .unwrap();
+
+        // Extensions: one module the user dropped in, and one package the settings declare.
+        fs::create_dir_all(agent_dir.join("extensions")).unwrap();
+        fs::write(
+            agent_dir.join("extensions/hello.ts"),
+            "export default function () {}\n",
+        )
+        .unwrap();
+        fs::create_dir_all(agent_dir.join("npm/node_modules/demo-pkg")).unwrap();
+        fs::write(
+            agent_dir.join("npm/node_modules/demo-pkg/package.json"),
+            r#"{ "name": "demo-pkg", "version": "1.2.0", "description": "A demo package",
+                 "license": "MIT", "pi": { "extensions": ["./src/index.ts"] } }"#,
         )
         .unwrap();
     }
@@ -260,6 +285,38 @@ async fn full_read_pipeline_from_a_user_manifest() {
     assert_eq!(agent.other[0].label, "AGENTS.md");
     assert!(agent.other[0].exists);
 
+    // Extensions: the package the settings declare, the module in the extensions directory and
+    // the built-in the manifest names.
+    assert!(agent.extensions_supported);
+    let package = agent
+        .extensions
+        .iter()
+        .find(|extension| extension.name == "demo-pkg")
+        .expect("declared package");
+    assert_eq!(package.kind, ExtensionKind::Package);
+    assert_eq!(package.manager, Some(ExtensionManager::Npm));
+    assert_eq!(package.version.as_deref(), Some("1.2.0"));
+    assert_eq!(package.description.as_deref(), Some("A demo package"));
+    assert_eq!(package.resources.extensions, 1);
+    assert!(package.can_update && package.can_remove && !package.can_toggle);
+
+    let module = agent
+        .extensions
+        .iter()
+        .find(|extension| extension.name == "hello")
+        .expect("local module");
+    assert_eq!(module.kind, ExtensionKind::Local);
+    assert!(module.enabled && module.can_toggle && module.can_remove);
+    assert!(module.entry_path.is_some());
+
+    let builtin = agent
+        .extensions
+        .iter()
+        .find(|extension| extension.name == "codemode")
+        .expect("declared built-in");
+    assert_eq!(builtin.kind, ExtensionKind::Builtin);
+    assert!(!builtin.can_remove && !builtin.can_toggle);
+
     // Library aggregation sees the same documents
     let library = aggregate(&report);
     assert_eq!(library.stats.skills, 1);
@@ -274,6 +331,89 @@ async fn full_read_pipeline_from_a_user_manifest() {
         .unwrap();
     assert!(script.available);
     assert!(agent.can_update);
+}
+
+#[tokio::test]
+async fn switching_a_local_extension_off_and_back_and_planning_a_package() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+    let entry = fixture.home.join(".pipeline/extensions/hello.ts");
+
+    let module = adapter
+        .list_extensions(&context)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|extension| extension.name == "hello")
+        .expect("local module");
+
+    // Off renames the entry file, which is what the agent stops matching; the module stays in
+    // the scan with its identity so the same switch can put it back.
+    adapter
+        .set_extension_enabled(&context, &module, false)
+        .await
+        .unwrap();
+    assert!(!entry.exists());
+    assert!(fixture
+        .home
+        .join(".pipeline/extensions/hello.ts.disabled")
+        .is_file());
+
+    let disabled = adapter
+        .list_extensions(&context)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|extension| extension.name == "hello")
+        .expect("switched-off module");
+    assert!(!disabled.enabled);
+    assert_eq!(disabled.id, module.id, "the id survives the switch");
+
+    adapter
+        .set_extension_enabled(&context, &disabled, true)
+        .await
+        .unwrap();
+    assert!(entry.is_file());
+
+    // A package is never trashed by Ahabby: it is the agent's own CLI that put it where it is.
+    let package = adapter
+        .list_extensions(&context)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|extension| extension.kind == ExtensionKind::Package)
+        .expect("declared package");
+    let error = adapter
+        .remove_extension(&context, &package)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "not_supported");
+
+    // …and the resolved command is what the job runner would run, with the declared source.
+    let plan = adapter
+        .extension_plan(&context, &package, ExtensionAction::Update)
+        .await
+        .unwrap();
+    assert_eq!(plan.args, vec!["update", "npm:demo-pkg@1.2.0"]);
+    assert_eq!(plan.action, InstallAction::Update);
+    assert!(plan.manager_available);
+    assert!(!plan.uses_shell);
+
+    // A forged path is refused before anything is moved.
+    let mut forged = module.clone();
+    forged.path = Some(fixture.home.join("outside.ts").display().to_string());
+    let error = adapter
+        .remove_extension(&context, &forged)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "command_not_allowed");
 }
 
 #[tokio::test]

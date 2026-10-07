@@ -109,6 +109,8 @@ pub fn resolve_document(resources: &SharedResources, path: &str) -> Result<Docum
         &resources.configs,
         &resources.other,
         &resources.skills,
+        // The shared surface declares no extensions.
+        &[],
         "the shared library",
         path,
     )

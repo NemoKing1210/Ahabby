@@ -1,10 +1,23 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { TerminalSession } from '@/shared/bindings/TerminalSession'
 
 import { base64ToBytes } from './lib/base64'
-import { registerTerminal, unregisterTerminal, writeTerminalOutput } from './lib/session'
+import {
+  reconcileTerminalSessions,
+  registerTerminal,
+  unregisterTerminal,
+  writeTerminalOutput,
+} from './lib/session'
 import { useTerminalStore } from './store'
+
+/** The two calls reconciling makes; everything else is never reached by these cases. */
+const backend = vi.hoisted(() => ({
+  listTerminalSessions: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+  closeTerminal: vi.fn((_sessionId: string): Promise<boolean> => Promise.resolve(true)),
+}))
+
+vi.mock('@/shared/api/ipc', () => ({ ipc: backend }))
 
 function session(id: string, overrides: Partial<TerminalSession> = {}): TerminalSession {
   return {
@@ -32,7 +45,13 @@ function encoded(text: string): string {
 
 describe('terminal tabs', () => {
   beforeEach(() => {
-    useTerminalStore.setState({ tabs: [], activeId: null, expanded: false, buffered: {} })
+    useTerminalStore.setState({
+      tabs: [],
+      activeId: null,
+      expanded: false,
+      buffered: {},
+      exits: {},
+    })
   })
 
   it('opens one tab per session, brings the newest to the front and opens the dock', () => {
@@ -101,6 +120,63 @@ describe('terminal tabs', () => {
     writeTerminalOutput({ sessionId: 'term-1', data: encoded('after close') })
     expect(received).toEqual(['PS> ', 'claude'])
     expect(useTerminalStore.getState().buffered['term-1']).toHaveLength(1)
+  })
+
+  it('opens a tab already finished when its process exited first', () => {
+    // An agent that refuses to start exits before React has painted the tab it belongs to; a tab
+    // that then claims to be running would swallow every keystroke for ever.
+    const store = useTerminalStore.getState()
+    store.finish('term-1', 1)
+    store.open(session('term-1'))
+
+    const tab = useTerminalStore.getState().tabs[0]
+    expect(tab?.running).toBe(false)
+    expect(tab?.exitCode).toBe(1)
+
+    // …and an exit with no code at all is remembered just the same.
+    store.finish('term-2', null)
+    store.open(session('term-2'))
+    expect(useTerminalStore.getState().tabs[1]?.running).toBe(false)
+    expect(useTerminalStore.getState().tabs[1]?.exitCode).toBeNull()
+
+    // Closing a tab forgets its exit, so a long session cannot accumulate them.
+    useTerminalStore.getState().close('term-1')
+    expect(useTerminalStore.getState().exits['term-1']).toBeUndefined()
+  })
+})
+
+describe('reconciling with the backend', () => {
+  beforeEach(() => {
+    useTerminalStore.setState({
+      tabs: [],
+      activeId: null,
+      expanded: false,
+      buffered: {},
+      exits: {},
+    })
+    backend.listTerminalSessions.mockReset()
+    backend.closeTerminal.mockReset()
+    backend.closeTerminal.mockResolvedValue(true)
+  })
+
+  it('closes sessions no tab can show and finishes tabs whose session is gone', async () => {
+    const store = useTerminalStore.getState()
+    store.open(session('term-live'))
+    store.open(session('term-dead'))
+    // The backend holds one of them plus a shell from before a reload that no tab knows about.
+    backend.listTerminalSessions.mockResolvedValue([session('term-live'), session('term-orphan')])
+
+    await reconcileTerminalSessions()
+
+    // A shell nobody can reach is closed rather than left running out of sight…
+    expect(backend.closeTerminal).toHaveBeenCalledTimes(1)
+    expect(backend.closeTerminal).toHaveBeenCalledWith('term-orphan')
+    expect(backend.closeTerminal).not.toHaveBeenCalledWith('term-live')
+
+    // …and a tab whose session is gone stops pretending to be alive.
+    const tabs = useTerminalStore.getState().tabs
+    expect(tabs.find((tab) => tab.sessionId === 'term-live')?.running).toBe(true)
+    expect(tabs.find((tab) => tab.sessionId === 'term-dead')?.running).toBe(false)
   })
 })
 

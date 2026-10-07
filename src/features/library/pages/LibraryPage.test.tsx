@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipc } from '@/shared/api/ipc'
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Library } from '@/shared/bindings/Library'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { OtherResource } from '@/shared/bindings/OtherResource'
+import type { Settings } from '@/shared/bindings/Settings'
 import type { Skill } from '@/shared/bindings/Skill'
 import { SHARED_OWNER_ID } from '@/shared/lib/owners'
 import { renderWithProviders } from '@/test/render'
@@ -15,8 +16,15 @@ import { renderWithProviders } from '@/test/render'
 import { LibraryPage } from './LibraryPage'
 
 vi.mock('@/shared/api/ipc', () => ({
-  ipc: { listLibrary: vi.fn() },
+  ipc: { listLibrary: vi.fn(), getSettings: vi.fn() },
 }))
+
+// Radix opens the list on pointerdown and scrolls the active row into view; jsdom has neither
+// pointer capture nor `scrollIntoView` (see `shared/ui/Select.test.tsx`).
+Element.prototype.hasPointerCapture = () => false
+Element.prototype.setPointerCapture = () => {}
+Element.prototype.releasePointerCapture = () => {}
+Element.prototype.scrollIntoView = () => {}
 
 vi.mock('@/features/agents/api/scan', () => ({
   useScanRefresh: () => ({
@@ -126,6 +134,34 @@ function renderPage() {
   )
 }
 
+const SETTINGS: Settings = {
+  language: 'en',
+  theme: 'system',
+  accent: 'clay',
+  accentCustom: null,
+  interfaceScale: 100,
+  textScale: 100,
+  fontFamily: 'inter',
+  monoFont: 'jetbrains',
+  extraScanPaths: [],
+  networkVersionChecks: true,
+  backupDir: null,
+  versionCacheMinutes: 60,
+  proxyMode: 'none',
+  proxyUrl: null,
+  terminal: 'builtin',
+  terminalTheme: 'auto',
+  hiddenAgents: [],
+  favoriteAgents: [],
+  projectFolders: [],
+  launchAtLogin: false,
+  trayIcon: true,
+  closeToTray: true,
+  startMinimized: false,
+  sidebarCollapsed: false,
+  lastRoute: null,
+}
+
 /**
  * Agent brand marks ship an SVG `<title>` with the agent name, which `getByText` would count
  * as a second match for every tag — ignore it and query the visible labels only.
@@ -135,6 +171,14 @@ const TEXT = { ignore: 'script, style, title' } as const
 describe('LibraryPage', () => {
   beforeEach(() => {
     vi.mocked(ipc.listLibrary).mockResolvedValue(LIBRARY)
+    vi.mocked(ipc.getSettings).mockResolvedValue(SETTINGS)
+  })
+
+  // RTL auto-cleanup is not configured here (see AGENTS.md), and an open select leaves its
+  // listbox — and `pointer-events: none` on the body — behind for the next case.
+  afterEach(() => {
+    cleanup()
+    document.body.style.removeProperty('pointer-events')
   })
 
   it('heads a shared name and leaves a one-agent name in the plain list', async () => {
@@ -189,6 +233,21 @@ describe('LibraryPage', () => {
     // The skills panel is gone, so the owner tag can only come from the server card.
     expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull()
     expect(within(container).getAllByText('Claude Code', TEXT).length).toBeGreaterThan(0)
+  })
+
+  it('offers the pinned agents first in the agent filter', async () => {
+    vi.mocked(ipc.getSettings).mockResolvedValue({ ...SETTINGS, favoriteAgents: ['opencode'] })
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    await user.click(within(container).getByRole('combobox', { name: 'Agent' }))
+
+    // Radix drops `className` on its text node, so the label is the wrapper's own last child.
+    const rows = await screen.findAllByRole('option')
+    expect(
+      rows.map((row) => row.querySelector('span[id] > span > span:last-child')?.textContent),
+    ).toEqual(['All', 'OpenCode', 'Claude Code', 'Shared'])
   })
 
   it('offers a way out of a dead-end filter', async () => {

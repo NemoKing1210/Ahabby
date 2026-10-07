@@ -33,7 +33,7 @@ Before finishing a change: `npm run build` and `cargo check --manifest-path src-
 
 Rust dependencies point one way: `commands → services → adapters → catalog → domain`, with `platform` as a leaf. Business logic never lives in `commands/`. The frontend is render-only: `src/shared/api/ipc.ts` is the only module that calls `invoke`.
 
-A terminal session is a real PTY (`services/terminal.rs` over `portable-pty`): the backend runs the user's own shell and types the agent's executable into it, the frontend renders the bytes with xterm and sends the keys back. It is asked for with an **agent id**, never a program or a command line.
+A terminal session is a real PTY (`services/terminal.rs` over `portable-pty`): the backend runs the user's own shell, gives the PTY the terminal environment a GUI launch lacks, and types the agent's executable into it once the shell's first prompt is up; the frontend renders the bytes with xterm and sends the keys back, from one emulator per session that outlives the component showing it. It is asked for with an **agent id**, never a program or a command line.
 
 ```
 src/app/                   providers (React Query, toasts, job + terminal bridges), hash router, theme, shell

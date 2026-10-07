@@ -320,6 +320,39 @@ pub struct McpSpec {
     pub shared_with_config: bool,
 }
 
+/// How an agent's extensions are stored and loaded.
+///
+/// Pi is the only format Ahabby reads so far: a directory of TypeScript modules plus the
+/// `packages` list of a JSON settings document. An agent opts in with `[[extensions]]`; a
+/// manifest without one has no extensions surface, and Ahabby says so instead of guessing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub enum ExtensionFormat {
+    Pi,
+}
+
+/// Where an agent keeps its extensions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct ExtensionSpec {
+    pub id: String,
+    pub format: ExtensionFormat,
+    /// The extensions directory the agent discovers modules in.
+    pub path: OsPathMap,
+    /// The JSON document whose `packages` list declares installed packages (and whose
+    /// `extensions` list carries the on/off overrides). Required by the `pi` format.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings: Option<OsPathMap>,
+    /// Names of the extensions the agent itself ships. They are listed read-only, because the
+    /// agent owns them.
+    #[serde(default)]
+    pub builtins: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// Non-config resources: instructions, slash commands, sub-agents, hooks, rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -501,6 +534,10 @@ pub struct AgentManifest {
     /// read, switchable and removable.
     #[serde(default, deserialize_with = "one_or_many")]
     pub mcp: Vec<McpSpec>,
+    /// Extension directories. Unlike the other surfaces this one is opt-in: an agent that has no
+    /// extension mechanism simply declares none, and the UI says so.
+    #[serde(default, deserialize_with = "one_or_many")]
+    pub extensions: Vec<ExtensionSpec>,
     #[serde(default)]
     pub other: Vec<OtherSpec>,
     #[serde(default)]
@@ -659,6 +696,48 @@ impl AgentManifest {
                 problems.push(ManifestProblem::error(
                     format!("{field}.format"),
                     "must be a structured format (json, toml or yaml)",
+                ));
+            }
+        }
+
+        let mut extension_ids = std::collections::HashSet::new();
+        for (index, spec) in self.extensions.iter().enumerate() {
+            let field = if self.extensions.len() == 1 {
+                "extensions".to_string()
+            } else {
+                format!("extensions[{index}]")
+            };
+            if !extension_ids.insert(spec.id.clone()) {
+                problems.push(ManifestProblem::error(
+                    format!("{field}.id"),
+                    format!("duplicate id '{}'", spec.id),
+                ));
+            }
+            if spec.path.is_empty() {
+                problems.push(ManifestProblem::error(
+                    format!("{field}.path"),
+                    "no path for any OS",
+                ));
+            }
+            if matches!(spec.format, ExtensionFormat::Pi) {
+                // The package list lives in the settings document, not in the extensions
+                // directory, so without it half of the surface could never be read.
+                match &spec.settings {
+                    None => problems.push(ManifestProblem::error(
+                        format!("{field}.settings"),
+                        "the pi format needs the settings document that declares packages",
+                    )),
+                    Some(map) if map.is_empty() => problems.push(ManifestProblem::error(
+                        format!("{field}.settings"),
+                        "no path for any OS",
+                    )),
+                    Some(_) => {}
+                }
+            }
+            if spec.builtins.iter().any(|name| name.trim().is_empty()) {
+                problems.push(ManifestProblem::error(
+                    format!("{field}.builtins"),
+                    "entries must not be empty",
                 ));
             }
         }

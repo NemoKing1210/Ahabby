@@ -17,6 +17,7 @@ import { toastAppError } from '@/shared/ui/Toast'
 import { InstallDialog } from '@/features/install/components/InstallDialog'
 import { useRunAgentInTerminal } from '@/features/terminal/api/hooks'
 import { ConfigsTab } from '@/features/configs/components/ConfigsTab'
+import { ExtensionsTab } from '@/features/extensions/components/ExtensionsTab'
 import { McpTab } from '@/features/mcp/components/McpTab'
 import { SkillsTab } from '@/features/skills/components/SkillsTab'
 
@@ -167,6 +168,12 @@ export function AgentPage() {
               <span className="text-faint ml-1.5">{agent.mcpServers.length}</span>
             ) : null}
           </TabsTrigger>
+          <TabsTrigger value="extensions">
+            {t('agent.tabs.extensions')}
+            {agent.extensions.length > 0 ? (
+              <span className="text-faint ml-1.5">{agent.extensions.length}</span>
+            ) : null}
+          </TabsTrigger>
           <TabsTrigger value="other">
             {t('agent.tabs.other')}
             {agent.other.length > 0 ? (
@@ -194,6 +201,13 @@ export function AgentPage() {
             servers={agent.mcpServers}
             configs={agent.configs}
             owner={installed ? { id: agent.id, name: agent.name, icon: agent.icon } : null}
+          />
+        </TabsContent>
+        <TabsContent value="extensions">
+          <ExtensionsTab
+            agentId={agent.id}
+            extensions={agent.extensions}
+            supported={agent.extensionsSupported}
           />
         </TabsContent>
         <TabsContent value="other">

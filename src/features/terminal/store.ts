@@ -57,6 +57,13 @@ interface TerminalState {
    */
   expanded: boolean
   buffered: Record<string, Uint8Array[]>
+  /**
+   * Sessions that have already ended, whether or not their tab existed at the time. A process can
+   * exit before React has painted the tab it belongs to (an agent that refuses to start, a shell
+   * that closes at once); without this the tab would then claim to be running for ever, with
+   * nothing behind it.
+   */
+  exits: Record<string, number | null>
   /** Add a tab (idempotent per session), bring it to the front and open the dock. */
   open: (session: TerminalSession) => void
   activate: (sessionId: string) => void
@@ -75,10 +82,17 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   activeId: null,
   expanded: false,
   buffered: {},
+  exits: {},
 
   open: (session) =>
     set((state) => {
       const tab = tabFromSession(session)
+      // A tab is only as alive as its process: an exit that arrived before the tab existed is
+      // applied the moment the tab does.
+      if (Object.hasOwn(state.exits, tab.sessionId)) {
+        tab.running = false
+        tab.exitCode = state.exits[tab.sessionId] ?? null
+      }
       const tabs = state.tabs.some((existing) => existing.sessionId === tab.sessionId)
         ? state.tabs.map((existing) => (existing.sessionId === tab.sessionId ? tab : existing))
         : [...state.tabs, tab]
@@ -94,6 +108,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   finish: (sessionId, exitCode) =>
     set((state) => ({
+      exits: { ...state.exits, [sessionId]: exitCode },
       tabs: state.tabs.map((tab) =>
         tab.sessionId === sessionId ? { ...tab, running: false, exitCode } : tab,
       ),
@@ -103,10 +118,11 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     set((state) => {
       const tabs = state.tabs.filter((tab) => tab.sessionId !== sessionId)
       const { [sessionId]: _dropped, ...buffered } = state.buffered
+      const { [sessionId]: _exited, ...exits } = state.exits
       const activeId =
         state.activeId === sessionId ? (tabs[tabs.length - 1]?.sessionId ?? null) : state.activeId
       // No tabs left means nothing to show: the dock goes away entirely.
-      return { tabs, buffered, activeId, expanded: tabs.length > 0 && state.expanded }
+      return { tabs, buffered, exits, activeId, expanded: tabs.length > 0 && state.expanded }
     }),
 
   setExpanded: (expanded) => set({ expanded }),

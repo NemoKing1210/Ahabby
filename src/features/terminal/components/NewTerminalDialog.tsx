@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Play } from 'lucide-react'
 
@@ -19,7 +19,8 @@ import { Select } from '@/shared/ui/Select'
 import { toastAppError } from '@/shared/ui/Toast'
 import { agentOption } from '@/shared/ui/agentOptions'
 
-import { useAgents } from '@/features/agents/api/queries'
+import { useAgents, useFavoriteAgents } from '@/features/agents/api/queries'
+import { installedAgents } from '@/features/agents/lib/favorites'
 
 import { useLaunchTerminal } from '../api/hooks'
 import { useTerminalStore } from '../store'
@@ -40,13 +41,22 @@ export function NewTerminalDialog({
 }) {
   const { t } = useTranslation()
   const { data: report } = useAgents()
+  const favoriteIds = useFavoriteAgents()
   const launch = useLaunchTerminal()
   const open = useTerminalStore((state) => state.open)
 
-  const installed = (report?.agents ?? []).filter((agent) => agent.status === 'installed')
-  const [agentId, setAgentId] = useState(installed[0]?.id ?? '')
+  // Pinned agents first, as everywhere else an agent is chosen, so the dialog opens on the one
+  // the user works with.
+  const installed = useMemo(
+    () => installedAgents(report?.agents ?? [], favoriteIds),
+    [report, favoriteIds],
+  )
+  const [agentId, setAgentId] = useState('')
   const [cwd, setCwd] = useState(catalog.defaultCwd)
-  const selected = installed.find((agent) => agent.id === agentId)
+  // The scan can land after this dialog is opened, so an empty choice has to fall back to the
+  // first agent on screen rather than leaving the dialog unusable until it is closed and opened
+  // again.
+  const selected = installed.find((agent) => agent.id === agentId) ?? installed[0]
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -94,7 +104,7 @@ export function NewTerminalDialog({
                 <span className="text-sm">{t('terminal.agent')}</span>
                 <Select
                   ariaLabel={t('terminal.agent')}
-                  value={agentId}
+                  value={selected?.id ?? ''}
                   onValueChange={setAgentId}
                   className="w-full"
                   options={installed.map((agent) =>

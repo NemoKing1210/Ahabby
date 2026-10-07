@@ -24,6 +24,8 @@ export const queryKeys = {
   backups: (agentId: string, path: string) => ['backups', agentId, path] as const,
   installPlan: (agentId: string, action: string, methodId?: string | null) =>
     ['install-plan', agentId, action, methodId ?? null] as const,
+  extensionPlan: (agentId: string, extensionId: string, action: string) =>
+    ['extension-plan', agentId, extensionId, action] as const,
   terminals: () => ['terminals'] as const,
   /** One page read for Ahabby's own browser, keyed by the address it was read from. */
   webPage: (url: string) => ['web-page', url] as const,

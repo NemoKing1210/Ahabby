@@ -53,6 +53,8 @@ function agent(overrides: Partial<Agent> = {}): Agent {
     skills: [],
     mcpServers: [],
     other: [],
+    extensions: [],
+    extensionsSupported: false,
     update: null,
     unverified: [],
     notes: null,

@@ -27,7 +27,8 @@ import { Textarea } from '@/shared/ui/Textarea'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
-import { useAgents } from '@/features/agents/api/queries'
+import { useAgents, useFavoriteAgents } from '@/features/agents/api/queries'
+import { orderByFavorite } from '@/features/agents/lib/favorites'
 import { useProjects } from '@/features/projects/api/queries'
 
 import { useInstallHubResource } from '../api/hooks'
@@ -115,22 +116,27 @@ function InstallForm({ detail, onClose }: { detail: HubEntryDetail; onClose: () 
   const { t } = useTranslation()
   const install = useInstallHubResource()
   const agents = useAgents()
+  const favoriteIds = useFavoriteAgents()
   const projects = useProjects()
   const entry = detail.entry
   const source = detail.transport
 
   // Owners a payload can be written for: the agent-neutral shared surface first (the general
-  // case, and what "install globally" means), then every installed agent, then every project the
-  // scan found. A resource written for an agent that is not installed would not be scanned.
+  // case, and what "install globally" means), then every installed agent — the pinned ones
+  // first — and then every project the scan found. A resource written for an agent that is not
+  // installed would not be scanned.
   const owners = useMemo<AgentRef[]>(
     () => [
       SHARED_OWNER,
-      ...(agents.data?.agents ?? [])
-        .filter((agent) => agent.status === 'installed')
-        .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
+      ...orderByFavorite(
+        (agents.data?.agents ?? [])
+          .filter((agent) => agent.status === 'installed')
+          .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
+        favoriteIds,
+      ),
       ...(projects.data?.projects ?? []).map(projectOwner),
     ],
-    [agents.data, projects.data],
+    [agents.data, projects.data, favoriteIds],
   )
 
   const [ownerId, setOwnerId] = useState(owners[0]?.id ?? '')
