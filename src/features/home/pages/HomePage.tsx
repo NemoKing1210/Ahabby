@@ -4,6 +4,7 @@ import {
   Boxes,
   ChevronRight,
   FileText,
+  FolderGit2,
   HardDrive,
   Library as LibraryIcon,
   Lock,
@@ -11,6 +12,7 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Sparkles,
+  Store,
   type LucideIcon,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -25,6 +27,7 @@ import { Skeleton } from '@/shared/ui/Primitives'
 
 import { useFavoriteAgents, useAgents } from '@/features/agents/api/queries'
 import { installedAgents } from '@/features/agents/lib/favorites'
+import { useHubSources } from '@/features/hub/api/queries'
 import { useLibrary } from '@/features/library/api/queries'
 
 import { AgentLedger } from '../components/AgentLedger'
@@ -147,16 +150,18 @@ function AboutPoint({
 }
 
 /**
- * The front door of the app: what Ahabby is, a summary of what the last scan found, the three
- * screens it leads to, and the roster of the agents installed on this machine.
+ * The front door of the app: what Ahabby is, a summary of what the last scan found, the screens
+ * it leads to, and the roster of the agents installed on this machine.
  *
- * Everything is read from the same two queries the sidebar uses — the agent report and the
- * library — so this page needs no data of its own and is instant after the first scan.
+ * Everything is read from the same queries the sidebar and the screens themselves use — the agent
+ * report, the library and the hub sources — so this page needs no data of its own and is instant
+ * after the first scan.
  */
 export function HomePage() {
   const { t } = useTranslation()
   const report = useAgents()
   const library = useLibrary()
+  const hub = useHubSources()
   const favoriteIds = useFavoriteAgents()
 
   const installed = useMemo(
@@ -168,8 +173,8 @@ export function HomePage() {
     return (
       <div className="flex flex-col gap-6" aria-busy="true">
         <Skeleton className="h-56 rounded-xl" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }, (_, index) => (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
             <Skeleton key={index} className="h-28 rounded-xl" />
           ))}
         </div>
@@ -185,13 +190,20 @@ export function HomePage() {
   const count = (pick: (value: LibraryStats) => number) => (stats ? pick(stats) : undefined)
   const loadingStats = library.isLoading && !stats
 
+  // The folders the user added and the collections the Hub reads. Both come from what the app
+  // already holds — the scan report and the local source catalog — so neither touches the network.
+  const projects = report.data?.projects
+  const projectFolders = projects?.folders.length
+  const projectCount = projects?.projects.length
+  const sources = hub.data?.sources.length
+
   return (
     <div className="flex flex-col gap-6">
       <HomeHero report={report.data} />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg">{t('home.summary')}</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryTile
             to="/agents"
             icon={Boxes}
@@ -202,6 +214,25 @@ export function HomePage() {
                 ? t('home.agentsFree', { count: report.data?.availableToInstall ?? 0 })
                 : t('home.agentsComplete')
             }
+          />
+          <SummaryTile
+            to="/projects"
+            icon={FolderGit2}
+            label={t('home.projects')}
+            value={projectCount}
+            hint={
+              projectFolders
+                ? t('home.projectsFolders', { count: projectFolders })
+                : t('home.projectsNone')
+            }
+          />
+          <SummaryTile
+            to="/hub"
+            icon={Store}
+            label={t('home.hub')}
+            value={sources}
+            hint={t('home.hubTileHint')}
+            loading={hub.isLoading && !hub.data}
           />
           <SummaryTile
             to="/library"
@@ -230,7 +261,9 @@ export function HomePage() {
         </div>
       </section>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      {/* One card per block, each spanning the page: a half-width column made the "Go to" rows
+          and the prose of "What Ahabby is" fight for the same 40 characters. */}
+      <div className="flex flex-col gap-4">
         <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>{t('home.sections')}</CardTitle>
@@ -244,11 +277,25 @@ export function HomePage() {
               count={report.data?.installed}
             />
             <SectionLink
+              to="/projects"
+              icon={FolderGit2}
+              label={t('nav.projects')}
+              hint={t('home.projectsHint')}
+              count={projectCount}
+            />
+            <SectionLink
               to="/library"
               icon={LibraryIcon}
               label={t('nav.library')}
               hint={t('home.libraryHint')}
               count={stats ? stats.skills + stats.mcpServers + stats.other : undefined}
+            />
+            <SectionLink
+              to="/hub"
+              icon={Store}
+              label={t('nav.hub')}
+              hint={t('home.hubHint')}
+              count={sources}
             />
             <SectionLink
               to="/settings"
@@ -264,8 +311,13 @@ export function HomePage() {
             <CardTitle>{t('home.about')}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <p className="text-muted text-[0.8125rem]">{t('home.aboutBody')}</p>
-            <ul className="flex flex-col gap-3">
+            <p className="text-muted max-w-[78ch] text-[0.8125rem]">{t('home.aboutBody')}</p>
+            <ul className="flex max-w-[78ch] flex-col gap-3">
+              <AboutPoint
+                icon={Store}
+                title={t('home.hubInstallTitle')}
+                hint={t('home.hubInstallHint')}
+              />
               <AboutPoint
                 icon={HardDrive}
                 title={t('home.localTitle')}

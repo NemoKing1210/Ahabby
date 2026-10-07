@@ -5,6 +5,18 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.6] - 2026-10-07
+
+### Changed
+
+- **The Home screen now knows about every screen the app has.** Two summaries join the four it already
+  showed — the folders you work in, and the collections the Hub reads — and the "Go to" list leads to Projects
+  and the Hub beside Agents, the Library and Settings. The "What Ahabby is" card gained what the Hub promises
+  (a collection is installed through the same path checks, backups and config edits as the manual forms), and
+  its privacy line now names the Hub among the features that reach the network, because it does. The two
+  cards of the page — "Go to" and "What Ahabby is" — now span its full width, one under the other, instead of
+  sharing a row: a half-width column squeezed the rows and the prose into the same 40-odd characters.
+
 ## [0.28.5] - 2026-10-07
 
 ### Changed

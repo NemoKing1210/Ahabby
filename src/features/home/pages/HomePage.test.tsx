@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
+import type { HubSource } from '@/shared/bindings/HubSource'
+import type { HubSourceCatalog } from '@/shared/bindings/HubSourceCatalog'
 import type { Library } from '@/shared/bindings/Library'
+import type { Project } from '@/shared/bindings/Project'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { Settings } from '@/shared/bindings/Settings'
 import { renderWithProviders } from '@/test/render'
@@ -20,6 +23,7 @@ vi.mock('@/shared/api/ipc', () => ({
     rescan: vi.fn(),
     getSettings: vi.fn(),
     listLibrary: vi.fn(),
+    listHubSources: vi.fn(),
   },
 }))
 
@@ -59,6 +63,53 @@ function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): Agent {
   }
 }
 
+/** One project the user added a folder for: enough for the home page's counts. */
+const PROJECT: Project = {
+  id: 'project:alpha',
+  name: 'alpha',
+  root: '/home/me/code/alpha',
+  folderId: 'folder:one',
+  skills: [],
+  mcpServers: [],
+  other: [],
+  configs: [],
+  modifiedMs: null,
+  warnings: [],
+  scanMs: 1,
+}
+
+/** One collection the hub reads, with only the fields the home page's count depends on. */
+function source(overrides: Partial<HubSource> & Pick<HubSource, 'id' | 'name'>): HubSource {
+  return {
+    kind: 'githubSkills',
+    description: null,
+    provides: ['skill'],
+    homepage: null,
+    docs: null,
+    license: null,
+    vendor: null,
+    url: null,
+    repository: 'owner/repo',
+    gitRef: null,
+    path: null,
+    exclude: [],
+    tags: [],
+    tagRules: [],
+    builtin: true,
+    sourceFile: null,
+    ...overrides,
+  }
+}
+
+const HUB_SOURCES: HubSourceCatalog = {
+  sources: [
+    source({ id: 'example-skills', name: 'Example Skills' }),
+    source({ id: 'mcp-registry', name: 'MCP Registry', kind: 'mcpRegistry', provides: ['mcp'] }),
+  ],
+  problems: [],
+  userDir: '/home/me/.config/ahabby/hub',
+}
+
 const REPORT: ScanReport = {
   agents: [
     agent({
@@ -81,7 +132,19 @@ const REPORT: ScanReport = {
   availableToInstall: 1,
   os: 'windows',
   shared: { configs: [], skills: [], mcpServers: [], other: [], roots: [] },
-  projects: { folders: [], projects: [], scannedAtMs: 0, durationMs: 0 },
+  projects: {
+    folders: [
+      {
+        folder: { id: 'folder:one', path: '/home/me/code', addedAtMs: 0 },
+        resolved: '/home/me/code',
+        exists: true,
+        problem: null,
+      },
+    ],
+    projects: [PROJECT],
+    scannedAtMs: 0,
+    durationMs: 0,
+  },
 }
 
 const LIBRARY: Library = {
@@ -146,6 +209,7 @@ describe('HomePage', () => {
     vi.mocked(ipc.listAgents).mockResolvedValue(REPORT)
     vi.mocked(ipc.rescan).mockResolvedValue(REPORT)
     vi.mocked(ipc.listLibrary).mockResolvedValue(LIBRARY)
+    vi.mocked(ipc.listHubSources).mockResolvedValue(HUB_SOURCES)
     vi.mocked(ipc.getSettings).mockResolvedValue(SETTINGS)
   })
 
@@ -163,6 +227,32 @@ describe('HomePage', () => {
     const other = tile(container, 'Other resources')
     expect(other.textContent).toContain('3')
     expect(other.getAttribute('href')).toBe('/library')
+
+    const projects = tile(container, 'Projects')
+    expect(projects.getAttribute('href')).toBe('/projects')
+    expect(projects.textContent).toContain('1 folder added')
+
+    const hub = tile(container, 'Hub')
+    expect(hub.getAttribute('href')).toBe('/hub')
+    expect(hub.textContent).toContain('2')
+  })
+
+  it('offers a row for every screen, the newest sections included', async () => {
+    const { container } = renderPage()
+    await within(container).findByText('Claude Code')
+
+    // Found by the hint under the label, which is what keeps the row distinct from the tiles.
+    const row = (hint: string) => {
+      const found = links(container).find((link) => link.textContent?.includes(hint))
+      if (!found) throw new Error(`no row hinting ${hint}`)
+      return found
+    }
+
+    expect(row('Your own folders').getAttribute('href')).toBe('/projects')
+    expect(row('installed into an agent, a project').getAttribute('href')).toBe('/hub')
+    expect(row('Versions, configs, skills and MCP servers').getAttribute('href')).toBe('/agents')
+    expect(row('Everything installed across your agents').getAttribute('href')).toBe('/library')
+    expect(row('Language, theme, scan paths').getAttribute('href')).toBe('/settings')
   })
 
   it('lists the installed agents only, favourites first, and flags the one with an update', async () => {
@@ -185,6 +275,7 @@ describe('HomePage', () => {
       ...REPORT,
       agents: [agent({ id: 'aider', name: 'Aider', status: 'notInstalled', canInstall: true })],
       installed: 0,
+      projects: { folders: [], projects: [], scannedAtMs: 0, durationMs: 0 },
     })
 
     const { container } = renderPage()
@@ -193,5 +284,8 @@ describe('HomePage', () => {
     expect(
       within(container).getByRole('link', { name: 'Browse agents' }).getAttribute('href'),
     ).toBe('/agents')
+
+    // With no folder added, the Projects summary invites one instead of counting zero.
+    expect(tile(container, 'Projects').textContent).toContain('Add a folder to work in')
   })
 })
