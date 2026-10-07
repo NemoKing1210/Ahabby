@@ -22,6 +22,7 @@ import { HubEntryDialog } from '../components/HubEntryDialog'
 import { HubInstallDialog } from '../components/HubInstallDialog'
 import { HubSourceSection } from '../components/HubSourceSection'
 import { HubToolbar } from '../components/HubToolbar'
+import type { InstalledFilter } from '../installed'
 
 /** How long typing settles before the sources are asked again. */
 const SEARCH_DEBOUNCE_MS = 350
@@ -31,15 +32,15 @@ const SEARCH_DEBOUNCE_MS = 350
  *
  * One section per source, each with its own request, its own paging and its own failure — a
  * collection that is slow or down is a note under its own heading, never an empty screen. The
- * page owns only the four filters (search, kind, source, tags) and the install dialog, because
- * everything a source *is* belongs to the manifest that declared it (`catalog/HUB.md`).
+ * page owns only the five filters (search, kind, installed, source, tags) and the install dialog,
+ * because everything a source *is* belongs to the manifest that declared it (`catalog/HUB.md`).
  */
 export function HubPage() {
   const { t } = useTranslation()
   const client = useQueryClient()
   const catalog = useHubSources()
 
-  // The four filters a user sets here are kept for the session (`useSessionState`), so an entry
+  // The five filters a user sets here are kept for the session (`useSessionState`), so an entry
   // previewed and installed, or a source read again, does not cost the search box its text.
   const [query, setQuery] = useSessionState('hub.query', '')
   // Typing settles before it reaches the network: a source is a real request, not a local list.
@@ -47,6 +48,7 @@ export function HubPage() {
   // page directly instead of asking twice.
   const [settled, setSettled] = useState(() => query.trim())
   const [kind, setKind] = useSessionState<HubResourceKind | null>('hub.kind', null)
+  const [installed, setInstalled] = useSessionState<InstalledFilter>('hub.installed', 'all')
   const [sourceId, setSourceId] = useSessionState('hub.source', 'all')
   // Tags the user filters by. The chips themselves come from the source files: what a collection
   // declares is a subject a user can pick, while a plugin's own name would only be an identity.
@@ -130,6 +132,8 @@ export function HubPage() {
           setKind(value)
           setSourceId('all')
         }}
+        installed={installed}
+        onInstalledChange={setInstalled}
         sourceId={sourceId}
         onSourceChange={setSourceId}
         sources={matching}
@@ -158,6 +162,7 @@ export function HubPage() {
               key={source.id}
               source={source}
               kind={kind}
+              installed={installed}
               query={settled}
               tags={tags}
               generation={generation}

@@ -5,6 +5,18 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0] - 2026-10-07
+
+### Added
+
+- **The Hub filters by what you already have.** A chip row next to the kind filter switches between every
+  entry, the ones this machine holds and the ones it does not, so a collection of hundreds can be read as
+  “what is still missing”. The answer comes from the scan — the same source the “Installed” badge is read
+  from — so switching the filter asks the collection for nothing, and an entry installed from anywhere shows
+  up under “Installed” as soon as the report lands. When the filter hides every entry of a source that was
+  already read, the section says so instead of going blank, and points at Load more while the collection has
+  more to read.
+
 ## [0.34.0] - 2026-10-07
 
 ### Added

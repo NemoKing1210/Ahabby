@@ -21,6 +21,7 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useBrowser } from '@/features/browser/context'
 
+import { matchesInstalled, type InstalledFilter } from '../installed'
 import { HubEntryCard } from './HubEntryCard'
 
 /** Entries asked for per request. The MCP registry is slowest with a *small* page, not a large one. */
@@ -37,6 +38,7 @@ export const PAGE_SIZE = 16
 export function HubSourceSection({
   source,
   kind,
+  installed,
   query,
   tags,
   generation,
@@ -47,6 +49,8 @@ export function HubSourceSection({
 }: {
   source: HubSource
   kind: HubResourceKind | null
+  /** Whether an entry the machine already holds is shown; applied to the entries in hand. */
+  installed: InstalledFilter
   query: string
   /** Tags the toolbar filters by; the backend applies them before the page is cut. */
   tags: string[]
@@ -84,6 +88,10 @@ export function HubSourceSection({
   })
 
   const entries = page.data?.pages.flatMap((loaded) => loaded.entries) ?? []
+  // The installed filter is the scan's answer, applied to the entries in hand: a collection is
+  // read a page at a time and the backend does not know what this machine holds, so narrowing the
+  // list is this section's own job while Load more keeps reading the rest of the source.
+  const shown = entries.filter((entry) => matchesInstalled(entry, installed))
   const report = page.data?.pages.at(-1)?.report
   const link = source.homepage ?? source.docs
 
@@ -161,9 +169,18 @@ export function HubSourceSection({
         />
       ) : null}
 
-      {entries.length > 0 ? (
+      {/* Entries were read, the filter just hid them all — said plainly, and pointing at the rest
+          of the collection when there is more of it to read. */}
+      {!page.isPending && !page.error && entries.length > 0 && shown.length === 0 ? (
+        <EmptyState
+          title={t('hub.filteredEmpty')}
+          hint={page.hasNextPage ? t('hub.filteredEmptyHint') : undefined}
+        />
+      ) : null}
+
+      {shown.length > 0 ? (
         <AnimatedList>
-          {entries.map((entry) => (
+          {shown.map((entry) => (
             <HubEntryCard
               key={entry.id}
               entry={entry}

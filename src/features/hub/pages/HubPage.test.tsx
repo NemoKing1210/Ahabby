@@ -316,6 +316,58 @@ describe('HubPage', () => {
     expect(asked).not.toContain(REGISTRY_SOURCE.id)
   })
 
+  it('filters the entries by whether the machine already holds them', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    // One entry the machine holds, one it does not. The filter is the scan's answer, so switching
+    // it narrows what is on screen without asking the collection for anything.
+    const held = { ...installedEntry(), id: 'example-skills/skills/invoice', name: 'invoice' }
+    vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [entry(), held] }))
+
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+    expect(within(container).getByRole('button', { name: 'pdf' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'invoice' })).toBeTruthy()
+
+    const group = screen.getByRole('group', { name: 'Filter by installed state' })
+    const asked = vi.mocked(ipc.searchHub).mock.calls.length
+
+    // "Not installed" leaves only what is missing; the row that goes animates out first.
+    await user.click(within(group).getByRole('button', { name: 'Not installed' }))
+    await waitFor(() =>
+      expect(within(container).queryByRole('button', { name: 'invoice' })).toBeNull(),
+    )
+    expect(within(container).getByRole('button', { name: 'pdf' })).toBeTruthy()
+
+    await user.click(within(group).getByRole('button', { name: 'Installed' }))
+    await waitFor(() => expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull())
+    expect(within(container).getByRole('button', { name: 'invoice' })).toBeTruthy()
+
+    expect(vi.mocked(ipc.searchHub).mock.calls.length).toBe(asked)
+  })
+
+  it('says so when the filter hides every entry it has read', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [entry()] }))
+
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    const group = screen.getByRole('group', { name: 'Filter by installed state' })
+    await user.click(within(group).getByRole('button', { name: 'Installed' }))
+
+    expect(await within(container).findByText('No entries match this filter')).toBeTruthy()
+  })
+
   it('reviews a skill and confirms the install for the chosen owner', async () => {
     const user = userEvent.setup()
     vi.mocked(ipc.listHubSources).mockResolvedValue({
