@@ -149,8 +149,9 @@ them: they are shown on its card and in the dialogs, they widen the free-text se
 screen offers the ones the loaded sources declare as filters (asking for several keeps an entry
 carrying _any_ of them). The row shows the first few and keeps the rest behind a button — a tag
 that is switched on is always in sight, since its chip is the only way to switch it off — and each
-tag wears a colour of its own, hashed out of its name so the same tag looks the same on a card, in
-the row and in a dialog.
+tag wears a colour of its own, hashed out of its name: a card and a dialog are always coloured,
+while a filter chip stays quiet until it is switched on, so the row shows what is being filtered
+for and nothing else.
 
 Three things put a tag on an entry, in this order:
 

@@ -640,8 +640,11 @@
    same in both themes and everywhere it appears: the filter row, a card, a dialog.
    Unlayered on purpose, so it replaces the pill's own border/surface/text utilities instead of
    competing with them, and the `--ah-*` tokens are used directly: the `--color-*` aliases are
-   resolved on `:root` and would freeze a subtree to the theme it was created in. */
-.ah-tag {
+   resolved on `:root` and would freeze a subtree to the theme it was created in.
+   A chip in the filter row is a toggle, so it stays neutral while it is off — an unselected tag is
+   one you have not chosen yet, and its colour arrives with the click. The badge on a card or in a
+   dialog has no pressed state, so it is always coloured. */
+.ah-tag:not([aria-pressed='false']) {
   --ah-tag-ink: oklch(
     var(--ah-tag-l) calc(var(--ah-tag-c) * var(--ah-tag-tone, 1)) var(--ah-tag-hue)
   );
@@ -650,13 +653,7 @@
   background-color: color-mix(in oklab, var(--ah-tag-ink) 9%, transparent);
 }
 
-/* A tag the row shows is a toggle: it still answers the pointer, which the colours above would
-   otherwise have muted away. */
-.ah-tag:not([aria-pressed='true']):hover {
-  border-color: color-mix(in oklab, var(--ah-tag-ink) 55%, transparent);
-  background-color: color-mix(in oklab, var(--ah-tag-ink) 15%, transparent);
-}
-
+/* The tag that is on wears its colour a step louder, so a row of filters reads at a glance. */
 .ah-tag[aria-pressed='true'] {
   border-color: color-mix(in oklab, var(--ah-tag-ink) 62%, transparent);
   background-color: color-mix(in oklab, var(--ah-tag-ink) 22%, transparent);

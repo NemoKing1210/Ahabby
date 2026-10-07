@@ -5,6 +5,14 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.3] - 2026-10-07
+
+### Changed
+
+- **An unselected tag in the filter row is no longer coloured.** Only the tags you are filtering by wear
+  their colour, so the row reads as "what is being filtered for" and nothing else; the chips still fold, and
+  the tags on a card or in the install dialog are unchanged — there one is always coloured.
+
 ## [0.28.2] - 2026-10-07
 
 ### Fixed
