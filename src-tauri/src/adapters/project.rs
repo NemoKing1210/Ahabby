@@ -21,7 +21,7 @@ use async_trait::async_trait;
 
 use crate::domain::{
     project_owner_ref, AgentManifest, AgentRef, ConfigFile, Detection, InstallAction, InstallPlan,
-    McpServer, McpServerDraft, OtherResource, Scope, Skill, SkillDraft, Version,
+    McpServer, McpServerDraft, OtherResource, Scope, Skill, SkillDraft, SkillInstall, Version,
 };
 use crate::error::Result;
 use crate::platform::PlatformContext;
@@ -166,6 +166,12 @@ impl AgentAdapter for ProjectAdapter {
 
     async fn create_skill(&self, ctx: &PlatformContext, draft: &SkillDraft) -> Result<Skill> {
         let mut skill = self.inner.create_skill(&self.at(ctx), draft).await?;
+        self.stamp_skill(&mut skill);
+        Ok(skill)
+    }
+
+    async fn install_skill(&self, ctx: &PlatformContext, install: &SkillInstall) -> Result<Skill> {
+        let mut skill = self.inner.install_skill(&self.at(ctx), install).await?;
         self.stamp_skill(&mut skill);
         Ok(skill)
     }

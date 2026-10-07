@@ -8,11 +8,17 @@ rules/instructions/sub-agents/hooks, and safe install/update commands. It does t
 user works in: the folders they add are searched for projects, and each project's local skills, MCP servers
 and documents are read and edited through the very same pipeline.
 
+Next to what is already on the machine, the **Hub** installs what the user does not have yet: it reads
+published collections of skills and MCP servers (the official MCP registry, repositories of `SKILL.md`
+directories, JSON indexes) and writes one entry of them into the shared surface, an installed agent or a
+project — through the same adapters, path checks and backups everything else goes through.
+
 Core boundary: **the Rust backend owns every file, process and network operation; the React frontend only
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
-no Rust, no TypeScript. UI is bilingual (English/Russian).
+no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
+the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.25.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.26.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -27,6 +33,8 @@ commands → services → adapters → catalog → domain
 - `domain` — pure models serialized 1:1 to TypeScript (`src-tauri/src/domain/*.rs`).
 - `catalog` — loads builtin manifests (embedded at compile time by `src-tauri/build.rs`) merged with user
   manifests from `<app config>/catalog/` (same `id` wins); validates and reports problems instead of failing.
+  The same loader pattern carries the **hub sources**: builtin ones from `catalog/hub/*.toml` merged with the
+  user's own from `<app config>/hub/`, each source validated before it can turn into a request.
 - `adapters` — `AgentAdapter` trait + `ManifestAdapter` (declarative). Two specialised adapters exist:
   `ClaudeAdapter` (`adapter = "claude"`), because Claude Code reads MCP from two files and plugin-managed
   skills must never be deleted, and `ProjectAdapter`, which wraps `ManifestAdapter` to read _one project_:
@@ -35,7 +43,8 @@ commands → services → adapters → catalog → domain
 - `platform` — OS-specific: path expansion (`${VAR}`), binary lookup, package-manager detection, process
   execution with timeouts, atomic writes + backups, native window chrome (Windows: DWM).
 - `services` — scanner, config editor, installer + job runner, version checker, settings, library, terminal
-  sessions, and `project` (project discovery + reading).
+  sessions, `project` (project discovery + reading), and `hub` (reading the collections of skills and MCP
+  servers the Hub installs from, with its own in-memory cache).
 - `commands` — thin Tauri command surface; validates input, calls a service.
 
 Data flow:
@@ -44,6 +53,10 @@ Data flow:
 manifests → AdapterRegistry → Scanner → ScanReport → commands → React Query → UI
                                   ├→ services::aggregate → Library
                                   └→ services::project → the user's projects
+
+hub sources → services::hub (one request per source, cached) → HubEntry → install_hub_resource
+                 └→ the *same* adapter as a manual create: install_skill / create_mcp_server → the owner's own
+                    skills directory or MCP config file
 
 agent id ──→ AppState::agent (the scan's binary) ──→ services::terminal (PTY) ──→ terminal://output ──→ xterm
 ```
@@ -96,6 +109,10 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 | `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                         |
 | `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                              |
 | `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                            |
+| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time          |
+| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                   |
+| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, per-source paging) + `parse.rs` (the three formats, pure and unit-tested)                            |
+| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its context menu, the read-only preview, the install dialog      |
 | `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                 |
 | `.github/workflows/ci.yml`         | The only CI workflow                                                                                                         |
 
@@ -123,6 +140,8 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 npm run bindings                  # regenerate src/shared/bindings (cargo test export_bindings)
 cargo run --manifest-path src-tauri/Cargo.toml --example scan         # validate catalog vs this machine
 cargo run --manifest-path src-tauri/Cargo.toml --example scan -- --json
+cargo run --manifest-path src-tauri/Cargo.toml --example hub          # validate the hub sources vs the live APIs
+cargo run --manifest-path src-tauri/Cargo.toml --example hub -- --query pdf --payload
 ```
 
 Before pushing, run: `npm run format && npm run lint && npm run typecheck && npm test` plus `cargo fmt --all -- --check && cargo clippy … -D warnings && cargo test`. CI also fails if `src/shared/bindings/**` differs after regeneration. Commit messages are validated by the `.githooks/commit-msg` hook and by `npm run check:commits` in CI.
@@ -290,6 +309,18 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   its per-OS detection candidates and its documented launch contract (`-e`, Windows Terminal's `-w 0 nt -d`,
   AppleScript `do script`, or Warp's URI, which is why Warp is offered as `opensDirectory` — it cannot be told
   to run a command). A terminal is only offered after `detect()` found it on this machine.
+- **The Hub installs through the adapters, not around them.** `services::hub` only _reads_ third-party
+  collections (one request per source, cached in memory, with every limit explicit: 25 s per request, 64 MiB
+  per body read while streaming, 8 MiB per file, 48 MiB per repository, oldest-first eviction); the write is
+  `AgentAdapter::install_skill` / `create_mcp_server` on the resolved owner, so a hub skill lands in the
+  skills directory its manifest declares and a hub server in the config file its manifest declares, with the
+  same path checks, backups and entry shapes as the manual forms. `install_skill` writes the payload into a
+  fresh `.<slug>.ahabby-installing` directory with `SKILL.md` last and renames it into place, so an
+  interrupted install leaves nothing an agent would load — and a payload path that is not a plain relative
+  one, or a set where one file is the parent of another, is refused before a byte is written.
+- `services::hub` is rebuilt on a settings save (`HubService::set_proxy`) the way the version checker is: a
+  proxy change is about the connection, not the cached data. Its HTTP client follows `Settings::proxy` exactly
+  like the version checker's (`None` → `no_proxy`, `System` → environment, `Manual` → one URL).
 - New Tauri command = 4 edits: service fn → thin `#[tauri::command]` → add to the `handlers!()` macro in
   `src-tauri/src/lib.rs` → typed wrapper in `src/shared/api/ipc.ts` (+ a feature hook). Arg names are
   camelCase on the TS side.
@@ -301,6 +332,10 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
 - Manifests live in `src-tauri/catalog/builtin/*.toml`; `id` is the file stem and also authoritative inside
   the file. `deny_unknown_fields` is on, so typos fail loudly. Unknown keys are removed; field names use TOML
   `snake_case`.
+- **Hub sources** are the same idea one level out: `src-tauri/catalog/hub/*.toml` declares where the Hub reads
+  a library from (`mcpRegistry`, `githubSkills` or `index`), embedded at compile time by the same `build.rs`
+  pass, with the user's own in `<app config>/hub/` overriding by `id`. `catalog/HUB.md` documents every field
+  and the index document format; a source file that does not validate is skipped and reported, never fatal.
 - Every path group carries a `# SOURCE: <url> (checked <date>)` comment. Anything unconfirmed goes into
   `unverified = ["dotted.path"]` (prefix-tolerant matching; UI shows a "needs verification" badge).
 - `skills` and `mcp` are **lists**: `[[skills]]` / `[[mcp]]`, because a tool may keep skills in more than one
@@ -354,8 +389,10 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   `cleanup()`, or avoid duplicated accessible text.
 - Tests currently cover: locale key parity + no-empty strings, IPC error normalization, formatting/masking
   helpers, `AgentCard` (render, install gating, badges, click-to-navigate), the Projects page (folders,
-  projects, the empty state, adding a folder), and the terminal tab store (buffered output, finishing and
-  closing a tab). Hooks are not tested.
+  projects, the empty state, adding a folder), the Hub page (a section per source, a kind filter that asks
+  only the sources it includes, the read-only preview, the reviewed install request with `confirm: true`, a
+  required value gating it, and the entry context menu), and the terminal tab store (buffered output,
+  finishing and closing a tab). Hooks are not tested.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch
   the real environment or network. Manifest fixtures use `catalog::parse_manifest(toml, "test")`.

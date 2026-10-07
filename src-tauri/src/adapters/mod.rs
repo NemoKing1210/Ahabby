@@ -30,7 +30,7 @@ pub use registry::AdapterRegistry;
 
 use crate::domain::{
     AgentManifest, AgentRef, ConfigFile, Detection, InstallAction, InstallPlan, Manager, McpServer,
-    McpServerDraft, OsPathMap, OtherResource, Skill, SkillDraft, Version,
+    McpServerDraft, OsPathMap, OtherResource, Skill, SkillDraft, SkillInstall, Version,
 };
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
@@ -116,6 +116,23 @@ pub trait AgentAdapter: Send + Sync {
     ) -> Result<McpServer> {
         Err(AppError::NotSupported(format!(
             "{} does not support adding MCP servers from Ahabby",
+            self.manifest().name
+        )))
+    }
+
+    /// Writes a skill whose files come from outside Ahabby — the Hub.
+    ///
+    /// Like [`AgentAdapter::create_skill`] it needs a declarative skills directory, and like
+    /// every write in Ahabby it lands in one piece or not at all: the payload is written into a
+    /// fresh directory, `SKILL.md` last, and a directory that already holds a skill is refused
+    /// rather than merged into.
+    async fn install_skill(
+        &self,
+        _ctx: &PlatformContext,
+        _install: &SkillInstall,
+    ) -> Result<Skill> {
+        Err(AppError::NotSupported(format!(
+            "{} does not support installing skills from Ahabby",
             self.manifest().name
         )))
     }

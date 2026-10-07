@@ -9,10 +9,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use ahabby_lib::adapters::doc_edit;
+use ahabby_lib::adapters::AgentAdapter;
 use ahabby_lib::catalog;
 use ahabby_lib::domain::{
     AgentStatus, ConfigFormat, InstallAction, Manager, McpDraftTransport, McpKeyValue,
-    McpServerDraft, Os, Severity, SkillDraft,
+    McpServerDraft, Os, Severity, SkillDraft, SkillInstall, SkillInstallFile,
 };
 use ahabby_lib::platform::PlatformContext;
 use ahabby_lib::services::{self, aggregate, Scanner};
@@ -175,6 +176,14 @@ impl Fixture {
             "# Agent rules\n\nBe careful.\n",
         )
         .unwrap();
+    }
+}
+
+/// One file of a Hub payload.
+fn file(path: &str, text: &str) -> SkillInstallFile {
+    SkillInstallFile {
+        path: path.to_string(),
+        bytes: text.as_bytes().to_vec(),
     }
 }
 
@@ -1414,4 +1423,191 @@ async fn a_project_is_read_and_written_inside_its_own_root() {
         .unwrap();
     let switched = fs::read_to_string(app.join(".mcp.json")).unwrap();
     assert!(switched.contains("mcpServersDisabled"), "{switched}");
+}
+
+/// A skill installed from the Hub is written whole, inside the skills directory the manifest
+/// declares, and nothing about it can escape that directory.
+#[tokio::test]
+async fn installing_a_hub_skill_writes_it_inside_the_declared_skills_directory() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+
+    let install = SkillInstall {
+        name: "PDF Toolkit".into(),
+        files: vec![
+            file(
+                "SKILL.md",
+                "---\nname: PDF Toolkit\ndescription: Fill forms\n---\n\n# PDF\n",
+            ),
+            file("scripts/fill.py", "print('fill')\n"),
+            file("references/spec.md", "# Spec\n"),
+        ],
+    };
+    let skill = adapter.install_skill(&context, &install).await.unwrap();
+
+    // The entry file is the one the agent looks for, and the directory is derived from the name.
+    let directory = fixture
+        .home
+        .join(".pipeline")
+        .join("skills")
+        .join("pdf-toolkit");
+    assert_eq!(skill.path, directory.to_string_lossy());
+    assert!(directory.join("SKILL.md").is_file());
+    assert!(directory.join("scripts/fill.py").is_file());
+    assert!(directory.join("references/spec.md").is_file());
+    assert!(skill.enabled && skill.removable);
+
+    // It is a first-class skill from the next read on, with the description from its own file.
+    let scanned = adapter.list_skills(&context).await.unwrap();
+    let installed = scanned
+        .iter()
+        .find(|candidate| candidate.name == "PDF Toolkit")
+        .expect("the installed skill is scanned");
+    assert!(installed.enabled);
+    assert_eq!(installed.description.as_deref(), Some("Fill forms"));
+
+    // A name that is already taken is refused instead of being merged into.
+    let error = adapter.install_skill(&context, &install).await.unwrap_err();
+    assert_eq!(error.code(), "invalid_input");
+
+    // The staging directory never survives a successful install.
+    let leftovers: Vec<_> = fs::read_dir(fixture.home.join(".pipeline/skills"))
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .filter(|name| name.contains("ahabby-installing"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+/// A payload that carries its own paths cannot be written outside the skill directory, and a
+/// payload without an entry file is not a skill at all.
+#[tokio::test]
+async fn a_hub_payload_cannot_write_outside_its_own_directory() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+
+    let catalog = catalog_for(&fixture);
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+    let context = fixture.context();
+    let skills = fixture.home.join(".pipeline/skills");
+
+    let escapes = [
+        "../escape.md",
+        "a/../../escape.md",
+        "/etc/escape.md",
+        "C:/escape.md",
+        "a\\escape.md",
+    ];
+    for path in escapes {
+        let install = SkillInstall {
+            name: "Escape".into(),
+            files: vec![
+                file("SKILL.md", "---\nname: Escape\n---\n"),
+                file(path, "nope\n"),
+            ],
+        };
+        let error = adapter.install_skill(&context, &install).await.unwrap_err();
+        assert_eq!(error.code(), "invalid_input", "accepted '{path}'");
+        assert!(
+            !skills.join("escape").exists(),
+            "wrote something for '{path}'"
+        );
+    }
+
+    // A hidden path is not an escape: it has to land inside the skill directory, not in the
+    // user's real `.ssh`.
+    let hidden = SkillInstall {
+        name: "Hidden".into(),
+        files: vec![
+            file("SKILL.md", "---\nname: Hidden\n---\n"),
+            file(".ssh/authorized_keys", "inside only\n"),
+        ],
+    };
+    let installed = adapter.install_skill(&context, &hidden).await.unwrap();
+    assert!(Path::new(&installed.path)
+        .join(".ssh/authorized_keys")
+        .is_file());
+    assert!(!fixture.home.join(".ssh").exists());
+
+    // Without an entry file there is nothing for an agent to load.
+    let no_entry = SkillInstall {
+        name: "No Entry".into(),
+        files: vec![file("notes.md", "# Notes\n")],
+    };
+    let error = adapter
+        .install_skill(&context, &no_entry)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "invalid_input");
+
+    // One file cannot be the parent of another.
+    let conflicting = SkillInstall {
+        name: "Conflict".into(),
+        files: vec![
+            file("SKILL.md", "---\nname: Conflict\n---\n"),
+            file("assets", "a file\n"),
+            file("assets/logo.svg", "<svg/>\n"),
+        ],
+    };
+    let error = adapter
+        .install_skill(&context, &conflicting)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), "invalid_input");
+
+    // Nothing of any of that is left behind.
+    assert!(!skills.join("escape").exists());
+    assert!(!skills.join("no-entry").exists());
+    assert!(!skills.join("conflict").exists());
+}
+
+/// The same install, into one of the user's projects: it lands inside the project, in the
+/// directory `catalog/project.toml` lists first, and the owner it reports is the project.
+#[tokio::test]
+async fn a_hub_skill_installs_into_a_project() {
+    let fixture = Fixture::new();
+    let root = fixture.home.join("code").join("app");
+    fs::create_dir_all(&root).unwrap();
+
+    let adapter = ahabby_lib::adapters::ProjectAdapter::new(
+        services::project::manifest().clone(),
+        root.clone(),
+    );
+    let context = fixture.context();
+    let skill = adapter
+        .install_skill(
+            &context,
+            &SkillInstall {
+                name: "deploy".into(),
+                files: vec![
+                    file("SKILL.md", "---\nname: deploy\n---\n"),
+                    file("run.sh", "echo deploy\n"),
+                ],
+            },
+        )
+        .await
+        .unwrap();
+
+    assert!(skill
+        .entry_path
+        .as_deref()
+        .unwrap()
+        .replace('\\', "/")
+        .ends_with("/app/.claude/skills/deploy/SKILL.md"));
+    assert!(root.join(".claude/skills/deploy/run.sh").is_file());
+    assert_eq!(
+        skill.agents[0].id,
+        ahabby_lib::domain::project_owner_id(&ahabby_lib::domain::ProjectFolder::normalize(
+            &root.to_string_lossy()
+        ))
+    );
 }

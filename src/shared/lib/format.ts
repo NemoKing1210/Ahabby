@@ -2,6 +2,16 @@
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const
 
+/**
+ * `true` when an optional number the backend sent is actually there.
+ *
+ * The generated bindings spell "the source did not say" as `null` (and a missing field as
+ * `undefined`), which is not a value to render — a caller has to narrow before it uses one.
+ */
+export function isKnownNumber(value: number | null | undefined): value is number {
+  return typeof value === 'number'
+}
+
 export function formatBytes(bytes: number | null | undefined): string | null {
   if (bytes === null || bytes === undefined) return null
   if (bytes < 1024) return `${bytes} B`

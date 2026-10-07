@@ -5,6 +5,7 @@
 
 pub mod agents;
 pub mod configs;
+pub mod hub;
 pub mod install;
 pub mod mcp;
 pub mod projects;

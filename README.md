@@ -58,6 +58,18 @@ Windows, macOS and Linux — built with Tauri v2 + React + TypeScript.
   (`command`/`args`/`env`) or remote (`url`/`headers`) — in the file's own format, leaving everything else in
   it untouched. In the Library you also pick the owner: one agent, or the shared `~/.agents` surface every
   installed agent reads.
+- **Installs from a Hub of published collections** when you do not want to write one yourself: the official
+  MCP registry plus four repositories of `SKILL.md` skills (Anthropic's, Superpowers, a large plugin-organised
+  set and Sentry's), one search box over all of them, each collection in its own section with its own paging
+  and its own failure. Install an entry **globally** (the shared `~/.agents` surface), **into an agent**, or
+  **inside one of your projects** — a skill arrives as a whole directory (scripts, templates and all), an MCP
+  server as one entry in the config file that owner already reads. Open an entry to read it first (the skill's
+  `SKILL.md` rendered, the exact file list, or how the server runs with the values it needs), or right-click it
+  for its page, its collection, its id and a re-read when the publisher has moved. The install dialog lists
+  every file it will write (calling out the ones an agent may run) or the launch recipe with the values the
+  publisher says are required, and nothing is written until you confirm. The collections are data: drop a TOML
+  file into `<app config>/hub/` to add a repository, the registry, or a JSON index of your own —
+  [`src-tauri/catalog/HUB.md`](src-tauri/catalog/HUB.md) documents the format.
 - **Edits configs safely:** validate → diff → timestamped backup → atomic write, and a refusal to overwrite
   a file that changed on disk since you opened it.
 - **Runs installs and updates with a visible command:** streamed output, cancellable, and only commands that
@@ -123,6 +135,7 @@ src/                     React app: app/ (shell) · features/ · shared/ (ui, ap
 src/shared/bindings/     TypeScript types generated from the Rust structs (do not edit)
 src-tauri/src/           Rust: domain · catalog · adapters · platform · services · commands
 src-tauri/catalog/builtin/*.toml   One file per agent — this is the whole "support matrix"
+src-tauri/catalog/hub/*.toml       One file per collection the Hub reads — the library's support matrix
 ```
 
 ## Adding an agent
@@ -133,11 +146,17 @@ Drop a TOML file into `src-tauri/catalog/builtin/` (or into `<app config>/catalo
 The schema is documented in [`src-tauri/catalog/SCHEMA.md`](src-tauri/catalog/SCHEMA.md) and the walkthrough
 is in [`CONTRIBUTING.md`](CONTRIBUTING.md#how-to-add-a-new-agent).
 
+The Hub follows the same rule one level out: a collection of skills or MCP servers is a TOML file in
+`src-tauri/catalog/hub/` (shipped) or `<app config>/hub/` (yours) — see
+[`src-tauri/catalog/HUB.md`](src-tauri/catalog/HUB.md), and check it against the live APIs with
+`cargo run --manifest-path src-tauri/Cargo.toml --example hub`.
+
 ## Documentation
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — layers, data flow, the safety model and the assumptions taken.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — development workflow and recipes (new agent, new command, new string).
 - [`src-tauri/catalog/SCHEMA.md`](src-tauri/catalog/SCHEMA.md) — manifest reference.
+- [`src-tauri/catalog/HUB.md`](src-tauri/catalog/HUB.md) — hub source reference (the Hub's collections).
 
 ## Licence
 

@@ -46,10 +46,16 @@ src/shared/ui/             design system (Radix primitives wrapped)
 src-tauri/src/             domain · catalog · adapters · platform · services · commands
 src-tauri/catalog/builtin/*.toml   one manifest per agent — the whole support matrix
 src-tauri/catalog/project.toml     the project surface — relative locations a project keeps resources in
+src-tauri/catalog/hub/*.toml       one collection the Hub reads — the library's support matrix
 ```
 
 Adding an agent = adding one TOML manifest. No Rust, no TypeScript. A project-level location is one entry in
 `catalog/project.toml`; a tool with several skills directories or MCP files uses `[[skills]]` / `[[mcp]]`.
+
+Adding a place the Hub reads a library from = adding one TOML **source** file under `catalog/hub/`
+(`<app config>/hub/` for a user's own). It only reads: an install goes through the same adapter calls as a
+hand-written skill or server, so a new collection needs no Rust and no TypeScript either — see
+`catalog/HUB.md`.
 
 ## Versioning
 

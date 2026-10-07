@@ -1,0 +1,22 @@
+# The official MCP registry — the largest index of published MCP servers there is.
+#
+# A `mcpRegistry` source is searched and paged by the registry itself
+# (`GET <url>/v0/servers?search=&cursor=&limit=`), so the whole catalogue is browsable without
+# downloading it: what Ahabby shows for one page is one request.
+#
+# SOURCE: https://registry.modelcontextprotocol.io (checked 2026-10-07)
+# SOURCE: https://modelcontextprotocol.io/registry/ — the registry API and its
+#   `/v0/servers` endpoint with `search`, `cursor`, `limit` and `updated_since` parameters
+#   (checked 2026-10-07)
+id = "mcp-registry"
+name = "MCP Registry"
+kind = "mcpRegistry"
+url = "https://registry.modelcontextprotocol.io"
+provides = ["mcp"]
+vendor = "Model Context Protocol"
+homepage = "https://registry.modelcontextprotocol.io"
+docs = "https://modelcontextprotocol.io/registry/"
+description = """The official registry of published MCP servers: local ones run through npx, uvx,
+docker or dnx, and remote ones reached over HTTP. Ahabby pre-fills a server's command, arguments
+and environment variables from what the publisher declared, and you review them before anything
+is written."""

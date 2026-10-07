@@ -1,0 +1,16 @@
+# Sentry's own skills — a small, production-tested set from a large codebase.
+#
+# SOURCE: https://github.com/getsentry/skills (checked 2026-10-07) — `skills/<name>/SKILL.md`;
+#   the repository declares the Apache-2.0 license.
+id = "sentry-skills"
+name = "Sentry Skills"
+kind = "githubSkills"
+repository = "getsentry/skills"
+path = "skills"
+provides = ["skill"]
+vendor = "Sentry"
+homepage = "https://github.com/getsentry/skills"
+license = "Apache-2.0"
+description = """The skills the Sentry team uses on its own repository: code review, code
+simplification, commit and PR conventions, and the AGENTS.md bootstrap they run in every
+checkout."""

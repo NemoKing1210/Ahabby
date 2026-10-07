@@ -14,6 +14,12 @@ import type { BackupEntry } from '@/shared/bindings/BackupEntry'
 import type { ConfigSnapshot } from '@/shared/bindings/ConfigSnapshot'
 import type { DiffPreview } from '@/shared/bindings/DiffPreview'
 import type { HiddenAgent } from '@/shared/bindings/HiddenAgent'
+import type { HubEntryDetail } from '@/shared/bindings/HubEntryDetail'
+import type { HubInstall } from '@/shared/bindings/HubInstall'
+import type { HubInstallRequest } from '@/shared/bindings/HubInstallRequest'
+import type { HubPage } from '@/shared/bindings/HubPage'
+import type { HubQuery } from '@/shared/bindings/HubQuery'
+import type { HubSourceCatalog } from '@/shared/bindings/HubSourceCatalog'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
 import type { InstallPlan } from '@/shared/bindings/InstallPlan'
 import type { Library } from '@/shared/bindings/Library'
@@ -77,6 +83,19 @@ export const ipc = {
     invoke<MutationResult<SkillRemoval>>('delete_skill', { agentId, skillId, confirm }),
   setSkillEnabled: (agentId: string, skillId: string, enabled: boolean) =>
     invoke<MutationResult<SkillToggle>>('set_skill_enabled', { agentId, skillId, enabled }),
+
+  // --- hub ----------------------------------------------------------------------------
+  /** The collections the hub reads, plus the ones that failed to load. */
+  listHubSources: () => invoke<HubSourceCatalog>('list_hub_sources'),
+  /** One page of one source. The cursor comes from the previous page's report. */
+  searchHub: (sourceId: string, query: HubQuery) =>
+    invoke<HubPage>('search_hub', { sourceId, query }),
+  /** One entry: its files (a skill) or its launch recipe (an MCP server). */
+  getHubEntry: (entryId: string, refresh = false) =>
+    invoke<HubEntryDetail>('get_hub_entry', { entryId, refresh }),
+  /** Install one entry for an owner the scan knows (`shared`, an agent, or `project:<hash>`). */
+  installHubResource: (request: HubInstallRequest) =>
+    invoke<MutationResult<HubInstall>>('install_hub_resource', { request }),
 
   // --- projects -----------------------------------------------------------------------
   /** Adds a folder to the Projects screen and rescans it; nothing on disk is touched. */

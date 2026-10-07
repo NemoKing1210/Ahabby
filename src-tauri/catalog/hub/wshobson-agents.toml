@@ -1,0 +1,20 @@
+# A large, multi-plugin skill marketplace.
+#
+# Every skill of this repository lives in its own directory (`plugins/<plugin>/skills/<skill>/`)
+# with no common ancestor, so no `path` filter is declared: every `SKILL.md` directory is one
+# entry. Nested skills would not be a problem either — the reader takes the shallowest directory
+# that holds a `SKILL.md` and everything below it belongs to that skill.
+#
+# SOURCE: https://github.com/wshobson/agents (checked 2026-10-07) — 184 `SKILL.md` directories
+#   under `plugins/*/skills/*`; the repository declares the MIT license.
+id = "wshobson-agents"
+name = "Agentic Skills"
+kind = "githubSkills"
+repository = "wshobson/agents"
+provides = ["skill"]
+vendor = "wshobson"
+homepage = "https://github.com/wshobson/agents"
+license = "MIT"
+description = """A wide, plugin-organised collection: accessibility audits, agent-team patterns,
+language deep dives, document pipelines, testing strategies. The largest single source of skills
+Ahabby ships with."""

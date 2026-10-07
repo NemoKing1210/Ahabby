@@ -1,0 +1,21 @@
+# Anthropic's own Agent Skills collection — the reference set for the `SKILL.md` convention.
+#
+# A `githubSkills` source is read as one tarball of the repository, so the whole collection
+# arrives in a single request and an install needs nothing else: every directory holding a
+# `SKILL.md` (under `path`) becomes one entry.
+#
+# SOURCE: https://github.com/anthropics/skills (checked 2026-10-07) — `skills/<name>/SKILL.md`,
+#   with the files a skill needs next to it (scripts, templates, references)
+id = "anthropic-skills"
+name = "Anthropic Skills"
+kind = "githubSkills"
+repository = "anthropics/skills"
+path = "skills"
+provides = ["skill"]
+vendor = "Anthropic"
+homepage = "https://github.com/anthropics/skills"
+docs = "https://code.claude.com/docs/en/skills"
+license = "See each skill's LICENSE.txt"
+description = """Document skills (pdf, docx, xlsx, pptx), the artifact builders and the webapp
+testing toolkit — the skills Anthropic itself publishes and maintains, each with the scripts and
+templates it needs."""

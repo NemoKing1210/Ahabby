@@ -188,6 +188,44 @@ today (a tool that reads MCP from two files, and the project surface). Try to ma
 `ManifestAdapter` handle the new shape first; MCP normalisation in `adapters/mcp_parse.rs` exists for precisely
 that reason.
 
+## How to add a hub source
+
+The Hub reads _collections_, and a collection is one TOML file too. For a repository of `SKILL.md`
+directories it is three fields:
+
+```toml
+# src-tauri/catalog/hub/example-skills.toml
+# SOURCE: https://github.com/owner/repo (checked 2026-10-07) — skills/<name>/SKILL.md
+id = "example-skills"
+name = "Example Skills"
+kind = "githubSkills"
+repository = "owner/repo"
+path = "skills"
+exclude = ["skills/template"]
+provides = ["skill"]
+vendor = "Owner"
+homepage = "https://github.com/owner/repo"
+license = "MIT"
+description = """One paragraph under the heading."""
+```
+
+`kind = "mcpRegistry"` takes a `url` instead and reads the official MCP registry (searched and paged
+server side); `kind = "index"` takes a `url` pointing at a JSON document that lists entries explicitly.
+Every field, the index format and the limits a source is held to are in
+[`src-tauri/catalog/HUB.md`](src-tauri/catalog/HUB.md).
+
+Verify it against the live API — this reads the collection, opens one entry of each kind and fetches one
+skill's files, without launching the app and without writing anything:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml catalog::hub::
+cargo run --manifest-path src-tauri/Cargo.toml --example hub -- --limit 3 --payload
+```
+
+Then open `npm run tauri dev` → **Hub**: the collection must appear as its own section, list the entries
+with their descriptions, and install one of them into every kind of owner (shared, an agent, a project).
+A user's own source goes into `<app config>/hub/` and replaces a built-in one with the same `id`.
+
 ## Icons
 
 `app-icon.png` in the repository root is the source of the platform icons. After changing it, run:

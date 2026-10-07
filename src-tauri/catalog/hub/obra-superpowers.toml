@@ -1,0 +1,15 @@
+# The `superpowers` skill framework — a large, opinionated set of development skills.
+#
+# SOURCE: https://github.com/obra/superpowers (checked 2026-10-07) — `skills/<name>/SKILL.md`;
+#   the repository declares the MIT license.
+id = "obra-superpowers"
+name = "Superpowers"
+kind = "githubSkills"
+repository = "obra/superpowers"
+path = "skills"
+provides = ["skill"]
+vendor = "Jesse Vincent"
+homepage = "https://github.com/obra/superpowers"
+license = "MIT"
+description = """Brainstorming, planning, TDD, code review and debugging skills that compose into
+a working method: each one is a `SKILL.md` the agent loads when its trigger matches."""

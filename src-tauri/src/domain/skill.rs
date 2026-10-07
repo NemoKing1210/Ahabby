@@ -85,6 +85,28 @@ pub struct SkillDraft {
     pub content: Option<String>,
 }
 
+/// A skill whose files come from somewhere other than a form: the Hub.
+///
+/// Unlike [`SkillDraft`] the payload is not rendered — its `SKILL.md` is what the agent will
+/// read, exactly as the collection published it — so the adapter writes every file under a
+/// directory derived from `name` and nothing else.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillInstall {
+    /// Human-readable name; the directory name is derived from it.
+    pub name: String,
+    /// Skill-relative path → contents. One of them must be the `SKILL.md` entry file.
+    pub files: Vec<SkillInstallFile>,
+}
+
+/// One file of a [`SkillInstall`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillInstallFile {
+    /// `/`-separated path inside the skill directory (`scripts/render.py`).
+    pub path: String,
+    /// The bytes to write. A skill may ship a font or an archive as readily as a script.
+    pub bytes: Vec<u8>,
+}
+
 /// Short, stable, collision-resistant-enough hash used in ids.
 pub fn short_hash(value: &str) -> String {
     use sha2::{Digest, Sha256};

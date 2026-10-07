@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use crate::domain::{
     AgentManifest, ConfigFile, ConfigFormat, ConfigSpec, Detection, InstallAction, InstallPlan,
     Manager, McpEntryShape, McpServer, McpServerDraft, McpSpec, OtherResource, OtherSpec, Scope,
-    Skill, SkillDraft, SkillFormat, Version,
+    Skill, SkillDraft, SkillFormat, SkillInstall, SkillInstallFile, Version,
 };
 use crate::error::{AppError, Result};
 use crate::platform::{self, PlatformContext};
@@ -24,6 +24,8 @@ use super::{
 };
 
 const SKILL_FILE_NAMES: &[&str] = &["SKILL.md", "skill.md", "README.md", "readme.md"];
+/// The file that makes a directory a skill: what every agent looks for by that exact name.
+const SKILL_ENTRY_FILE: &str = "SKILL.md";
 const OTHER_GLOB_DEPTH: usize = 3;
 
 /// Suffix a skill's entry file carries while the skill is switched off.
@@ -149,6 +151,56 @@ fn yaml_scalar(value: &str) -> String {
         .unwrap_or_else(|_| format!("{value:?}"))
         .trim_end()
         .to_string()
+}
+
+/// Every file of a Hub payload, checked and split so the entry file can be written last.
+///
+/// A payload is third-party content whose paths become real files inside a skills directory, so
+/// each one must be a plain relative path — and a set in which one path is the parent of another
+/// cannot be written at all, because the second would have nowhere to go.
+fn planned_skill_files(
+    files: &[SkillInstallFile],
+) -> Result<(SkillInstallFile, Vec<(PathBuf, SkillInstallFile)>)> {
+    let mut entry: Option<SkillInstallFile> = None;
+    let mut others: Vec<(PathBuf, SkillInstallFile)> = Vec::new();
+    let mut seen: Vec<PathBuf> = Vec::new();
+
+    for file in files {
+        let path = file.path.trim();
+        if !crate::domain::plain_relative_path(path) {
+            return Err(AppError::InvalidInput(format!(
+                "'{}' is not a path a skill may contain",
+                file.path
+            )));
+        }
+        let relative = PathBuf::from(path);
+        if seen.contains(&relative) {
+            return Err(AppError::InvalidInput(format!(
+                "'{path}' is declared twice"
+            )));
+        }
+        if seen
+            .iter()
+            .any(|existing| relative.starts_with(existing) || existing.starts_with(&relative))
+        {
+            return Err(AppError::InvalidInput(format!(
+                "'{path}' conflicts with another file of the same skill"
+            )));
+        }
+        seen.push(relative);
+        if path == SKILL_ENTRY_FILE {
+            entry = Some(file.clone());
+        } else {
+            others.push((PathBuf::from(path), file.clone()));
+        }
+    }
+
+    let entry = entry.ok_or_else(|| {
+        AppError::InvalidInput(format!(
+            "this skill has no {SKILL_ENTRY_FILE}, which is what an agent looks for"
+        ))
+    })?;
+    Ok((entry, others))
 }
 
 /// The content a config file starts with when Ahabby creates it to hold its first entry.
@@ -904,6 +956,68 @@ impl AgentAdapter for ManifestAdapter {
         let entry = directory.join("SKILL.md");
         let content = render_skill(name, draft.description.as_deref(), draft.content.as_deref());
         platform::write_atomic(&entry, &content, Some(&ctx.backup_root))?;
+
+        let unverified = is_unverified(&self.manifest, "skills.path");
+        self.skill_from_directory(&directory, format, unverified)
+            .ok_or_else(|| {
+                AppError::other("the skill was written but could not be read back".to_string())
+            })
+    }
+
+    /// Install a skill whose files come from the Hub.
+    ///
+    /// The payload is written exactly as it was published — `SKILL.md` is the agent's entry file,
+    /// and the scripts, templates and fonts next to it are part of the skill — into a directory
+    /// derived from the name. Two properties are what make a third-party payload safe to write:
+    ///
+    /// * every path is a plain relative one, so no file of a repository can land outside the
+    ///   skill directory (and a set that would make one file the parent of another is refused);
+    /// * the directory is written as a whole and renamed into place with `SKILL.md` written
+    ///   last, so an interrupted install leaves nothing an agent would load.
+    async fn install_skill(&self, ctx: &PlatformContext, install: &SkillInstall) -> Result<Skill> {
+        let (root, format) = self.writable_skills_root(ctx)?;
+        let name = install.name.trim();
+        if name.is_empty() {
+            return Err(AppError::InvalidInput("a skill needs a name".to_string()));
+        }
+        let slug = skill_slug(name);
+        if slug.is_empty() {
+            return Err(AppError::InvalidInput(
+                "the skill name must contain at least one letter or digit".to_string(),
+            ));
+        }
+
+        let directory = root.join(&slug);
+        if directory.exists() {
+            return Err(AppError::InvalidInput(format!(
+                "{} already exists",
+                directory.display()
+            )));
+        }
+        let (entry_file, others) = planned_skill_files(&install.files)?;
+
+        let staging = root.join(format!(".{slug}.ahabby-installing"));
+        if staging.exists() {
+            // Only ever our own leftovers: a run that died between the writes and the rename.
+            std::fs::remove_dir_all(&staging).map_err(|error| AppError::io(&staging, error))?;
+        }
+        // Not `?`: a failure half way through has to clean the staging directory up, or a later
+        // install of the same name would find it.
+        let write = (|| -> Result<()> {
+            for (relative, file) in &others {
+                platform::write_atomic_bytes(&staging.join(relative), &file.bytes, None)?;
+            }
+            platform::write_atomic_bytes(&staging.join(&entry_file.path), &entry_file.bytes, None)
+                .map(|_| ())
+        })();
+        if let Err(error) = write {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(error);
+        }
+        if let Err(error) = std::fs::rename(&staging, &directory) {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(AppError::io(&directory, error));
+        }
 
         let unverified = is_unverified(&self.manifest, "skills.path");
         self.skill_from_directory(&directory, format, unverified)

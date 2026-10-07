@@ -19,8 +19,8 @@ use crate::domain::{
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
 use crate::services::{
-    self, JobOutcome, JobOutputEvent, JobRunner, JobSink, ScanCache, ScanReport, ScanSink, Scanner,
-    Settings, SettingsService, TerminalManager, TerminalSink, VersionChecker,
+    self, HubService, JobOutcome, JobOutputEvent, JobRunner, JobSink, ScanCache, ScanReport,
+    ScanSink, Scanner, Settings, SettingsService, TerminalManager, TerminalSink, VersionChecker,
 };
 
 /// Event names the frontend listens to. Kept in one place so both sides cannot drift.
@@ -190,6 +190,7 @@ pub struct AppState {
     jobs: Arc<JobRunner>,
     terminals: Arc<TerminalManager>,
     versions: RwLock<Arc<VersionChecker>>,
+    hub: RwLock<Arc<HubService>>,
 }
 
 impl AppState {
@@ -207,6 +208,12 @@ impl AppState {
         let current = settings.get();
         let proxy = proxy_or_default(&current);
         let catalog = Self::load_catalog(&app_config);
+
+        // The Hub's own sources live next to the user's manifests, and the directory exists from
+        // the first run: the Hub screen points the user at it as the place to drop one.
+        if let Err(error) = std::fs::create_dir_all(app_config.join("hub")) {
+            warn!("could not create the hub source directory: {error}");
+        }
 
         // A restart must not show skeletons again: seed the scanner with the previous run's
         // report from disk (if any) so the first read answers instantly, then let the normal
@@ -226,6 +233,7 @@ impl AppState {
                 current.version_cache_minutes,
                 &proxy,
             ))),
+            hub: RwLock::new(Arc::new(HubService::new(&proxy))),
             scan_sink: Arc::new(TauriScanSink { app: app.clone() }),
             scanner,
             scan_cache,
@@ -258,6 +266,10 @@ impl AppState {
                 saved.version_cache_minutes,
                 &proxy,
             ));
+        }
+        // The hub's cache stays valid — a proxy change is about the connection, not the data.
+        if let Ok(hub) = self.hub.read() {
+            hub.set_proxy(&proxy);
         }
         Ok(saved)
     }
@@ -293,6 +305,22 @@ impl AppState {
 
     pub fn user_catalog_dir(&self) -> PathBuf {
         self.app_config.join("catalog")
+    }
+
+    /// The Hub, whose requests go out through the same proxy as every other network call.
+    ///
+    /// Unlike the version checks it is not a background feature — a user opening the Hub screen
+    /// asked for it — so it stays available whatever `network_version_checks` says.
+    pub fn hub(&self) -> Arc<HubService> {
+        match self.hub.read() {
+            Ok(hub) => Arc::clone(&hub),
+            Err(poisoned) => Arc::clone(&poisoned.into_inner()),
+        }
+    }
+
+    /// The hub's sources: the builtin ones merged with the user's own from `<config>/hub`.
+    pub fn hub_sources(&self) -> crate::domain::HubSourceCatalog {
+        self.hub().sources(&self.app_config.join("hub"))
     }
 
     /// Reload the catalog from disk (user manifests may have changed) and scan.

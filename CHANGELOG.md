@@ -5,6 +5,37 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] - 2026-10-07
+
+### Added
+
+- **A Hub for skills and MCP servers.** A new screen lists large, always-growing collections — the official
+  MCP registry and four repositories of `SKILL.md` skills (Anthropic's, Superpowers, a large plugin-organised
+  set and Sentry's) — with one search box over all of them. Each collection is its own section with its own
+  paging, and a collection that is slow or down is a note under its own heading instead of an empty screen.
+- **Install into the owner you choose.** One entry can be installed globally (the shared `~/.agents` surface
+  every installed agent reads), into one installed agent, or inside one of your projects — a skill arrives as
+  a whole directory including its scripts and templates, an MCP server as one entry in the config file that
+  owner already reads, written in that agent's own shape.
+- **A review step before anything is written.** The install dialog lists every file the payload would write
+  (naming the ones an agent may run), or the exact launch recipe — command, arguments and the environment
+  variables or headers the publisher says are required, pre-filled and editable. The backend refuses an
+  install that was not confirmed, and a payload path that would step outside the skill's own directory is
+  rejected before a byte lands.
+- **Read an entry before you install it.** Opening a card (or choosing Preview in its right-click menu) shows
+  what the payload _is_ — the instructions themselves (`SKILL.md` rendered, with its frontmatter), the exact
+  file list, or how a server is launched with the values it needs. The menu also carries the entry's own page,
+  the collection it came from, its id, and re-reading it from the collection when a publisher has moved.
+- **Hub sources are declarative.** Dropping a TOML file into `<app config>/hub/` adds a collection of your
+  own — a GitHub repository of skills, the MCP registry, or a published JSON index — and a file with the same
+  id replaces a built-in one. `src-tauri/catalog/HUB.md` documents the format, and
+  `cargo run --example hub` reads every source over the network without launching the app.
+
+### Changed
+
+- The MCP registry is asked for the latest version of each server only, so a page of the Hub is as full as
+  the page size it asked for.
+
 ## [0.25.1] - 2026-10-06
 
 ### Fixed

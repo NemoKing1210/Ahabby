@@ -16,7 +16,7 @@ pub mod window;
 
 pub use file_io::{
     backup_dir_for, create_backup, list_backups, modified_ms, read_text, sha256_file, sha256_hex,
-    write_atomic, WriteOutcome,
+    write_atomic, write_atomic_bytes, WriteOutcome,
 };
 pub use packages::{detect_managers, PackageManager};
 pub use paths::{expand_template, PlatformContext};

@@ -7,6 +7,7 @@ pub mod agent;
 pub mod catalog;
 pub mod config;
 pub mod fact;
+pub mod hub;
 pub mod library;
 pub mod manifest;
 pub mod mcp;
@@ -28,6 +29,11 @@ pub use agent::{
 pub use catalog::CatalogProblem;
 pub use config::{BackupEntry, ConfigFile, ConfigFormat, ConfigSnapshot, DiffPreview, SaveResult};
 pub use fact::{ConfigFact, FactKind};
+pub use hub::{
+    plain_git_ref, plain_relative_path, plain_repository, HubEntry, HubEntryDetail, HubFileInfo,
+    HubFileKind, HubInput, HubInstall, HubInstallRequest, HubPage, HubPreview, HubQuery,
+    HubResourceKind, HubSource, HubSourceCatalog, HubSourceKind, HubSourceReport,
+};
 pub use library::{Library, LibraryStats};
 pub use manifest::{
     AgentManifest, BinarySpec, ConfigSpec, InstallMethodSpec, Manager, ManifestProblem,
@@ -44,7 +50,7 @@ pub use proxy::{Proxy, ProxyMode};
 pub use resource::OtherResource;
 pub use scope::Scope;
 pub use shared::{SharedResources, SHARED_OWNER_ID};
-pub use skill::{FrontmatterEntry, Skill, SkillDraft};
+pub use skill::{FrontmatterEntry, Skill, SkillDraft, SkillInstall, SkillInstallFile};
 pub use terminal::{
     TerminalCapability, TerminalCatalog, TerminalExit, TerminalKind, TerminalOption,
     TerminalOutput, TerminalSession,

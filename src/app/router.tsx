@@ -3,6 +3,7 @@ import { Navigate, RouterProvider, createHashRouter } from 'react-router-dom'
 import { AgentPage } from '@/features/agents/pages/AgentPage'
 import { AgentsPage } from '@/features/agents/pages/AgentsPage'
 import { HomePage } from '@/features/home/pages/HomePage'
+import { HubPage } from '@/features/hub/pages/HubPage'
 import { LibraryPage } from '@/features/library/pages/LibraryPage'
 import { ProjectPage } from '@/features/projects/pages/ProjectPage'
 import { ProjectsPage } from '@/features/projects/pages/ProjectsPage'
@@ -30,6 +31,7 @@ const router = createHashRouter([
       { path: 'agents', element: <AgentsPage /> },
       { path: 'agents/:agentId', element: <AgentPage /> },
       { path: 'library', element: <LibraryPage /> },
+      { path: 'hub', element: <HubPage /> },
       { path: 'projects', element: <ProjectsPage /> },
       { path: 'projects/:projectId', element: <ProjectPage /> },
       ...settingsRoutes,

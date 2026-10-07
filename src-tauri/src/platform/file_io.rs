@@ -124,6 +124,19 @@ pub fn write_atomic(
     content: &str,
     backup_root: Option<&Path>,
 ) -> Result<WriteOutcome> {
+    write_atomic_bytes(path, content.as_bytes(), backup_root)
+}
+
+/// The same write for bytes rather than text.
+///
+/// A skill installed from the Hub is not always text — it may ship a font, a template or an
+/// archive — and every write in Ahabby goes through one atomic path, so this is that path rather
+/// than a second one that would have to repeat the backup and `fsync` rules.
+pub fn write_atomic_bytes(
+    path: &Path,
+    bytes: &[u8],
+    backup_root: Option<&Path>,
+) -> Result<WriteOutcome> {
     let parent = path.parent().ok_or_else(|| {
         AppError::InvalidInput(format!("{} has no parent directory", path.display()))
     })?;
@@ -148,7 +161,7 @@ pub fn write_atomic(
             use std::io::Write;
             let mut file = std::fs::File::create(&temp_path)
                 .map_err(|error| AppError::io(&temp_path, error))?;
-            file.write_all(content.as_bytes())
+            file.write_all(bytes)
                 .map_err(|error| AppError::io(&temp_path, error))?;
             file.sync_all()
                 .map_err(|error| AppError::io(&temp_path, error))?;
@@ -167,8 +180,8 @@ pub fn write_atomic(
     }
 
     Ok(WriteOutcome {
-        sha256: sha256_hex(content.as_bytes()),
-        size_bytes: content.len() as u64,
+        sha256: sha256_hex(bytes),
+        size_bytes: bytes.len() as u64,
         modified_ms: modified_ms(path).unwrap_or_else(now_ms),
         backup_path: backup_path.map(|path| path.to_string_lossy().to_string()),
         created: !existed,
