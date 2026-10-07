@@ -54,8 +54,8 @@ const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.home', icon: House, end: true },
   { to: '/agents', labelKey: 'nav.agents', icon: Boxes, end: false },
   { to: '/projects', labelKey: 'nav.projects', icon: FolderGit2, end: false },
-  { to: '/hub', labelKey: 'nav.hub', icon: Store, end: false },
   { to: '/library', labelKey: 'nav.library', icon: Library, end: false },
+  { to: '/hub', labelKey: 'nav.hub', icon: Store, end: false },
   { to: '/settings', labelKey: 'nav.settings', icon: SettingsIcon, end: false },
 ] as const
 

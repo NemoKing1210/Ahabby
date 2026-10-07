@@ -5,6 +5,13 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.4] - 2026-10-07
+
+### Changed
+
+- **The sidebar lists the Hub after the Library**, so the two collections of what can be installed read
+  next to each other instead of the Hub standing between Projects and the Library.
+
 ## [0.28.3] - 2026-10-07
 
 ### Changed
