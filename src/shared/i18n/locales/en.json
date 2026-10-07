@@ -438,6 +438,8 @@
     },
     "tags": "Tags",
     "tagFilter": "Filter by tag",
+    "moreTags": "Show {{count}} more",
+    "fewerTags": "Collapse",
     "source": "Source",
     "sourceAll": "All sources",
     "refresh": "Refresh",

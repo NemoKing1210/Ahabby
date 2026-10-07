@@ -438,6 +438,8 @@
     },
     "tags": "Теги",
     "tagFilter": "Фильтр по тегам",
+    "moreTags": "Показать ещё {{count}}",
+    "fewerTags": "Свернуть",
     "source": "Источник",
     "sourceAll": "Все источники",
     "refresh": "Обновить",

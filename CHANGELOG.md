@@ -5,6 +5,20 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.1] - 2026-10-07
+
+### Added
+
+- **Every tag has a colour of its own.** A tag is painted from its own name — the same hue on a card, in the
+  filter row and in the install dialog, in both themes — so a subject is recognisable at a glance instead of
+  being read.
+
+### Changed
+
+- **The tag filter folds.** The row shows the first few tags with the rest behind a button, so the library
+  itself stays on screen; a tag that is switched on is never hidden by the fold, since its chip is the only
+  way to switch it off again.
+
 ## [0.28.0] - 2026-10-07
 
 ### Added

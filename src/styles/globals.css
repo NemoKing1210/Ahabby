@@ -59,6 +59,12 @@
      shadow, deliberately weaker than a popover so a dialog still reads as the top layer. */
   --ah-shadow-panel: 0 20px 44px -30px rgb(20 20 19 / 0.3), 0 2px 6px -3px rgb(20 20 19 / 0.07);
 
+  /* A hub tag's own colour: the hue and the tone are the tag's name (`shared/lib/tagColor.ts`),
+     these two are the theme's, so one tag keeps one colour that is still readable in either
+     theme. Kept low in chroma on purpose — a row of tags is metadata, not a fruit stand. */
+  --ah-tag-l: 44%;
+  --ah-tag-c: 0.08;
+
   color-scheme: light;
 }
 
@@ -91,6 +97,11 @@
   --ah-overlay: rgb(10 10 10 / 0.6);
   --ah-shadow-popover: 0 12px 32px -12px rgb(0 0 0 / 0.55);
   --ah-shadow-panel: 0 20px 44px -28px rgb(0 0 0 / 0.62), 0 2px 8px -4px rgb(0 0 0 / 0.45);
+
+  /* The same tags, lit for a dark surface: lighter and a touch more saturated, else a low-chroma
+     ink on a dark background reads as grey. */
+  --ah-tag-l: 76%;
+  --ah-tag-c: 0.09;
 
   color-scheme: dark;
 }
@@ -622,4 +633,31 @@
   pointer-events: none;
   background: var(--ah-accent-soft);
   animation: ah-scan-land 1100ms var(--ease-warm) both;
+}
+
+/* A tag's own colour. The hue arrives as `--ah-tag-hue` (an inline style, hashed from the name in
+   `shared/lib/tagColor.ts`), the lightness and the chroma are the theme's — so one tag looks the
+   same in both themes and everywhere it appears: the filter row, a card, a dialog.
+   Unlayered on purpose, so it replaces the pill's own border/surface/text utilities instead of
+   competing with them, and the `--ah-*` tokens are used directly: the `--color-*` aliases are
+   resolved on `:root` and would freeze a subtree to the theme it was created in. */
+.ah-tag {
+  --ah-tag-ink: oklch(
+    var(--ah-tag-l) calc(var(--ah-tag-c) * var(--ah-tag-tone, 1)) var(--ah-tag-hue)
+  );
+  color: var(--ah-tag-ink);
+  border-color: color-mix(in oklab, var(--ah-tag-ink) 38%, transparent);
+  background-color: color-mix(in oklab, var(--ah-tag-ink) 9%, transparent);
+}
+
+/* A tag the row shows is a toggle: it still answers the pointer, which the colours above would
+   otherwise have muted away. */
+.ah-tag:not([aria-pressed='true']):hover {
+  border-color: color-mix(in oklab, var(--ah-tag-ink) 55%, transparent);
+  background-color: color-mix(in oklab, var(--ah-tag-ink) 15%, transparent);
+}
+
+.ah-tag[aria-pressed='true'] {
+  border-color: color-mix(in oklab, var(--ah-tag-ink) 62%, transparent);
+  background-color: color-mix(in oklab, var(--ah-tag-ink) 22%, transparent);
 }

@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.28.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.28.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -334,6 +334,12 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   `index` document are filtered before the page is cut, the registry — which pages server-side and gives its
   records no tags of their own — only from the page it answered, and a filter its vocabulary cannot answer is
   answered from the source file without a request at all.
+- **A hub tag's colour is hashed out of its name, and the theme decides the rest.** `shared/lib/tagColor.ts`
+  turns the name into `--ah-tag-hue` and `--ah-tag-tone` (an inline style on the chip or the badge), and the
+  unlayered `.ah-tag` in `globals.css` paints `oklch()` from those plus the theme's `--ah-tag-l` / `--ah-tag-c`
+  — so one tag keeps one colour in every theme and in every place it appears (the filter row, a card, a
+  dialog), and no component ever carries a hex of its own. The filter row shows the first few tags and folds
+  the rest behind a button, but never hides a tag that is switched on.
 - `services::hub` is rebuilt on a settings save (`HubService::set_proxy`) the way the version checker is: a
   proxy change is about the connection, not the cached data. Its HTTP client follows `Settings::proxy` exactly
   like the version checker's (`None` → `no_proxy`, `System` → environment, `Manual` → one URL).

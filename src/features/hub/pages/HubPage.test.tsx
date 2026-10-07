@@ -10,6 +10,7 @@ import type { HubPage as HubPageResult } from '@/shared/bindings/HubPage'
 import type { HubSource } from '@/shared/bindings/HubSource'
 import type { HubSourceReport } from '@/shared/bindings/HubSourceReport'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
+import { tagHue } from '@/shared/lib/tagColor'
 import { renderWithProviders } from '@/test/render'
 
 import { HubPage } from './HubPage'
@@ -403,6 +404,12 @@ describe('HubPage', () => {
     expect(within(card).getByText('documents')).toBeTruthy()
     expect(within(card).getByText('design')).toBeTruthy()
 
+    // Both the card's badge and the row's chip wear the tag's own colour, hashed out of its name.
+    expect(within(card).getByText('documents').className).toContain('ah-tag')
+    const chip = screen.getByRole('button', { name: 'documents' })
+    expect(chip.className).toContain('ah-tag')
+    expect(chip.style.getPropertyValue('--ah-tag-hue')).toBe(String(tagHue('documents')))
+
     // The chips are the tags the source declares, so a subject can be picked without reading a
     // second collection; picking one asks the backend for it.
     vi.mocked(ipc.searchHub).mockClear()
@@ -421,6 +428,51 @@ describe('HubPage', () => {
         tags: ['documents', 'development'],
       })
     })
+  })
+
+  it('folds the tag row, and keeps a switched-on tag in sight', async () => {
+    const user = userEvent.setup()
+    const many = [
+      'alpha',
+      'beta',
+      'gamma',
+      'delta',
+      'epsilon',
+      'zeta',
+      'eta',
+      'theta',
+      'iota',
+      'kappa',
+      'lambda',
+      'mu',
+    ]
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      // Only the tags this test declares: the fixture's own rule would add a thirteenth, and the
+      // numbers below are the point of the test.
+      sources: [{ ...SKILLS_SOURCE, tags: many, tagRules: [] }],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    const group = screen.getByRole('group', { name: 'Filter by tag' })
+    const row = () =>
+      within(group)
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    // The row starts folded: eight tags, and how many are behind the button.
+    expect(row()).toEqual([...many.slice(0, 8), 'Show 4 more'])
+
+    // …and the whole list is one click away, in the order the sources declare it.
+    await user.click(within(group).getByRole('button', { name: 'Show 4 more' }))
+    expect(row()).toEqual([...many, 'Collapse'])
+
+    // A tag picked from the full list stays in the row after it folds: it is the only chip that
+    // can switch that filter off again.
+    await user.click(within(group).getByRole('button', { name: 'mu' }))
+    await user.click(within(group).getByRole('button', { name: 'Collapse' }))
+    expect(row()).toEqual([...many.slice(0, 8), 'mu', 'Show 3 more'])
   })
 
   it('offers the card actions from the context menu, including re-reading the collection', async () => {

@@ -5,6 +5,7 @@ import { ipc } from '@/shared/api/ipc'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubFileInfo } from '@/shared/bindings/HubFileInfo'
 import { formatBytes, isKnownNumber } from '@/shared/lib/format'
+import { tagColor } from '@/shared/lib/tagColor'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
@@ -57,13 +58,15 @@ export function HubEntryLinks({ entry, docs }: { entry: HubEntry; docs?: string 
  *
  * The tags are the publisher's and the source file's own words, shown verbatim: they are the same
  * strings the toolbar filters by, so translating them would break the one link between the two.
+ * Each one wears its own colour — the same hue on the card, in the filter row and in every dialog,
+ * because the colour is hashed out of the tag's name rather than assigned by position.
  */
 export function HubTagList({ entry }: { entry: HubEntry }) {
   if (entry.tags.length === 0) return null
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {entry.tags.map((tag) => (
-        <Badge key={tag} tone="outline">
+        <Badge key={tag} tone="outline" className="ah-tag" style={tagColor(tag)}>
           {tag}
         </Badge>
       ))}
