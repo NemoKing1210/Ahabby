@@ -41,8 +41,8 @@ type AnsiPalette = Pick<
   | 'brightWhite'
 >
 
-/** `#rgb` / `#rrggbb` → `rgb(… / alpha)`; `undefined` when the value is not a hex. */
-export function withAlpha(color: string, alpha: number): string | undefined {
+/** The channels of `#rgb` / `#rrggbb`; `undefined` when the value is not a hex. */
+function channels(color: string): [number, number, number] | undefined {
   const hex = color.trim().replace(/^#/, '')
   const full =
     hex.length === 3
@@ -52,10 +52,45 @@ export function withAlpha(color: string, alpha: number): string | undefined {
           .join('')
       : hex
   if (!/^[0-9a-fA-F]{6}$/.test(full)) return undefined
-  const r = Number.parseInt(full.slice(0, 2), 16)
-  const g = Number.parseInt(full.slice(2, 4), 16)
-  const b = Number.parseInt(full.slice(4, 6), 16)
-  return `rgb(${r} ${g} ${b} / ${alpha})`
+  return [
+    Number.parseInt(full.slice(0, 2), 16),
+    Number.parseInt(full.slice(2, 4), 16),
+    Number.parseInt(full.slice(4, 6), 16),
+  ]
+}
+
+function toHex([r, g, b]: [number, number, number]): string {
+  const pair = (channel: number) =>
+    Math.round(Math.min(255, Math.max(0, channel)))
+      .toString(16)
+      .padStart(2, '0')
+  return `#${pair(r)}${pair(g)}${pair(b)}`
+}
+
+/** `#rgb` / `#rrggbb` → `rgb(… / alpha)`; `undefined` when the value is not a hex. */
+export function withAlpha(color: string, alpha: number): string | undefined {
+  const rgb = channels(color)
+  return rgb ? `rgb(${rgb[0]} ${rgb[1]} ${rgb[2]} / ${alpha})` : undefined
+}
+
+/**
+ * `t` of the way from `from` to `to` — `0` is `from`, `1` is `to`. Solid, unlike {@link withAlpha},
+ * so it can paint an opaque surface; `undefined` when either colour is not a hex.
+ */
+export function mix(from: string, to: string, t: number): string | undefined {
+  const a = channels(from)
+  const b = channels(to)
+  if (!a || !b) return undefined
+  return toHex([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t])
+}
+
+/** Whether a hex colour reads as a light background; `undefined` when it is not a hex. */
+export function isLight(color: string): boolean | undefined {
+  const rgb = channels(color)
+  if (!rgb) return undefined
+  // Perceived brightness rather than a channel average: `#82999f` has to count as dark, and
+  // green has to count as light.
+  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 > 0.6
 }
 
 /** One scheme, from its four display colours and its ANSI set. */

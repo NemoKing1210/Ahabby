@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -31,7 +32,7 @@ import { useSettings } from '@/features/settings/api/hooks'
 
 import type { TerminalTab } from '../store'
 import { registerTerminal, unregisterTerminal } from '../lib/session'
-import { terminalFont, terminalTheme } from '../lib/theme'
+import { terminalFont, terminalTheme, terminalTokens } from '../lib/theme'
 
 /**
  * One tab's terminal.
@@ -74,6 +75,10 @@ export function TerminalView({
   // restart. A missing answer (the query has not resolved yet) means the default scheme.
   const { data: settings } = useSettings()
   const scheme = settings?.terminalTheme ?? 'auto'
+  // The chrome inside the terminal (the strip around the canvas, the find bar) is built from the
+  // design tokens; for a fixed scheme they are re-declared from the scheme's own palette here, so
+  // the panel does not wear the app's colours around a differently painted canvas.
+  const surface = useMemo(() => terminalTokens(scheme), [scheme])
   const fit = useCallback(() => {
     // `fit` on a zero-sized element would resize the terminal to nonsense; that happens while the
     // page is laying out, when the window is minimised, and whenever the dock is collapsed.
@@ -278,6 +283,7 @@ export function TerminalView({
             active ? 'visible' : 'pointer-events-none invisible',
             className,
           )}
+          style={surface}
         >
           <div ref={hostRef} className="h-full w-full px-2 py-1" />
 

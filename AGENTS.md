@@ -12,7 +12,7 @@ Core boundary: **the Rust backend owns every file, process and network operation
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. UI is bilingual (English/Russian).
 
-Version: `0.25.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.25.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 

@@ -5,6 +5,15 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.1] - 2026-10-06
+
+### Fixed
+
+- The built-in terminal now wears its colour scheme as a whole, not just from the canvas inwards: the strip
+  around the text and the find bar floating over it are painted from the chosen palette too, so a dark scheme
+  (Dracula, Gruvbox, …) no longer sits in a frame of the light app theme — and vice versa. The scheme that
+  follows the interface is unchanged.
+
 ## [0.25.0] - 2026-10-06
 
 ### Added

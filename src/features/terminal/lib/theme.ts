@@ -8,14 +8,19 @@
  * those tokens describe (they are what a program asks for when it wants "green", not an accent),
  * with a light and a dark variant so neither has unreadable defaults.
  *
- * Any other scheme is a fixed palette from `themes.ts`, chosen in Settings and painted as-is.
+ * Any other scheme is a fixed palette from `themes.ts`, chosen in Settings and painted as-is. The
+ * canvas is only part of the terminal, though: the strip around it and the find bar floating over
+ * it are ordinary elements built from the design tokens. For a fixed scheme those tokens are
+ * re-declared on the terminal's own root (`terminalTokens`), so the whole panel — not just the
+ * text area — is in the chosen palette.
  */
 
+import type { CSSProperties } from 'react'
 import type { ITheme } from '@xterm/xterm'
 
 import type { TerminalTheme } from '@/shared/bindings/TerminalTheme'
 
-import { presetTheme, withAlpha } from './themes'
+import { isLight, mix, presetTheme, withAlpha } from './themes'
 
 /** Dark-mode ANSI colours, matching the warm token palette in `globals.css`. */
 const DARK_ANSI = {
@@ -74,6 +79,67 @@ export function terminalTheme(
   root: HTMLElement = document.documentElement,
 ): ITheme {
   return presetTheme(scheme) ?? autoTheme(root)
+}
+
+/**
+ * The fixed scheme as the app's own CSS variables, to be put on the element that wraps a
+ * terminal. Everything inside then reads the scheme through the very tokens the rest of the
+ * interface reads — the padding around the canvas, the find bar and its buttons, the input's
+ * caret and focus ring — instead of the app theme showing through next to a repainted canvas.
+ *
+ * `auto` needs none of it and gets `undefined`: its scheme *is* the interface, so the tokens the
+ * element inherits are already the ones its canvas was painted with.
+ */
+export function terminalTokens(
+  scheme: TerminalTheme = 'auto',
+  root: HTMLElement = document.documentElement,
+): CSSProperties | undefined {
+  if (scheme === 'auto') return undefined
+  const theme = terminalTheme(scheme, root)
+  const background = theme.background
+  const foreground = theme.foreground
+  if (!background || !foreground) return undefined
+
+  const light = isLight(background) ?? true
+  const blend = (to: string, t: number) => mix(background, to, t) ?? to
+  // The scheme's blue at the end of its pair that reads on this background — the bright variant is
+  // a grey on Solarized Light, the base variant is a shadow of itself on Gruvbox.
+  const accent = (light ? theme.blue : theme.brightBlue) ?? foreground
+  // A wash of a colour over the background: surfaces, hairlines and dimmed text, all solid so an
+  // opaque bar can float on the terminal without the text behind it bleeding through.
+  const palette: Record<string, string> = {
+    background,
+    foreground,
+    surface: blend(foreground, 0.06),
+    'surface-2': blend(foreground, 0.12),
+    'surface-3': blend(foreground, 0.18),
+    border: blend(foreground, 0.18),
+    'border-strong': blend(foreground, 0.32),
+    muted: blend(foreground, 0.62),
+    faint: blend(foreground, 0.45),
+    accent,
+    'accent-soft': blend(accent, 0.22),
+    'accent-hover': accent,
+    'accent-strong': accent,
+    'accent-foreground': background,
+    ring: accent,
+    // The find bar floats one step above the terminal either way, so its shadow has to be
+    // stronger on a dark canvas than on the app's own light one.
+    'shadow-popover': `0 12px 32px -12px rgb(0 0 0 / ${light ? 0.3 : 0.6})`,
+  }
+
+  const tokens: Record<string, string> = {}
+  for (const [name, value] of Object.entries(palette)) {
+    // `--ah-*` is what the utilities read, `--color-*` is the name the base layer gives the same
+    // value (scrollbars, `::selection`, `:focus-visible`). Both have to be re-declared: a `var()`
+    // is substituted where it is *declared*, so the alias inherited from `:root` keeps the app's
+    // resolved value and cannot pick the scheme up on its own.
+    tokens[`--ah-${name}`] = value
+    tokens[`--color-${name}`] = value
+  }
+  // Custom properties only exist through `setProperty`, which is what React does with every `--*`
+  // key of a `style` object: the record is exactly that shape.
+  return tokens
 }
 
 /** The `auto` scheme: the interface's own colours, re-read from the design tokens. */
