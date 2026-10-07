@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FolderGit2, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FolderGit2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 
 import type { Project } from '@/shared/bindings/Project'
 import type { ProjectFolderStatus } from '@/shared/bindings/ProjectFolderStatus'
 import { fileName, formatRelative } from '@/shared/lib/format'
+import { useSessionState } from '@/shared/lib/sessionState'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -14,6 +15,7 @@ import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { PathRow } from '@/shared/ui/PathRow'
 import { SkeletonList } from '@/shared/ui/Primitives'
+import { Reveal } from '@/shared/ui/Reveal'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
@@ -25,7 +27,13 @@ import { AddProjectFolderDialog } from '../components/AddProjectFolderDialog'
 import { ProjectCard } from '../components/ProjectCard'
 import { ProjectFolderContextMenu } from '../components/ProjectFolderContextMenu'
 
-/** One added folder, its projects and the two bits of state that can be wrong with it. */
+/**
+ * One added folder, its projects and the two bits of state that can be wrong with it.
+ *
+ * The group folds away, and where it was left is view state rather than a preference: it lives
+ * in the session store (`useSessionState`), so a folder reopened after a visit to another screen
+ * is still folded, while a restart starts with every group open.
+ */
 function FolderRow({
   status,
   projects,
@@ -38,11 +46,35 @@ function FolderRow({
   const { t } = useTranslation()
   const directory = status.resolved ?? status.folder.path
   const label = fileName(directory) || directory
+  const [collapsed, setCollapsed] = useSessionState(`projects.collapsed.${status.folder.id}`, false)
+  // A folder with nothing under its header — gone from disk, or holding nothing at all — has no
+  // group to fold, so it gets no control that would do nothing.
+  const foldable = projects.length > 0 || status.exists
+  const toggleLabel = collapsed
+    ? t('projects.expandGroup', { name: label })
+    : t('projects.collapseGroup', { name: label })
 
   return (
     <ProjectFolderContextMenu status={status} onRemove={onRemove}>
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
+          {foldable ? (
+            <Tooltip content={toggleLabel}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-expanded={!collapsed}
+                aria-label={toggleLabel}
+                onClick={() => setCollapsed((value) => !value)}
+              >
+                {collapsed ? (
+                  <ChevronRight className="size-3.5" aria-hidden />
+                ) : (
+                  <ChevronDown className="size-3.5" aria-hidden />
+                )}
+              </Button>
+            </Tooltip>
+          ) : null}
           <FolderGit2 className="text-faint size-4 shrink-0" aria-hidden />
           <span className="text-foreground font-serif text-[0.9375rem]">{label}</span>
           {!status.exists ? (
@@ -68,17 +100,21 @@ function FolderRow({
 
         {status.problem ? <p className="text-muted text-[0.75rem]">{status.problem}</p> : null}
 
-        {projects.length > 0 ? (
-          <AnimatedList>
-            {projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </AnimatedList>
-        ) : status.exists ? (
-          <div className="border-border bg-surface-2/40 rounded-lg border border-dashed px-4 py-6 text-center">
-            <p className="text-foreground font-serif text-sm">{t('projects.folderEmpty')}</p>
-            <p className="text-muted text-[0.8125rem]">{t('projects.folderEmptyHint')}</p>
-          </div>
+        {foldable ? (
+          <Reveal open={!collapsed}>
+            {projects.length > 0 ? (
+              <AnimatedList>
+                {projects.map((project) => (
+                  <ProjectCard key={project.id} project={project} />
+                ))}
+              </AnimatedList>
+            ) : (
+              <div className="border-border bg-surface-2/40 rounded-lg border border-dashed px-4 py-6 text-center">
+                <p className="text-foreground font-serif text-sm">{t('projects.folderEmpty')}</p>
+                <p className="text-muted text-[0.8125rem]">{t('projects.folderEmptyHint')}</p>
+              </div>
+            )}
+          </Reveal>
         ) : null}
       </Card>
     </ProjectFolderContextMenu>

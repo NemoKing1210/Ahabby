@@ -1,0 +1,95 @@
+id = "muse-code"
+name = "Muse Code"
+description = "Meta's terminal coding agent for Muse Spark, with skills, hooks and MCP servers."
+tagline = "Meta's agent for the terminal and CI"
+website = "https://dev.meta.ai/products/muse-code"
+docs = "https://dev.meta.ai/docs/muse-code"
+icon = "meta"
+category = "cli"
+popular = true
+vendor = "Meta"
+features = [
+    "Terminal and CI agent built for Meta's Muse Spark models",
+    "Approvals and an OS sandbox on from the first run",
+    "Skills from ~/.config/muse/skills and the shared ~/.agents/skills",
+    "MCP servers declared in the settings file",
+    "Sessions, subagents, workflows and project memory",
+]
+unverified = []
+notes = """Verified against dev.meta.ai/docs/muse-code and Meta's own install scripts on 2026-10-07.
+The agent is install-only and closed source (only the SDK, `meta-models/muse-code-sdk`, is open),
+so there is no repository to link and no update or uninstall command to run: the installer puts a
+self-updating launcher in `~/.local/bin` (`%LOCALAPPDATA%\\Programs\\muse` on Windows) that refreshes
+the binary in the background.
+
+User settings live at `~/.config/muse/settings.json` — Meta writes paths home-relative, and the
+Windows mapping to `%USERPROFILE%\\.config\\muse\\` comes from the launcher script, which resolves
+`XDG_CONFIG_HOME` and then `%USERPROFILE%\\.config` (the settings file itself is not given a
+Windows path in the docs). `MUSE_AUTH_PATH` can move the credentials file elsewhere.
+
+MCP servers are the `mcp_servers` map inside that settings file, where each entry carries a
+`transport` discriminator (`stdio` or `streamable_http`) that Ahabby's writer does not produce, so
+the servers are read, switched off and removed here but never added. The docs name no user-level
+instructions file (only project `AGENTS.md`, `.agents/memory/` and `.muse/hooks.json`), which is
+why this manifest declares no other resource at user scope. `musecodes.io` is a third-party site,
+not Meta's, and none of its claims are used here."""
+
+[binaries]
+names = ["muse"]
+# SOURCE: https://dev.meta.ai/docs/muse-code (checked 2026-10-07) — "Confirm it's on your path: muse --version"
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://dev.meta.ai/install.sh (checked 2026-10-07) — "install_dir=${MUSE_INSTALL_DIR:-$HOME/.local/bin}";
+# https://dev.meta.ai/install.ps1 — Windows: `%LOCALAPPDATA%\Programs\muse`
+[[search_paths]]
+windows = ["${LOCALAPPDATA}/Programs/muse"]
+macos = ["${HOME}/.local/bin"]
+linux = ["${HOME}/.local/bin"]
+
+# SOURCE: https://dev.meta.ai/docs/muse-code/configuration (checked 2026-10-07) — "User settings live at ~/.config/muse/settings.json."
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "Model defaults, permissions, tool configuration, hooks and MCP servers (needs schema_version)."
+format = "json"
+path = { windows = "${USERPROFILE}/.config/muse/settings.json", macos = "${HOME}/.config/muse/settings.json", linux = "${HOME}/.config/muse/settings.json" }
+
+# SOURCE: https://dev.meta.ai/docs/muse-code/extending (checked 2026-10-07) — "your account-wide skills in $XDG_CONFIG_HOME/muse/skills and ~/.agents/skills"
+[skills]
+format = "skillMd"
+glob = "**/SKILL.md"
+description = "Account-wide skills, one directory per skill with a SKILL.md; ~/.agents/skills is read too."
+path = { windows = "${USERPROFILE}/.config/muse/skills", macos = "${HOME}/.config/muse/skills", linux = "${HOME}/.config/muse/skills" }
+
+# SOURCE: https://dev.meta.ai/docs/muse-code/extending (checked 2026-10-07) — "Declare servers in the mcp_servers block of your settings file."
+[mcp]
+format = "json"
+key_path = ["mcp_servers"]
+entry_shape = "list"
+shared_with_config = true
+description = "The `mcp_servers` map of settings.json; each entry's `transport` key is Muse's own, so servers are read but not added here."
+path = { windows = "${USERPROFILE}/.config/muse/settings.json", macos = "${HOME}/.config/muse/settings.json", linux = "${HOME}/.config/muse/settings.json" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://dev.meta.ai/docs/muse-code (checked 2026-10-07) — "curl -fsSL https://dev.meta.ai/install.sh | sh"
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://dev.meta.ai/install.sh | sh"
+docs_url = "https://dev.meta.ai/docs/muse-code"
+note = "Official installer: puts a self-updating launcher in ~/.local/bin. Linux needs bubblewrap for the sandbox."
+requires = ["curl", "mktemp"]
+priority = 0
+
+# SOURCE: https://dev.meta.ai/docs/muse-code (checked 2026-10-07) — "irm https://dev.meta.ai/install.ps1 | iex"
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://dev.meta.ai/install.ps1 | iex"
+docs_url = "https://dev.meta.ai/docs/muse-code"
+note = "Official PowerShell installer; the launcher lives in %LOCALAPPDATA%\\Programs\\muse and updates itself."
+requires = ["PowerShell 5.1+"]
+priority = 0

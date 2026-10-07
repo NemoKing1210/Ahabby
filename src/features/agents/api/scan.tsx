@@ -93,6 +93,11 @@ export function ScanRefreshProvider({ children }: { children: ReactNode }) {
     (report: ScanReport) => {
       queryClient.setQueryData(queryKeys.agents(), report)
       void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
+      // The Hub says what is installed and where ("this skill, for those agents"), so its answers
+      // are about this report too: a scan that found something new invalidates them. The Hub's own
+      // pages are cached server-side, so re-asking costs a local comparison, not a request.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.hubSourceAll() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.hubEntryAll() })
     },
     [queryClient],
   )

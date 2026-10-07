@@ -19,7 +19,7 @@ import { Markdown } from '@/shared/ui/Markdown'
 import { SkeletonList } from '@/shared/ui/Primitives'
 
 import { useHubEntry } from '../api/queries'
-import { HubEntryLinks, HubEntryMeta, HubFileList } from './HubEntryParts'
+import { HubEntryLinks, HubEntryMeta, HubFileList, HubInstalledList } from './HubEntryParts'
 
 /**
  * What one entry *is*, before anything is asked of the user: the instructions themselves, the
@@ -127,6 +127,7 @@ function EntryView({
         ) : null}
 
         <HubEntryMeta entry={entry} />
+        <HubInstalledList entry={entry} />
         <HubEntryLinks entry={entry} docs={detail.sourceUrl} />
 
         {scripts.length > 0 ? (

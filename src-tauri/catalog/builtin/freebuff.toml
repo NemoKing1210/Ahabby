@@ -1,0 +1,98 @@
+id = "freebuff"
+name = "Freebuff"
+description = "Codebuff's free terminal coding agent, sharing the .agents skills and MCP conventions."
+tagline = "The free coding agent for your terminal"
+website = "https://freebuff.com/cli"
+docs = "https://github.com/CodebuffAI/freebuff"
+icon = "freebuff"
+category = "cli"
+popular = true
+vendor = "Codebuff"
+features = [
+    "Free terminal agent built from the Codebuff code base",
+    "Instructions from ~/.AGENTS.md (or ~/.CLAUDE.md)",
+    "MCP servers from the shared ~/.agents/mcp.json",
+    "Skills and custom agents in TypeScript under ~/.agents",
+    "Updates itself in place",
+]
+github = "CodebuffAI/freebuff"
+unverified = []
+notes = """Verified against the CodebuffAI/freebuff repository and the freebuff npm package on
+2026-10-07. Freebuff is the free build of Codebuff (`FREEBUFF_MODE=true`, the same code base) and
+the GitHub repository was renamed: `github.com/CodebuffAI/codebuff` now redirects to
+`CodebuffAI/freebuff`, which is why links in the published docs still point at the old name.
+
+The CLI keeps its local state the way Codebuff does, in `~/.config/manicode/` (`settings.json`,
+`credentials.json`, and the downloaded native binary next to them), and adds its own
+`~/.config/freebuff/` for BYOK connection metadata — the secrets themselves live in the OS
+keychain. Skills and MCP servers are not Freebuff files at all: they are the shared
+`~/.agents/skills` and `~/.agents/mcp.json` of the `.agents` convention, which the Library reports
+through the agent-neutral Shared owner rather than twice.
+
+The published docs still describe `~/.knowledge.md` as the home knowledge file; the current code
+reads hidden `~/.AGENTS.md` (then `~/.CLAUDE.md`) instead and a unit test asserts the old file is
+ignored, so `~/.AGENTS.md` is what this manifest declares. There is no documented uninstall
+command, and the wrapper updates the native binary by itself."""
+
+[binaries]
+names = ["freebuff"]
+# SOURCE: https://www.npmjs.com/package/freebuff (checked 2026-10-07) — the package README documents `freebuff` and `-v`/`--version`
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-07) — npm's
+# global prefix and the standard Unix binary directories.
+[[search_paths]]
+windows = ["${APPDATA}/npm", "${USERPROFILE}/.config/manicode"]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://github.com/CodebuffAI/freebuff/blob/main/cli/src/index.tsx (checked 2026-10-07)
+# — the CLI creates and rewrites `~/.config/manicode/settings.json` (mode, ads, last model,
+# reasoning effort, onboarding flags). The directory is shared with the Codebuff CLI.
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "CLI preferences: mode, ads, last model, reasoning effort and onboarding state."
+format = "json"
+path = { windows = "${USERPROFILE}/.config/manicode/settings.json", macos = "${HOME}/.config/manicode/settings.json", linux = "${HOME}/.config/manicode/settings.json" }
+
+# SOURCE: https://github.com/CodebuffAI/freebuff/blob/main/docs/agents-and-tools.md (checked 2026-10-07)
+# — "~/.AGENTS.md" is the home knowledge file (then `~/.CLAUDE.md`); `~/.knowledge.md` is ignored
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = ".AGENTS.md"
+description = "Home knowledge file; ~/.CLAUDE.md is used when it is missing."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.AGENTS.md", macos = "${HOME}/.AGENTS.md", linux = "${HOME}/.AGENTS.md" }
+
+# SOURCE: https://github.com/CodebuffAI/freebuff/blob/main/sdk/src/agents/load-agents.ts (checked 2026-10-07)
+# — "~/.agents" holds the user's own agent files: .ts, .tsx, .js, .mjs or .cjs
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Custom agents"
+description = "User-scope agent definitions written in TypeScript (or JavaScript) under ~/.agents."
+format = "text"
+glob = "**/*.{ts,tsx,js,mjs,cjs}"
+path = { windows = "${USERPROFILE}/.agents", macos = "${HOME}/.agents", linux = "${HOME}/.agents" }
+
+# SOURCE: https://github.com/CodebuffAI/freebuff/blob/main/sdk/src/agents/load-mcp-config.ts (checked 2026-10-07)
+# — `mcp.json` is searched in `{cwd}/.agents`, `{cwd}/../.agents` and `~/.agents`, keyed by `mcpServers`
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+description = "The shared ~/.agents/mcp.json (the project's .agents/mcp.json overrides it)."
+path = { windows = "${USERPROFILE}/.agents/mcp.json", macos = "${HOME}/.agents/mcp.json", linux = "${HOME}/.agents/mcp.json" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://freebuff.com/cli (checked 2026-10-07) — "$ npm install -g freebuff"
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g freebuff"
+docs_url = "https://freebuff.com/cli"
+note = "The npm wrapper downloads a native binary into ~/.config/manicode and keeps it up to date by itself."
+requires = ["Node.js 16+"]
+priority = 0

@@ -1,0 +1,95 @@
+id = "deepseek-harness"
+name = "DeepSeek Harness"
+description = "DeepSeek's plugin-based agent harness: the dsh command, its skills and profiles."
+tagline = "DeepSeek's agent harness — everything is a plugin"
+website = "https://deepseek.com/harness"
+docs = "https://deepseek-harness.github.io/deepseek-harness/"
+icon = "deepseek"
+category = "cli"
+popular = true
+vendor = "DeepSeek AI"
+features = [
+    "Open-source agent harness built on Cordis plugins",
+    "Web UI (dsh web), TUI, headless and ACP profiles",
+    "Skills in ~/.dsh/skills and the shared ~/.agents/skills",
+    "Profiles and patch layers under $DSH_HOME",
+    "AGENTS.md as the user-global instruction file",
+]
+github = "deepseek-ai/deepseek-harness"
+unverified = []
+notes = """Verified against the deepseek-ai/deepseek-harness repository and deepseek.com/harness on
+2026-10-07. `dsh` is a developer preview and its CLI README warns there will be breaking changes.
+The home directory is `$DSH_HOME`, defaulting to `~/.dsh` (`%USERPROFILE%\\.dsh` on Windows), and it
+holds AGENTS.md, .credentials.yaml, .env and the profiles/ tree — every profile is a directory with
+its own package.json (its ordered bundle list) and `cordis.patch.yml`, which is why a profile's
+patch is declared as a glob rather than a fixed path.
+
+Two things Ahabby deliberately does not do here. MCP servers have no file of their own: each one is
+an `@deepseek-ai/dsh-mcp-client` entry inside the same Cordis patch YAML as the rest of the
+configuration, with no `name -> server` map to read, so there is no MCP surface to list. And a skill
+may also be a single flat `<name>.md` in the skills directory; Ahabby recognises a skill by its
+entry file inside its own directory, so only the `SKILL.md` form is listed.
+
+The repository's own run instructions are `npx @deepseek-ai/dsh web` (no install) or a source
+checkout built with pnpm; the npm package is what this manifest installs, because a global command
+is what Ahabby can detect and start."""
+
+[binaries]
+names = ["dsh"]
+# SOURCE: https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/README.md (checked 2026-10-07) — "the same runtime version shown by `dsh --version`"
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-07) — npm's
+# global prefix; the Desktop build installs its own `dsh` command onto the PATH.
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["/usr/local/bin", "${HOME}/.local/bin"]
+linux = ["/usr/local/bin", "${HOME}/.local/bin"]
+
+# SOURCE: https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/README.md (checked 2026-10-07) — the home-level patch layer `$DSH_HOME/cordis.patch.yml` is applied after every profile's own
+[[configs]]
+id = "home-patch"
+label = "cordis.patch.yml"
+description = "Home-level patch layer applied on top of every profile's own patch."
+format = "yaml"
+path = { windows = "${USERPROFILE}/.dsh/cordis.patch.yml", macos = "${HOME}/.dsh/cordis.patch.yml", linux = "${HOME}/.dsh/cordis.patch.yml" }
+
+# SOURCE: https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/README.md (checked 2026-10-07) — "A profile directory holds a `package.json` … and a `cordis.patch.yml` (the user's own patch layer)"
+[[configs]]
+id = "profile-patch"
+label = "Profile patch"
+description = "One cordis.patch.yml per profile under $DSH_HOME/profiles."
+format = "yaml"
+glob = "*/cordis.patch.yml"
+path = { windows = "${USERPROFILE}/.dsh/profiles", macos = "${HOME}/.dsh/profiles", linux = "${HOME}/.dsh/profiles" }
+
+# SOURCE: https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/README.md (checked 2026-10-07) — user-scope skills resolve from `<dshHome>/skills` then `~/.agents/skills`
+[skills]
+format = "skillMd"
+glob = "*/SKILL.md"
+description = "User-scope skills, one directory per skill with a SKILL.md; ~/.agents/skills is read too."
+path = { windows = "${USERPROFILE}/.dsh/skills", macos = "${HOME}/.dsh/skills", linux = "${HOME}/.dsh/skills" }
+
+# SOURCE: https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/README.md (checked 2026-10-07) — the user-global AGENTS.md lives in the harness home
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "User-global instructions, loaded together with the project's AGENTS.md chain."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.dsh/AGENTS.md", macos = "${HOME}/.dsh/AGENTS.md", linux = "${HOME}/.dsh/AGENTS.md" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://github.com/deepseek-ai/deepseek-harness (checked 2026-10-07) — the npm package is
+# `@deepseek-ai/dsh` ("npx @deepseek-ai/dsh web"); this is the same package, installed globally.
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @deepseek-ai/dsh"
+update_command = "npm install -g @deepseek-ai/dsh@latest"
+uninstall_command = "npm uninstall -g @deepseek-ai/dsh"
+docs_url = "https://github.com/deepseek-ai/deepseek-harness"
+note = "The docs run the CLI without installing it (`npx @deepseek-ai/dsh web`); a global install links the same `dsh` command so Ahabby can detect and start it."
+requires = ["Node.js 22.19+"]
+priority = 0

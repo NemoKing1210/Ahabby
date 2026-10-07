@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -132,6 +132,28 @@ describe('ProjectsPage', () => {
     expect(within(container).getByText('2 skills')).toBeTruthy()
     // The folder shows how many projects it holds.
     expect(within(container).getAllByText('2 projects').length).toBeGreaterThan(0)
+  })
+
+  it('folds a group of projects away and opens it again', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.cachedAgents).mockResolvedValue(
+      report([project('project:a', 'alpha', [])], [FOLDER]),
+    )
+
+    const { container } = renderPage()
+    expect(await within(container).findByRole('button', { name: 'alpha' })).toBeTruthy()
+
+    await user.click(within(container).getByRole('button', { name: 'Collapse code' }))
+
+    // The cards animate out; the folder keeps its own row and still says what it holds.
+    await waitFor(() =>
+      expect(within(container).queryByRole('button', { name: 'alpha' })).toBeNull(),
+    )
+    expect(within(container).getByText('/home/me/code')).toBeTruthy()
+    expect(within(container).getAllByText('1 project').length).toBeGreaterThan(0)
+
+    await user.click(within(container).getByRole('button', { name: 'Expand code' }))
+    expect(await within(container).findByRole('button', { name: 'alpha' })).toBeTruthy()
   })
 
   it('shows the empty state until a folder is added', async () => {

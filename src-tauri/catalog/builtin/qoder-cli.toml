@@ -1,0 +1,153 @@
+id = "qoder-cli"
+name = "Qoder CLI"
+description = "Alibaba's Qoder terminal agent: settings, skills, rules, subagents and MCP servers."
+tagline = "Qoder's agent for the terminal"
+website = "https://qoder.com/cli"
+docs = "https://docs.qoder.com/cli/overview"
+icon = "qoder"
+category = "cli"
+popular = true
+vendor = "Qoder (Alibaba)"
+features = [
+    "Terminal agent that reads files, runs tools and confirms before acting",
+    "Skills in the Agent Skills format (SKILL.md)",
+    "Rules, custom commands, subagents and output styles under ~/.qoder",
+    "MCP servers declared in settings.json",
+    "Automatic updates the install script re-run can force",
+]
+unverified = []
+notes = """Verified against docs.qoder.com/cli on 2026-10-07. The user configuration directory is
+`~/.qoder` (`%USERPROFILE%\\.qoder` on Windows; the docs write paths home-relative only) and is
+relocatable with `QODER_CONFIG_DIR` or `--config-dir`; a project keeps its own copy under
+`<project>/.qoder/`, with `.mcp.json` at the project root as the shared MCP file.
+
+`settings.json` is JSON with comments allowed, which is why it is declared as `jsonc`: Ahabby keeps
+those comments intact when it edits a server. It is declared twice on purpose — as the config file
+and as the MCP source.
+
+The China build is the same product with its own package, binary (`qodercn`) and directory
+(`~/.qoder-cn`); this manifest covers the global `qoder` build. Qoder's CLI is closed source, so
+there is no repository to link. The install script's own target directory is not documented, so the
+standard Unix binary directories are searched as well."""
+
+[binaries]
+names = ["qoder", "qodercli"]
+# SOURCE: https://docs.qoder.com/cli/installation (checked 2026-10-07) — "If the CLI version number is printed, the installation was successful: `qoder --version`"
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-07) — npm's
+# global prefix; the install script's own target directory is not documented.
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.qoder.com/cli/settings-reference (checked 2026-10-07) — "User configuration directory location (default: `~/.qoder`)"
+[[configs]]
+id = "settings"
+label = "settings.json"
+description = "User settings: models, permissions, hooks, plugins and MCP servers. Comments are preserved."
+format = "jsonc"
+path = { windows = "${USERPROFILE}/.qoder/settings.json", macos = "${HOME}/.qoder/settings.json", linux = "${HOME}/.qoder/settings.json" }
+
+# SOURCE: https://docs.qoder.com/cli/Skills (checked 2026-10-07) — "User-level | `~/.qoder/skills/{skill-name}/SKILL.md`"
+[skills]
+format = "skillMd"
+glob = "*/SKILL.md"
+description = "Personal skills, one directory per skill with a SKILL.md."
+path = { windows = "${USERPROFILE}/.qoder/skills", macos = "${HOME}/.qoder/skills", linux = "${HOME}/.qoder/skills" }
+
+# SOURCE: https://docs.qoder.com/cli/mcp-reference (checked 2026-10-07) — "MCP servers are configured under the `mcpServers` field in `settings.json`"
+[mcp]
+format = "jsonc"
+key_path = ["mcpServers"]
+shared_with_config = true
+description = "User-level servers from settings.json; the project's `.mcp.json` and `.qoder/settings.json` are read too."
+path = { windows = "${USERPROFILE}/.qoder/settings.json", macos = "${HOME}/.qoder/settings.json", linux = "${HOME}/.qoder/settings.json" }
+
+# SOURCE: https://docs.qoder.com/cli/memory (checked 2026-10-07) — "~/.qoder/AGENTS.md" is the user-level memory file (never `QODER.md`)
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "User-level memory and instructions, imported with `@path` includes."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.qoder/AGENTS.md", macos = "${HOME}/.qoder/AGENTS.md", linux = "${HOME}/.qoder/AGENTS.md" }
+
+# SOURCE: https://docs.qoder.com/cli/memory (checked 2026-10-07) — "User-Level | `~/.qoder/rules/**/*.md`"
+[[other]]
+id = "rules"
+kind = "rules"
+label = "Rules"
+description = "User-level rules applied to every project, with optional always-on/glob triggers."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.qoder/rules", macos = "${HOME}/.qoder/rules", linux = "${HOME}/.qoder/rules" }
+
+# SOURCE: https://docs.qoder.com/cli/commands (checked 2026-10-07) — "User-Level | `~/.qoder/commands/<command_name>.md`"
+[[other]]
+id = "commands"
+kind = "commands"
+label = "Custom commands"
+description = "Slash commands available in every project; sub-directories become `:` namespaces."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.qoder/commands", macos = "${HOME}/.qoder/commands", linux = "${HOME}/.qoder/commands" }
+
+# SOURCE: https://docs.qoder.com/cli/subagent (checked 2026-10-07) — "User | `~/.qoder/agents/*.md`"
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Subagents"
+description = "User-level subagents, one markdown file with YAML frontmatter each."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.qoder/agents", macos = "${HOME}/.qoder/agents", linux = "${HOME}/.qoder/agents" }
+
+# SOURCE: https://docs.qoder.com/cli/output-styles (checked 2026-10-07) — "User-level: `~/.qoder/output-styles/`"
+[[other]]
+id = "output-styles"
+kind = "prompts"
+label = "Output styles"
+description = "Personas that replace parts of the system prompt, chosen with the outputStyle setting."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.qoder/output-styles", macos = "${HOME}/.qoder/output-styles", linux = "${HOME}/.qoder/output-styles" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.qoder.com/cli/installation (checked 2026-10-07) — "Installing via the Installation Script"
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://qoder.com/install | bash"
+update_command = "qoder update"
+docs_url = "https://docs.qoder.com/cli/installation"
+note = "Official installer for the native standalone executable; the CLI updates itself by default."
+requires = ["curl"]
+priority = 0
+
+# SOURCE: https://docs.qoder.com/cli/installation (checked 2026-10-07)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://qoder.com/install.ps1 | iex"
+update_command = "qoder update"
+docs_url = "https://docs.qoder.com/cli/installation"
+note = "Official PowerShell installer. Windows arm64 is not supported yet."
+requires = ["PowerShell 5.1+"]
+priority = 0
+
+# SOURCE: https://docs.qoder.com/cli/installation (checked 2026-10-07) — "Installed via npm: `npm install -g @qoder-ai/qodercli`"
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @qoder-ai/qodercli"
+update_command = "npm install -g @qoder-ai/qodercli@latest"
+uninstall_command = "npm uninstall -g @qoder-ai/qodercli"
+docs_url = "https://docs.qoder.com/cli/installation"
+note = "Legacy npm distribution; the docs recommend the install script instead."
+requires = ["Node.js 20+"]
+priority = 1

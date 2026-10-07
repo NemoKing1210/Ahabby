@@ -15,6 +15,7 @@
 //! Failures are per source: [`HubService::search`] answers with the entries it got *and* a report
 //! that says who failed and why, so one unreachable collection never empties the screen.
 
+pub mod installed;
 mod parse;
 
 use std::collections::HashMap;
@@ -177,7 +178,7 @@ impl HubService {
             HubSourceKind::McpRegistry => {
                 let item = self.registry_item(source, local, refresh).await?;
                 Ok(Prepared {
-                    entry: item.entry,
+                    entry: with_identity(item.entry, item.transport.as_ref()),
                     files: Vec::new(),
                     preview: None,
                     transport: item.transport,
@@ -248,7 +249,7 @@ impl HubService {
                             .homepage
                             .clone()
                             .or_else(|| item.entry.repository.clone()),
-                        entry: item.entry,
+                        entry: with_identity(item.entry, item.transport.as_ref()),
                         files: Vec::new(),
                         preview: None,
                         transport: item.transport,
@@ -367,7 +368,10 @@ impl HubService {
         let body = self.get_json(&url).await?;
         let (items, next_cursor) = parse::mcp_registry(&body, source)?;
 
-        let entries: Vec<HubEntry> = items.iter().map(|item| item.entry.clone()).collect();
+        let entries: Vec<HubEntry> = items
+            .iter()
+            .map(|item| with_identity(item.entry.clone(), item.transport.as_ref()))
+            .collect();
         let page = Page {
             entries: entries.clone(),
             next_cursor,
@@ -441,7 +445,7 @@ impl HubService {
         let end = (offset + limit).min(total);
         let entries: Vec<HubEntry> = matching[offset..end]
             .iter()
-            .map(|item| item.entry.clone())
+            .map(|item| with_identity(item.entry.clone(), item.transport.as_ref()))
             .collect();
         Ok(Page {
             entries,
@@ -673,6 +677,18 @@ impl HubService {
         serde_json::from_slice(&body)
             .map_err(|error| AppError::other(format!("{url} did not answer JSON: {error}")))
     }
+}
+
+/// An entry with the comparison key of its payload, set where the payload is known.
+///
+/// A skill's key is its entry file and is set where the file is (`skill_entry`); a server has no
+/// file at all, so its key is the recipe the source declared — the only thing that makes two
+/// entries with different names the same server.
+fn with_identity(mut entry: HubEntry, transport: Option<&McpTransport>) -> HubEntry {
+    if entry.kind == HubResourceKind::Mcp {
+        entry.identity = transport.and_then(installed::server_identity);
+    }
+    entry
 }
 
 /// One page of one source.
@@ -915,6 +931,10 @@ fn skill_entry(
         install_problem: None,
         input_count: 0,
         has_scripts: skill.has_scripts,
+        installed: Vec::new(),
+        // The payload is right here (a repository is already read to list its skills), so an
+        // installed copy can be told apart from a copy of the same name without a single request.
+        identity: parse::entry_bytes(files, &skill.dir).map(installed::skill_identity),
     };
     Prepared {
         source_url: location.map(|(repository, git_ref)| {
@@ -1095,6 +1115,8 @@ tags = ["design"]
             install_problem: None,
             input_count: 0,
             has_scripts: false,
+            installed: Vec::new(),
+            identity: None,
         }
     }
 

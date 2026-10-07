@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.31.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.34.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -121,8 +121,8 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 | `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                          |
 | `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time                        |
 | `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                                 |
-| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, per-source paging) + `parse.rs` (the three formats, pure and unit-tested)                                          |
-| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its context menu, the read-only preview, the install dialog                    |
+| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, paging) + `parse.rs` (the three formats, pure) + `installed.rs` (what this machine already has)                    |
+| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its owners and installed state, the preview, the install dialog                |
 | `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                               |
 | `.github/workflows/ci.yml`         | The only CI workflow                                                                                                                       |
 
@@ -179,6 +179,10 @@ build ci chore revert`; lowercase scope; imperative description without a traili
   the message, `pre-commit` runs Prettier + ESLint on staged files, `pre-push` runs `npm run check:versions`.
 - CI re-validates every PR commit with `npm run check:commits <base>..<head>`, so `--no-verify` only defers
   the failure. Rules live in `scripts/lib/commits.mjs`; keep `.cursor/rules/commits.mdc` in sync.
+- **A request to push is only a request to push.** `залей изменения` means: commit what is pending, push it,
+  and report the result — no CI triage, no fixing an unrelated failing test, no extra checks beyond what the
+  change itself needs. A pre-existing failure that surfaces on the way is worth _reporting_, never acting on
+  unless it was asked for.
 
 ### Naming
 
@@ -394,6 +398,16 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   fresh `.<slug>.ahabby-installing` directory with `SKILL.md` last and renames it into place, so an
   interrupted install leaves nothing an agent would load — and a payload path that is not a plain relative
   one, or a set where one file is the parent of another, is refused before a byte is written.
+- **“Already installed” is the scan's answer, never the Hub's memory.** `services::hub::installed` reads the
+  last `ScanReport` directly (applying the Library's ownership rule — a path an agent also declares inside a
+  shared root counts once, as global — so an agent, the shared surface and a project are owners exactly as the
+  Library sees them) and `commands::hub` annotates every entry it answers with, on `search_hub` and
+  `get_hub_entry` alike, which is why installing anywhere, in the Library or by hand, shows up on the Hub's
+  cards. The name is only the index key; whether a copy _is_ the published one is compared by content, where
+  the payload is at hand and without a request: a skill by the SHA-256 of its `SKILL.md` (`HubEntry.identity`,
+  `sha256:`), a server by its canonical launch recipe (command + args, or URL — the protocol spelling is not
+  part of it). An `index` entry's skill is fetched only when it is opened, so its card names the owners and
+  claims nothing more.
 - **A hub entry's tags are declared, never guessed.** `HubEntry.tags` carries, in this order, what the entry
   itself declares (an index document's `tags`, a skill's frontmatter `tags`/`keywords`), what its source
   declares for it (`tags` source-wide, `[[tag_rules]]` by prefix of the name the source uses — a skill's
@@ -487,7 +501,8 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   helpers, `AgentCard` (render, install gating, badges, click-to-navigate), the Projects page (folders,
   projects, the empty state, adding a folder), the Hub page (a section per source, a kind filter that asks
   only the sources it includes, the read-only preview, the reviewed install request with `confirm: true`, a
-  required value gating it, the tags on a card and the tag filter that reaches the backend, and the entry
+  required value gating it, the tags on a card and the tag filter that reaches the backend, the owners an
+  entry is already installed for with the name a chosen owner already holds refused, and the entry
   context menu), the terminal tab store (buffered output,
   finishing and closing a tab), the animated list (the row order it renders, and a removed row staying in
   the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
@@ -512,6 +527,10 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   `services::web` is tested on its pure parts only — which URLs it refuses (`file:`, a bare path, a URL with
   credentials in it), what a `Content-Type` means, and the charset it decodes with, header or `<meta>` — since
   no test in the suite touches the network.
+  `services::hub::installed` builds its index from a fixture report and asserts what a card is told: the owners
+  a name is found for (a project and the shared surface included), a skill compared by the hash of a real
+  `SKILL.md` written into a `tempdir`, a server by its recipe, and that a different name or a different kind
+  matches nothing.
   `desktop::tray` plans its menu as plain data and asserts the plan (the status line, the two submenus, that
   only installed agents are offered), including a test that reads `src/shared/i18n/locales/*.json` and fails
   when the tray's screen names drift from the sidebar's — the same trick `platform::chrome_tokens` uses on

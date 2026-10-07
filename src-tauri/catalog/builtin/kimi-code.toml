@@ -1,0 +1,149 @@
+id = "kimi-code"
+name = "Kimi Code CLI"
+description = "Moonshot AI's terminal coding agent: settings, skills, subagents and MCP servers."
+tagline = "Moonshot AI's agent for the terminal"
+website = "https://www.kimi.com/code/"
+docs = "https://www.kimi.com/code/docs/en/"
+icon = "kimi"
+category = "cli"
+popular = true
+vendor = "Moonshot AI"
+features = [
+    "Terminal agent that reads, edits and runs commands on its own",
+    "Skills in the Agent Skills format (SKILL.md), plus flat *.md skills",
+    "Custom agents and subagents under ~/.kimi-code/agents",
+    "MCP servers declared in ~/.kimi-code/mcp.json",
+    "Lifecycle hooks inside config.toml",
+]
+github = "MoonshotAI/kimi-code"
+unverified = []
+notes = """Verified against kimi.com/code/docs and the MoonshotAI/kimi-code repository on 2026-10-07.
+Kimi Code CLI is the current, TypeScript/Node.js agent; the older Python `kimi-cli` (package
+`@moonshot-ai/kimi-code` replaced it, PyPI `kimi-cli` is archived) kept its data in `~/.kimi/`,
+which this CLI only reads once to migrate. Everything else lives in one data root, `~/.kimi-code/`
+(`%USERPROFILE%\\.kimi-code` on Windows), movable with `KIMI_CODE_HOME`; project-level files live in
+`<project>/.kimi-code/`.
+
+A skill is either a directory with `SKILL.md` (listed here) or a single `.md` file at the top level
+of the skills directory (omitted: Ahabby recognises a skill by its entry file inside its own
+directory). `mcp.json` is declared twice on purpose — once as a config file so it can be opened and
+its secrets revealed, once as the MCP source — and hooks have no file of their own: they are
+`[[hooks]]` entries in config.toml."""
+
+[binaries]
+names = ["kimi"]
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html (checked 2026-10-07) — "verify that the executable is ready: `kimi --version`"
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.npmjs.com/cli/v11/configuring-npm/folders (checked 2026-10-07) — npm's
+# global prefix. The install script's own target directory is not documented, so the standard
+# Unix binary directories are listed as well.
+[[search_paths]]
+windows = ["${APPDATA}/npm"]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html (checked 2026-10-07) — `$KIMI_CODE_HOME/config.toml`
+[[configs]]
+id = "config"
+label = "config.toml"
+description = "User configuration: providers, models, tools, permission rules and hooks."
+format = "toml"
+path = { windows = "${USERPROFILE}/.kimi-code/config.toml", macos = "${HOME}/.kimi-code/config.toml", linux = "${HOME}/.kimi-code/config.toml" }
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/config-files.html (checked 2026-10-07) — "terminal-UI preferences live in a companion `tui.toml`"
+[[configs]]
+id = "tui"
+label = "tui.toml"
+description = "Terminal UI preferences, including the auto-update switch."
+format = "toml"
+path = { windows = "${USERPROFILE}/.kimi-code/tui.toml", macos = "${HOME}/.kimi-code/tui.toml", linux = "${HOME}/.kimi-code/tui.toml" }
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html (checked 2026-10-07) — "User level: ~/.kimi-code/mcp.json"
+[[configs]]
+id = "mcp"
+label = "mcp.json"
+description = "User-level MCP server declarations, addressable so a secret can be revealed."
+format = "json"
+path = { windows = "${USERPROFILE}/.kimi-code/mcp.json", macos = "${HOME}/.kimi-code/mcp.json", linux = "${HOME}/.kimi-code/mcp.json" }
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html (checked 2026-10-07) — "User level … `$KIMI_CODE_HOME/skills/` (default: `~/.kimi-code/skills/`)"
+[skills]
+format = "skillMd"
+glob = "*/SKILL.md"
+description = "Personal skills, one directory per skill with a SKILL.md; ~/.agents/skills is read too."
+path = { windows = "${USERPROFILE}/.kimi-code/skills", macos = "${HOME}/.kimi-code/skills", linux = "${HOME}/.kimi-code/skills" }
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html (checked 2026-10-07) — "`~/.kimi-code/mcp.json` … Structure of `mcp.json`"
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+shared_with_config = true
+description = "User-level servers; the project's `.kimi-code/mcp.json` overrides an entry of the same name."
+path = { windows = "${USERPROFILE}/.kimi-code/mcp.json", macos = "${HOME}/.kimi-code/mcp.json", linux = "${HOME}/.kimi-code/mcp.json" }
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/customization/agents.html (checked 2026-10-07) — global instructions in `$KIMI_CODE_HOME/AGENTS.md`
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "Global instructions loaded into every session."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.kimi-code/AGENTS.md", macos = "${HOME}/.kimi-code/AGENTS.md", linux = "${HOME}/.kimi-code/AGENTS.md" }
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/customization/agents.html (checked 2026-10-07) — the main system-prompt override
+[[other]]
+id = "system-md"
+kind = "prompts"
+label = "SYSTEM.md"
+description = "Optional override of the agent's system prompt."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.kimi-code/SYSTEM.md", macos = "${HOME}/.kimi-code/SYSTEM.md", linux = "${HOME}/.kimi-code/SYSTEM.md" }
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/customization/agents.html (checked 2026-10-07) — "User: `$KIMI_CODE_HOME/agents/` … scanned recursively for `.md` files"
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Custom agents"
+description = "Custom agents and subagents, one markdown file with YAML frontmatter each."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.kimi-code/agents", macos = "${HOME}/.kimi-code/agents", linux = "${HOME}/.kimi-code/agents" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html (checked 2026-10-07)
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"
+update_command = "kimi upgrade"
+docs_url = "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html"
+note = "Official installer: downloads the latest release, verifies its checksum and puts `kimi` on PATH. No Node.js needed."
+requires = ["curl"]
+priority = 0
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html (checked 2026-10-07)
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://code.kimi.com/kimi-code/install.ps1 | iex"
+update_command = "kimi upgrade"
+docs_url = "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html"
+note = "Official PowerShell installer. Requires Git for Windows: the CLI runs commands through its bundled Git Bash."
+requires = ["PowerShell 5.1+", "Git for Windows"]
+priority = 0
+
+# SOURCE: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html (checked 2026-10-07)
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g @moonshot-ai/kimi-code"
+update_command = "npm install -g @moonshot-ai/kimi-code@latest"
+uninstall_command = "npm uninstall -g @moonshot-ai/kimi-code"
+docs_url = "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html"
+note = "Global npm install of the current package."
+requires = ["Node.js 22.19.0+"]
+priority = 1

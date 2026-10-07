@@ -17,6 +17,7 @@ use ts_rs::TS;
 
 use super::agent::AgentRef;
 use super::mcp::{McpServer, McpTransport};
+use super::scope::Scope;
 use super::skill::Skill;
 
 /// What an entry installs.
@@ -336,6 +337,46 @@ pub struct HubEntry {
     /// `true` when the skill carries files an agent may execute.
     #[serde(default)]
     pub has_scripts: bool,
+    /// Places this entry is already on this machine, for which owner.
+    ///
+    /// Never the source's: the scan is what knows it, and `commands::hub` fills it in on every
+    /// answer, so an install anywhere — here, in the Library, in another agent's own page — shows
+    /// up on the card as soon as the report does.
+    #[serde(default)]
+    pub installed: Vec<HubEntryInstall>,
+    /// Comparison key of the payload the source publishes (`sha256:` of a skill's entry file, or
+    /// the canonical launch recipe of a server), filled in where the payload is known.
+    ///
+    /// It never reaches the frontend: it is the backend's own way of saying whether an installed
+    /// copy is still the copy the collection publishes, instead of only that a name repeats.
+    #[serde(default, skip)]
+    #[ts(skip)]
+    pub identity: Option<String>,
+}
+
+/// One place an entry the hub offers already is on this machine.
+///
+/// The owner is what the Library calls it: an installed agent, the agent-neutral shared surface
+/// (`shared`), or one of the user's projects (`project:<hash>`). The Hub only ever reads these —
+/// the scan found them — and shows them so a card can say "you already have this, over there".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct HubEntryInstall {
+    /// Who holds it: an agent, the shared surface, or a project.
+    pub owner: AgentRef,
+    /// Where that copy belongs — global, or the project it was found in.
+    pub scope: Scope,
+    /// The skill's own directory, or the config file holding the server entry.
+    pub path: String,
+    /// `false` while the copy is switched off (a skill renamed to `.disabled`, a server moved into
+    /// the disabled container): installed and on disk, but no agent loads it right now.
+    pub enabled: bool,
+    /// `true` when the copy is what the source publishes right now, `false` when the two differ,
+    /// and `None` when they could not be compared — a source that publishes nothing to compare
+    /// (an `index` entry's skill is fetched only when it is opened), or a copy Ahabby could not
+    /// read.
+    pub identical: Option<bool>,
 }
 
 /// The entry file of a skill, read out of the collection so the user can read the instructions

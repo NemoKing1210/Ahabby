@@ -5,6 +5,44 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] - 2026-10-07
+
+### Added
+
+- **Seven more agents, taking the catalog from 34 to 41**: Mistral Vibe, Kimi Code CLI, Qoder CLI,
+  Muse Code, Freebuff, DeepSeek Harness and TraeCode CLI — each with its config files, skills
+  directory, MCP servers, instructions, custom agents and install/update commands
+- Brand tiles for the new agents (Mistral, Kimi, Qoder, Meta, DeepSeek, Trae and the Freebuff lime), so
+  the card, the picker and the badge paint the brand instead of a monogram
+
+### Changed
+
+- Every new manifest carries a `# SOURCE:` comment pointing at the vendor's own documentation, and the
+  one path those docs do not confirm (TraeCode CLI's skills directory) is listed under `unverified`
+  rather than guessed
+
+## [0.33.0] - 2026-10-07
+
+### Added
+
+- **The Hub says what you already have.** A skill or an MCP server that is already on this machine wears an
+  “Installed” badge on its card, with a chip per owner that holds it — the agent-neutral shared surface, a
+  named agent, or one of your projects — so the same entry is never installed twice by accident. A copy
+  that is switched off, or that no longer matches what the collection publishes, is marked as such: the
+  installed copy is compared with the published one by content (a skill by the SHA-256 of its `SKILL.md`, a
+  server by its launch recipe), which needs no extra request because a repository is read to list its skills
+  anyway. The preview and the install dialog list every copy with the path it lives at, and a name an owner
+  already holds is refused in the form instead of by the backend.
+
+## [0.32.0] - 2026-10-07
+
+### Added
+
+- **A folder on the Projects screen folds away.** The chevron on a folder's card collapses the projects it
+  found and opens them again — the card keeps its name, its path and its project count, so a long list of
+  folders stays readable. Where a group was left is remembered for the rest of the session, the way the
+  screen's filters are, and a restart starts with every group open.
+
 ## [0.31.1] - 2026-10-07
 
 ### Changed

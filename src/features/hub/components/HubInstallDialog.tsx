@@ -32,9 +32,20 @@ import { useProjects } from '@/features/projects/api/queries'
 
 import { useInstallHubResource } from '../api/hooks'
 import { useHubEntry } from '../api/queries'
-import { HubEntryLinks, HubEntryMeta, HubFileList } from './HubEntryParts'
+import { HubEntryLinks, HubEntryMeta, HubFileList, HubInstalledList } from './HubEntryParts'
 
 type Transport = 'stdio' | 'http'
+
+/**
+ * The directory name an install would derive from a skill's name — the same rule the backend uses
+ * (`skill_slug`), so the warning below is about the write that would actually happen.
+ */
+function skillSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+}
 
 /**
  * One value written into the config of the chosen owner: an environment variable of a local
@@ -141,9 +152,16 @@ function InstallForm({ detail, onClose }: { detail: HubEntryDetail; onClose: () 
   const missing = rows.filter((row) => row.required && row.value.trim().length === 0)
   const named = name.trim()
   const isMcp = entry.kind === 'mcp'
+  // A name the chosen owner already holds: a skill lands in the directory its name makes (the
+  // backend refuses an existing one), and an MCP entry is keyed by the name it was given. Saying so
+  // here is what keeps the user from walking into a refusal they could not have foreseen.
+  const takenHere =
+    entry.installed.some((install) => install.owner.id === ownerId) &&
+    (isMcp ? named === entry.name.trim() : skillSlug(named) === skillSlug(entry.name))
   const valid =
     ownerId.length > 0 &&
     named.length > 0 &&
+    !takenHere &&
     (!isMcp || (transport === 'stdio' ? command.trim().length > 0 : url.trim().length > 0)) &&
     missing.length === 0
 
@@ -205,6 +223,7 @@ function InstallForm({ detail, onClose }: { detail: HubEntryDetail; onClose: () 
         ) : null}
 
         <HubEntryMeta entry={entry} />
+        <HubInstalledList entry={entry} />
 
         {scripts.length > 0 ? (
           <div className="border-warning/40 bg-warning/5 flex items-start gap-2 rounded-lg border p-3">
@@ -370,6 +389,12 @@ function InstallForm({ detail, onClose }: { detail: HubEntryDetail; onClose: () 
               onChange={(event) => setName(event.target.value)}
             />
           </FormField>
+
+          {takenHere ? (
+            <p className="text-warning-fg text-[0.75rem]" role="alert">
+              {t('hub.installedConflict', { name: named })}
+            </p>
+          ) : null}
 
           <HubEntryLinks entry={entry} docs={detail.sourceUrl} />
         </div>

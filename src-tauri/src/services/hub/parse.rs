@@ -235,6 +235,17 @@ fn is_entry_file(path: &str, directory: &str) -> bool {
     path == format!("{directory}/SKILL.md")
 }
 
+/// The bytes of a skill's entry file (`SKILL.md`).
+///
+/// A repository is already in memory while its skills are listed, so this is what lets the hub tell
+/// the copy on disk apart from a copy of the same name without fetching anything.
+pub fn entry_bytes<'a>(files: &'a [TarFile], directory: &str) -> Option<&'a [u8]> {
+    files
+        .iter()
+        .find(|file| is_entry_file(&file.path, directory))
+        .map(|file| file.bytes.as_slice())
+}
+
 /// `true` when `path` is `directory` or something below it.
 fn is_inside(path: &str, directory: &str) -> bool {
     path == directory || path.starts_with(&format!("{directory}/"))
@@ -434,6 +445,10 @@ fn item_from_record(record: RegistryRecord, source: &HubSource) -> RegistryItem 
         install_problem: problem,
         input_count: inputs.len() as u32,
         has_scripts: false,
+        // Filled in where the entry is served (`with_identity`): the recipe is what two entries
+        // with different names share when they are the same server.
+        installed: Vec::new(),
+        identity: None,
     };
     RegistryItem {
         entry,
@@ -876,6 +891,8 @@ fn item_from_index(
             install_problem: None,
             input_count: inputs.len() as u32,
             has_scripts: false,
+            installed: Vec::new(),
+            identity: None,
         },
         skill,
         transport,

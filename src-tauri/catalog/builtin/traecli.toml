@@ -1,0 +1,114 @@
+id = "traecli"
+name = "TraeCode CLI"
+description = "ByteDance's TraeCode terminal agent: config, skills, personal rules and MCP servers."
+tagline = "ByteDance's coding agent for the terminal"
+website = "https://www.trae.ai"
+docs = "https://docs.trae.cn/"
+icon = "trae"
+category = "cli"
+popular = true
+vendor = "ByteDance"
+features = [
+    "Terminal agent for the TraeCode product family",
+    "Config and MCP servers in one TOML file",
+    "Skills in ~/.traecli/skills, and the ones the IDE keeps",
+    "Personal rules shared with the IDE",
+    "Updates itself, and can be updated with `traecli update`",
+]
+unverified = ["skills.path"]
+notes = """Checked 2026-10-07. ByteDance publishes three separate things under the Trae name, and this
+manifest covers the terminal agent: **TraeCode CLI** (binary `traecli`), documented only in Chinese
+at docs.trae.cn — the international docs site (docs.trae.ai) has no CLI section at all. The
+TraeCode IDE (GUI, no shell command) and the open-source `bytedance/trae-agent` (binary `trae-cli`,
+a research project whose only config file is a project-local `trae_config.yaml`) are different
+products and are not described here.
+
+Two things to know about the paths. The CLI's own user config is `~/.trae/traecli.toml`, while its
+skills, commands and agents live under a differently named root, `~/.traecli/` — that mismatch is
+verbatim from the docs, and the skills page is the one the docs index groups under TraeCode CLI 1.0,
+which is why `skills.path` is marked unverified. The CLI also reads what the IDE stores: project
+skills and rules in `<project>/.trae/`, and the personal ones under `~/.trae-cn/` (the China build's
+prefix; the international build documents `~/.trae/`). Those IDE directories are declared here
+because the CLI reads them, and the docs list `~/.trae/traecli.toml` in tilde form only, so the
+Windows paths are `~` expanded to `%USERPROFILE%`.
+
+The install page writes the Unix installer as `sh -c "$(curl -fsSL <script>)"`; the same script is
+fetched and piped here, because Ahabby's manifests may not contain command substitution. No
+uninstall command is documented."""
+
+[binaries]
+names = ["traecli"]
+# SOURCE: https://docs.trae.cn/cli_command-line-parameters (checked 2026-10-07) — "`-V, --version` | 打印版本号。"
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.trae.cn/cli_get-started-with-trae-cli (checked 2026-10-07) — the installer
+# puts the binary in ~/.local/bin and the docs add it to PATH.
+[[search_paths]]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.trae.cn/cli_config-file (checked 2026-10-07) — "用户级配置文件默认位于：`~/.trae/traecli.toml`"
+[[configs]]
+id = "config"
+label = "traecli.toml"
+description = "User configuration, including trust per project and the MCP servers."
+format = "toml"
+path = { windows = "${USERPROFILE}/.trae/traecli.toml", macos = "${HOME}/.trae/traecli.toml", linux = "${HOME}/.trae/traecli.toml" }
+
+# SOURCE: https://docs.trae.cn/cli_skills (checked 2026-10-07) — "全局 Skill 的相关文件位于本地根目录 `~/.traecli/skills`。"
+[[skills]]
+format = "skillMd"
+glob = "*/SKILL.md"
+description = "The CLI's own skills, one directory per skill with a SKILL.md."
+path = { windows = "${USERPROFILE}/.traecli/skills", macos = "${HOME}/.traecli/skills", linux = "${HOME}/.traecli/skills" }
+
+# SOURCE: https://docs.trae.cn/cli_skills (checked 2026-10-07) — "存储全局 Skill 的目录是本地根目录 `~/.trae-cn/skills`。TraeCode CLI 可以读取和运行这两个目录下的 Skill。"
+[[skills]]
+format = "skillMd"
+glob = "*/SKILL.md"
+description = "The skills the TraeCode IDE keeps for this user, which the CLI reads too."
+path = { windows = "${USERPROFILE}/.trae-cn/skills", macos = "${HOME}/.trae-cn/skills", linux = "${HOME}/.trae-cn/skills" }
+
+# SOURCE: https://docs.trae.cn/cli_memories (checked 2026-10-07) — "存储个人规则的目录是本地根目录 `{$HOME}/.trae-cn/rules`"
+[[other]]
+id = "rules"
+kind = "rules"
+label = "Personal rules"
+description = "The IDE's personal rules directory, read by the CLI as well."
+format = "markdown"
+glob = "**/*.md"
+path = { windows = "${USERPROFILE}/.trae-cn/rules", macos = "${HOME}/.trae-cn/rules", linux = "${HOME}/.trae-cn/rules" }
+
+# SOURCE: https://docs.trae.cn/cli_config-file (checked 2026-10-07) — a top-level `mcp_servers` table keyed by server name, `[mcp_servers.docs] command = "node" args = [...]`
+[mcp]
+format = "toml"
+key_path = ["mcp_servers"]
+shared_with_config = true
+description = "Servers are a `mcp_servers` table in traecli.toml; the project's `.trae/mcp.json` is read too."
+path = { windows = "${USERPROFILE}/.trae/traecli.toml", macos = "${HOME}/.trae/traecli.toml", linux = "${HOME}/.trae/traecli.toml" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.trae.cn/cli_get-started-with-trae-code-cli-2 (checked 2026-10-07) — "sh -c \"$(curl -fsSL https://trae.cn/trae-cli/install_v2.sh)\""
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -fsSL https://trae.cn/trae-cli/install_v2.sh | sh"
+update_command = "traecli update"
+docs_url = "https://docs.trae.cn/cli_get-started-with-trae-code-cli-2"
+note = "Official installer for TraeCode CLI 2.0: the docs pipe the same script through `sh`; the CLI also updates itself on start."
+requires = ["curl", "sh"]
+priority = 0
+
+# SOURCE: https://docs.trae.cn/cli_get-started-with-trae-code-cli-2 (checked 2026-10-07) — "irm https://trae.cn/trae-cli/install_v2.ps1 | iex"
+[[methods]]
+id = "installer-windows"
+manager = "script"
+os = ["windows"]
+command = "irm https://trae.cn/trae-cli/install_v2.ps1 | iex"
+update_command = "traecli update"
+docs_url = "https://docs.trae.cn/cli_get-started-with-trae-code-cli-2"
+note = "Official PowerShell installer; adds the binary to the user PATH. An account with CLI access is required."
+requires = ["PowerShell 5.1+"]
+priority = 0

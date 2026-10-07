@@ -13,7 +13,7 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 import { useBrowser } from '@/features/browser/context'
 
 import { HubContextMenu } from './HubContextMenu'
-import { HubTagList } from './HubEntryParts'
+import { HubInstalled, HubTagList } from './HubEntryParts'
 
 /**
  * One installable entry, as a row of the hub.
@@ -98,6 +98,10 @@ export function HubEntryCard({
               ) : null}
 
               <HubTagList entry={entry} />
+
+              {/* Where this already is, and what the copies are worth — read from the scan, never
+                  from the hub's own memory of what it wrote. */}
+              <HubInstalled entry={entry} />
 
               {/* Why it cannot be installed is the publisher's own wording: the hub shows it as it is. */}
               {!entry.installable && entry.installProblem ? (

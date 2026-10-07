@@ -13,7 +13,11 @@ export const queryKeys = {
     refresh: number,
     tags: string[],
   ) => ['hub-source', sourceId, kind, query, limit, refresh, tags] as const,
+  /** Every page of every source — what a wider refresh invalidates. */
+  hubSourceAll: () => ['hub-source'] as const,
   hubEntry: (entryId: string) => ['hub-entry', entryId] as const,
+  /** Every entry read, so a screen that says "already installed" can say it again. */
+  hubEntryAll: () => ['hub-entry'] as const,
   settings: () => ['settings'] as const,
   packageManagers: () => ['package-managers'] as const,
   config: (agentId: string, path: string) => ['config', agentId, path] as const,

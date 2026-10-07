@@ -1,14 +1,18 @@
 import { useTranslation } from 'react-i18next'
-import { ExternalLink } from 'lucide-react'
+import { Check, CircleSlash, ExternalLink, RefreshCw } from 'lucide-react'
 
 import type { HubEntry } from '@/shared/bindings/HubEntry'
+import type { HubEntryInstall } from '@/shared/bindings/HubEntryInstall'
 import type { HubFileInfo } from '@/shared/bindings/HubFileInfo'
+import { cn } from '@/shared/lib/cn'
 import { formatBytes, isKnownNumber } from '@/shared/lib/format'
 import { tagColor } from '@/shared/lib/tagColor'
+import { AgentTag } from '@/shared/ui/AgentTag'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
+import { FormField } from '@/shared/ui/FormField'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useBrowser } from '@/features/browser/context'
@@ -20,6 +24,98 @@ import { useBrowser } from '@/features/browser/context'
  * write — so the answer is rendered once. What differs is what comes after it: nothing for a
  * preview, and the target, the values and the confirmation for an install.
  */
+
+/**
+ * What one existing copy is worth saying about it: switched off, no longer what the collection
+ * publishes, or the same bytes it publishes — and nothing at all when the two could not be
+ * compared.
+ *
+ * The claim is never invented: `identical` is set by the backend from the payload itself (a
+ * skill's `SKILL.md`, a server's launch recipe), so a card can only say "this is the same thing"
+ * when it actually compared them.
+ */
+function InstallState({ install }: { install: HubEntryInstall }) {
+  const { t } = useTranslation()
+
+  const state = !install.enabled
+    ? { icon: CircleSlash, tone: 'text-faint', label: t('hub.installedOff') }
+    : install.identical === false
+      ? { icon: RefreshCw, tone: 'text-warning-fg', label: t('hub.installedDiffers') }
+      : install.identical === true
+        ? { icon: Check, tone: 'text-success-fg', label: t('hub.installedSame') }
+        : null
+
+  if (!state) return null
+  const Icon = state.icon
+  return (
+    <Tooltip content={state.label}>
+      <Icon className={cn('size-3 shrink-0', state.tone)} role="img" aria-label={state.label} />
+    </Tooltip>
+  )
+}
+
+/**
+ * Where an entry already is, as a row of owner chips — what a card shows in its own width.
+ *
+ * The owners come from the scan, never from the Hub's memory of what *it* installed: a skill
+ * written into an agent's directory is that agent's skill whoever put it there, so a copy made in
+ * the Library, in another agent's page or by hand is named here just the same.
+ */
+export function HubInstalled({ entry }: { entry: HubEntry }) {
+  const { t } = useTranslation()
+  if (entry.installed.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Badge tone="success">
+        <Check className="size-3" aria-hidden />
+        {t('hub.installedBadge')}
+      </Badge>
+      {entry.installed.map((install) => (
+        <span
+          key={`${install.owner.id}:${install.path}`}
+          className="inline-flex items-center gap-1"
+        >
+          <AgentTag agent={install.owner} title={install.path} className="max-w-44" />
+          <InstallState install={install} />
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The same answer with room to read it: one line per copy, naming where it lives.
+ *
+ * The dialogs use this: a decision about installing a second copy is made with the existing ones
+ * in sight, and the path is what makes "for that project, in this directory" checkable.
+ */
+export function HubInstalledList({ entry }: { entry: HubEntry }) {
+  const { t } = useTranslation()
+  if (entry.installed.length === 0) return null
+
+  return (
+    <FormField label={t('hub.alreadyInstalled')} hint={t('hub.alreadyInstalledHint')}>
+      <ul className="border-border bg-surface-2/40 flex flex-col divide-y rounded-lg border">
+        {entry.installed.map((install) => (
+          <li
+            key={`${install.owner.id}:${install.path}`}
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2"
+          >
+            <AgentTag agent={install.owner} />
+            <InstallState install={install} />
+            <code
+              className="text-faint min-w-0 flex-1 truncate font-mono text-[0.7rem]"
+              title={install.path}
+            >
+              {install.path}
+            </code>
+          </li>
+        ))}
+      </ul>
+    </FormField>
+  )
+}
 
 /** A link out of Ahabby, opened in Ahabby's own browser with the URL as its tooltip. */
 function HubLink({ label, href }: { label: string; href: string | null | undefined }) {

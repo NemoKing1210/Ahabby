@@ -10,7 +10,8 @@ import type { HubInstallRequest } from '@/shared/bindings/HubInstallRequest'
  *
  * The backend does the writing through the same adapter the manual "create skill" / "add server"
  * forms use, and answers with the whole fresh report, so the new resource is on screen in the
- * Library as soon as the write lands.
+ * Library as soon as the write lands — and the Hub's own answers are dropped, because "already
+ * installed, for these owners" is a statement about that report and not about the payload.
  */
 export function useInstallHubResource() {
   const client = useQueryClient()
@@ -19,6 +20,8 @@ export function useInstallHubResource() {
     onSuccess: (result) => {
       client.setQueryData(queryKeys.agents(), result.report)
       void client.invalidateQueries({ queryKey: queryKeys.library() })
+      void client.invalidateQueries({ queryKey: queryKeys.hubSourceAll() })
+      void client.invalidateQueries({ queryKey: queryKeys.hubEntryAll() })
     },
   })
 }

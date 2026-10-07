@@ -1611,3 +1611,117 @@ async fn a_hub_skill_installs_into_a_project() {
         ))
     );
 }
+
+/// The Hub's "already installed for …" is the *scan's* answer, not a second opinion: a payload
+/// installed into an agent's skills directory is found in the very report the Library reads, told
+/// apart from a same-named copy by the hash of its entry file, and still found after it is switched
+/// off.
+#[tokio::test]
+async fn a_hub_entry_is_found_installed_in_the_scan_report() {
+    use ahabby_lib::domain::{HubEntry, HubResourceKind};
+    use ahabby_lib::services::hub::installed::{skill_identity, InstalledIndex};
+
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let context = fixture.context();
+    let adapter =
+        ahabby_lib::adapters::registry::create(catalog.get("pipeline-demo").unwrap().clone());
+
+    let published = "---\nname: PDF Toolkit\ndescription: Fill forms\n---\n\n# PDF\n";
+    adapter
+        .install_skill(
+            &context,
+            &SkillInstall {
+                name: "PDF Toolkit".into(),
+                files: vec![
+                    file("SKILL.md", published),
+                    file("fill.py", "print('fill')\n"),
+                ],
+            },
+        )
+        .await
+        .unwrap();
+
+    // A hub entry as a collection offers one: the published bytes, and a name spelled its own way.
+    let entry = |identity: Option<String>| HubEntry {
+        id: "example/pdf-toolkit".into(),
+        source_id: "example".into(),
+        source_name: "Example".into(),
+        kind: HubResourceKind::Skill,
+        name: "pdf-toolkit".into(),
+        title: None,
+        description: None,
+        version: None,
+        vendor: None,
+        homepage: None,
+        repository: None,
+        license: None,
+        tags: Vec::new(),
+        file_count: None,
+        size_bytes: None,
+        installable: true,
+        install_problem: None,
+        input_count: 0,
+        has_scripts: true,
+        installed: Vec::new(),
+        identity,
+    };
+
+    let scanner = Scanner::new(&catalog);
+    let report = scanner.scan(&context, None, &[], &[], None).await;
+    let installed = report
+        .agent("pipeline-demo")
+        .unwrap()
+        .skills
+        .iter()
+        .find(|candidate| candidate.name == "PDF Toolkit")
+        .expect("the installed skill is scanned")
+        .clone();
+
+    let index = InstalledIndex::of(&report);
+    let mut entries = vec![entry(Some(skill_identity(published.as_bytes())))];
+    index.annotate(&mut entries);
+
+    assert_eq!(entries[0].installed.len(), 1, "one copy, one owner");
+    let found = &entries[0].installed[0];
+    assert_eq!(found.owner.id, "pipeline-demo");
+    assert_eq!(found.path, installed.path);
+    assert!(found.enabled);
+    assert_eq!(
+        found.identical,
+        Some(true),
+        "the published bytes are the bytes on disk"
+    );
+
+    // The collection moved on: the same name, a different payload.
+    let mut moved = vec![entry(Some(skill_identity(
+        b"---\nname: PDF Toolkit\n---\n\n# PDF v2\n",
+    )))];
+    index.annotate(&mut moved);
+    assert_eq!(moved[0].installed[0].identical, Some(false));
+
+    // Switched off, the copy is still one an agent has — it just is not loaded any more.
+    adapter
+        .set_skill_enabled(&context, &installed, false)
+        .await
+        .unwrap();
+    let report = scanner.scan(&context, None, &[], &[], None).await;
+    let mut entries = vec![entry(Some(skill_identity(published.as_bytes())))];
+    InstalledIndex::of(&report).annotate(&mut entries);
+
+    assert_eq!(
+        entries[0].installed.len(),
+        1,
+        "a switched-off copy is still installed"
+    );
+    assert!(!entries[0].installed[0].enabled);
+    assert_eq!(
+        entries[0].installed[0].identical,
+        Some(true),
+        "renaming the file does not change what it says"
+    );
+}

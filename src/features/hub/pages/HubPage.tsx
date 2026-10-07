@@ -71,7 +71,7 @@ export function HubPage() {
 
   // The Refresh action is honest about what it does — a *network* read — so the button reports the
   // state of the requests themselves instead of a timer of its own.
-  const busy = useIsFetching({ queryKey: ['hub-source'] }) > 0
+  const busy = useIsFetching({ queryKey: queryKeys.hubSourceAll() }) > 0
 
   const refresh = () => {
     void client.invalidateQueries({ queryKey: queryKeys.hubSources() })

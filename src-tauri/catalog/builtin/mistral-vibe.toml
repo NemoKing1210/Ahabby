@@ -1,0 +1,139 @@
+id = "mistral-vibe"
+name = "Mistral Vibe"
+description = "Mistral's terminal coding agent: settings, skills, agent profiles and MCP servers."
+tagline = "Mistral's open-source CLI coding assistant"
+website = "https://mistral.ai/vibe"
+docs = "https://docs.mistral.ai/vibe/code/cli/"
+icon = "mistral"
+category = "cli"
+popular = true
+vendor = "Mistral AI"
+features = [
+    "Open-source terminal agent powered by Mistral's models",
+    "Agent profiles, subagents and system prompts under ~/.vibe",
+    "Skills in the Agent Skills format (SKILL.md)",
+    "MCP servers declared in config.toml",
+    "Hooks in hooks.toml, at user or project scope",
+]
+github = "mistralai/mistral-vibe"
+unverified = []
+notes = """Verified against docs.mistral.ai/vibe/code/cli and the mistralai/mistral-vibe repository on
+2026-10-07. Everything the CLI owns lives in one home directory: `~/.vibe/` (override with the
+`VIBE_HOME` variable), holding config.toml, hooks.toml, .env, agents/, prompts/, skills/ and
+logs/. On Windows the same layout sits under `%USERPROFILE%\\.vibe`; the project copies live in
+`./.vibe/` next to the code, loaded only from a trusted folder.
+
+MCP servers are a `[[mcp_servers]]` **array** in config.toml, each entry naming itself, so
+Ahabby reads them but does not add or remove them (a list container has no name to key on).
+Vibe's own HTTP entries use `transport`/`url` where most tools write `type`/`url`; the entry is
+still listed with its URL, only the explicit transport name is Vibe's own.
+
+The docs list uv and pip as manual installs and say Windows is supported but UNIX is the target;
+`enable_auto_update` keeps the CLI current on its own, which is why no separate update command is
+declared here."""
+
+[binaries]
+names = ["vibe"]
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/install-setup (checked 2026-10-07) — "`vibe --version` returns a version"
+version_args = ["--version"]
+version_extract = "semver"
+
+# SOURCE: https://docs.astral.sh/uv/reference/storage/#executable-directory (checked 2026-10-07)
+# — `uv tool install` puts the executable in `$HOME/.local/bin` (Unix) / `%USERPROFILE%\.local\bin`
+# (Windows), which is where the official installer lands it.
+[[search_paths]]
+windows = ["${USERPROFILE}/.local/bin"]
+macos = ["${HOME}/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+linux = ["${HOME}/.local/bin", "/usr/local/bin"]
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/configuration (checked 2026-10-07) — "The CLI
+# looks for config.toml in this order: ./.vibe/config.toml … ~/.vibe/config.toml"
+[[configs]]
+id = "config"
+label = "config.toml"
+description = "User-level configuration: models and providers, tools, skills, hooks and MCP servers."
+format = "toml"
+path = { windows = "${USERPROFILE}/.vibe/config.toml", macos = "${HOME}/.vibe/config.toml", linux = "${HOME}/.vibe/config.toml" }
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/hooks (checked 2026-10-07) — "~/.vibe/hooks.toml
+# in your home directory (user-level)"
+[[configs]]
+id = "hooks"
+label = "hooks.toml"
+description = "Lifecycle hooks that gate, audit or rewrite tool calls."
+format = "toml"
+path = { windows = "${USERPROFILE}/.vibe/hooks.toml", macos = "${HOME}/.vibe/hooks.toml", linux = "${HOME}/.vibe/hooks.toml" }
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/skills (checked 2026-10-07) — "User-level skills
+# in ~/.vibe/skills/", following the Agent Skills specification
+[skills]
+format = "skillMd"
+glob = "**/SKILL.md"
+description = "Personal skills, one directory per skill with a SKILL.md (Agent Skills spec)."
+path = { windows = "${USERPROFILE}/.vibe/skills", macos = "${HOME}/.vibe/skills", linux = "${HOME}/.vibe/skills" }
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/mcp-servers (checked 2026-10-07) — "Append a
+# `[[mcp_servers]]` table to config.toml"; the array shape is what makes it read-only here.
+[mcp]
+format = "toml"
+key_path = ["mcp_servers"]
+entry_shape = "list"
+shared_with_config = true
+description = "Servers are a [[mcp_servers]] array in config.toml: read here, added by hand."
+path = { windows = "${USERPROFILE}/.vibe/config.toml", macos = "${HOME}/.vibe/config.toml", linux = "${HOME}/.vibe/config.toml" }
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/agents (checked 2026-10-07) — "The CLI loads up
+# to two AGENTS.md files into context … User-level: ~/.vibe/AGENTS.md"
+[[other]]
+id = "agents-md"
+kind = "instructions"
+label = "AGENTS.md"
+description = "User-level instructions loaded into every session."
+format = "markdown"
+path = { windows = "${USERPROFILE}/.vibe/AGENTS.md", macos = "${HOME}/.vibe/AGENTS.md", linux = "${HOME}/.vibe/AGENTS.md" }
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/agents (checked 2026-10-07) — "Create custom
+# agents in ~/.vibe/agents/ … by adding a .toml file"
+[[other]]
+id = "agents"
+kind = "subagents"
+label = "Agent profiles"
+description = "Custom agents and subagents, one .toml file each (agent_type = agent | subagent)."
+format = "toml"
+glob = "*.toml"
+path = { windows = "${USERPROFILE}/.vibe/agents", macos = "${HOME}/.vibe/agents", linux = "${HOME}/.vibe/agents" }
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/agents (checked 2026-10-07) — "The
+# `system_prompt_id` value points to a file in ~/.vibe/prompts/"
+[[other]]
+id = "prompts"
+kind = "prompts"
+label = "System prompts"
+description = "System prompts referenced by custom agents through system_prompt_id."
+format = "markdown"
+glob = "*.md"
+path = { windows = "${USERPROFILE}/.vibe/prompts", macos = "${HOME}/.vibe/prompts", linux = "${HOME}/.vibe/prompts" }
+
+# --- install methods ------------------------------------------------------------------
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/install-setup (checked 2026-10-07) — "Use the
+# one-line installer … Installs or upgrades `mistral-vibe` with `uv tool install`"
+[[methods]]
+id = "installer"
+manager = "script"
+os = ["macos", "linux"]
+command = "curl -LsSf https://mistral.ai/vibe/install.sh | bash"
+docs_url = "https://docs.mistral.ai/vibe/code/cli/install-setup"
+note = "Official installer: installs uv when missing, then `uv tool install mistral-vibe`. Re-running it updates the CLI."
+requires = ["curl"]
+priority = 0
+
+# SOURCE: https://docs.mistral.ai/vibe/code/cli/install-setup (checked 2026-10-07) — the manual
+# install tab offers `pip install mistral-vibe` (Python 3.12 or later)
+[[methods]]
+id = "pip"
+manager = "pip"
+command = "pip install mistral-vibe"
+docs_url = "https://docs.mistral.ai/vibe/code/cli/install-setup"
+note = "Manual install from PyPI. The docs recommend uv instead, especially on Windows."
+requires = ["Python 3.12+"]
+priority = 1

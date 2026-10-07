@@ -78,8 +78,31 @@ function entry(overrides: Partial<HubEntry> = {}): HubEntry {
     installProblem: null,
     inputCount: 0,
     hasScripts: true,
+    installed: [],
     ...overrides,
   }
+}
+
+/** The same entry, already held by the shared surface (and matching it) and by the demo agent. */
+function installedEntry(): HubEntry {
+  return entry({
+    installed: [
+      {
+        owner: { id: 'shared', name: 'Shared', icon: null },
+        scope: { kind: 'global' },
+        path: '/home/me/.agents/skills/pdf',
+        enabled: true,
+        identical: true,
+      },
+      {
+        owner: { id: 'demo', name: 'Demo Agent', icon: null },
+        scope: { kind: 'global' },
+        path: '/home/me/.claude/skills/pdf',
+        enabled: false,
+        identical: null,
+      },
+    ],
+  })
 }
 
 function report(overrides: Partial<HubSourceReport> = {}): HubSourceReport {
@@ -385,6 +408,47 @@ describe('HubPage', () => {
     // …and the install dialog is one step on from there, not a separate journey.
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Install' }))
     expect(await screen.findByText('What will be written')).toBeTruthy()
+  })
+
+  it('names the owners that already hold an entry, and refuses a name that is taken', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [installedEntry()] }))
+    vi.mocked(ipc.getHubEntry).mockResolvedValue({ ...skillDetail(), entry: installedEntry() })
+
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    // The card says it is installed and names every owner the scan found it for — the agent-neutral
+    // shared surface included, and a copy that is switched off.
+    const card = within(container).getByRole('button', { name: 'pdf' })
+    expect(within(card).getByText('Installed')).toBeTruthy()
+    expect(within(card).getByText('Shared')).toBeTruthy()
+    expect(within(card).getByText('Demo Agent')).toBeTruthy()
+    expect(
+      within(card).getByRole('img', { name: /same thing the collection publishes/ }),
+    ).toBeTruthy()
+    expect(within(card).getByRole('img', { name: /^Switched off/ })).toBeTruthy()
+
+    // The dialog lists them with the path each one lives at, and blocks the write the backend would
+    // refuse anyway: this name, for an owner that already holds it.
+    await user.click(within(container).getByRole('button', { name: 'Install' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Already installed')).toBeTruthy()
+    expect(within(dialog).getByText('/home/me/.agents/skills/pdf')).toBeTruthy()
+    expect(within(dialog).getByRole('alert').textContent).toContain('already taken for this owner')
+    expect(within(dialog).getByRole('button', { name: 'Install' })).toBeDisabled()
+
+    // A name of its own is a second copy, which is exactly what the form is for.
+    const name = within(dialog).getByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'pdf-tools')
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull())
+    expect(within(dialog).getByRole('button', { name: 'Install' })).toBeEnabled()
   })
 
   it('shows what an entry is for, and filters the sources by tag', async () => {

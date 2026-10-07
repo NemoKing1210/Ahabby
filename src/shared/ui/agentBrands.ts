@@ -4,18 +4,24 @@ import ClaudeCode from '@lobehub/icons/es/ClaudeCode/components/Mono'
 import Cline from '@lobehub/icons/es/Cline/components/Mono'
 import Codex from '@lobehub/icons/es/Codex/components/Inner'
 import Cursor from '@lobehub/icons/es/Cursor/components/Mono'
+import DeepSeek from '@lobehub/icons/es/DeepSeek/components/Mono'
 import GeminiCli from '@lobehub/icons/es/GeminiCLI/components/Color'
 import GithubCopilot from '@lobehub/icons/es/GithubCopilot/components/Mono'
 import Goose from '@lobehub/icons/es/Goose/components/Mono'
 import HermesAgent from '@lobehub/icons/es/HermesAgent/components/Mono'
 import Junie from '@lobehub/icons/es/Junie/components/Mono'
 import KiloCode from '@lobehub/icons/es/KiloCode/components/Inner'
+import Kimi from '@lobehub/icons/es/Kimi/components/Color'
 import Kiro from '@lobehub/icons/es/Kiro/components/Color'
+import Meta from '@lobehub/icons/es/Meta/components/Mono'
+import Mistral from '@lobehub/icons/es/Mistral/components/Mono'
 import OpenClaw from '@lobehub/icons/es/OpenClaw/components/Color'
 import OpenCode from '@lobehub/icons/es/OpenCode/components/Mono'
 import OpenHands from '@lobehub/icons/es/OpenHands/components/Color'
 import Pi from '@lobehub/icons/es/Pi/components/Mono'
+import Qoder from '@lobehub/icons/es/Qoder/components/Color'
 import Qwen from '@lobehub/icons/es/Qwen/components/Mono'
+import Trae from '@lobehub/icons/es/Trae/components/Mono'
 import Windsurf from '@lobehub/icons/es/Windsurf/components/Mono'
 
 /**
@@ -63,6 +69,17 @@ const LIBRARY_BRANDS: Record<string, AgentBrand> = {
   opencode: { background: '#000000', foreground: '#ffffff', multiple: 0.75, Logo: OpenCode },
   pi: { background: '#000000', foreground: '#ffffff', multiple: 0.65, Logo: Pi },
   hermes: { background: '#ffffff', foreground: '#000000', multiple: 0.75, Logo: HermesAgent },
+  // The brands below were added together with the agents that use them: each pair is the
+  // library's own avatar palette for that brand (its `AVATAR_BACKGROUND` / `AVATAR_COLOR` /
+  // `AVATAR_ICON_MULTIPLE`, and the mark its `Avatar` pairs them with).
+  mistral: { background: '#FA520F', foreground: '#ffffff', multiple: 0.75, Logo: Mistral },
+  kimi: { background: '#000000', foreground: '#ffffff', multiple: 0.6, Logo: Kimi },
+  qoder: { background: '#000000', foreground: '#ffffff', multiple: 0.7, Logo: Qoder },
+  // Meta's own avatar background is a gradient, which a tile's `backgroundColor` cannot carry,
+  // so the brand's solid primary (`COLOR_PRIMARY`) is used instead.
+  meta: { background: '#1d65c1', foreground: '#ffffff', multiple: 0.75, Logo: Meta },
+  deepseek: { background: '#4D6BFE', foreground: '#ffffff', multiple: 0.75, Logo: DeepSeek },
+  trae: { background: '#000000', foreground: '#32F08C', multiple: 0.65, Logo: Trae },
 }
 
 type AgentColor = Omit<AgentBrand, 'Logo' | 'multiple'>
@@ -86,6 +103,9 @@ const AGENT_COLORS: Record<string, AgentColor> = {
   crush: { background: '#6b50ff', foreground: '#ffffff' },
   // SOURCE: https://factory.com/ (`--accent-100`)
   droid: { background: '#ef6f2e', foreground: '#000000' },
+  // SOURCE: https://freebuff.com/cli stylesheet (checked 2026-10-07) — `--brand: 100 100% 62%`
+  // with `--brand-foreground: 0 0% 8%` (hsl, i.e. the acid lime on near-black)
+  freebuff: { background: '#7eff3d', foreground: '#000000' },
   // SOURCE: https://forgecode.dev/ (`--ifm-color-brand-orange`)
   forge: { background: '#fb923c', foreground: '#181818' },
   // SOURCE: https://gptme.org/media/icon.svg

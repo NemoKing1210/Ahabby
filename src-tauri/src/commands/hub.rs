@@ -13,6 +13,7 @@ use crate::domain::{
     HubSourceCatalog, McpDraftTransport, McpServerDraft, McpTransport,
 };
 use crate::error::{AppError, Result};
+use crate::services::hub::installed::InstalledIndex;
 use crate::state::AppState;
 
 use super::MutationResult;
@@ -31,7 +32,11 @@ pub async fn search_hub(
     query: HubQuery,
 ) -> Result<HubPage> {
     let catalog = state.hub_sources();
-    state.hub().search(&catalog, &source_id, &query).await
+    let mut page = state.hub().search(&catalog, &source_id, &query).await?;
+    if let Some(installed) = installed(&state) {
+        installed.annotate(&mut page.entries);
+    }
+    Ok(page)
 }
 
 /// One entry: its files (a skill) or its launch recipe (an MCP server), as the dialog shows them.
@@ -42,7 +47,23 @@ pub async fn get_hub_entry(
     refresh: bool,
 ) -> Result<HubEntryDetail> {
     let catalog = state.hub_sources();
-    state.hub().detail(&catalog, &entry_id, refresh).await
+    let mut detail = state.hub().detail(&catalog, &entry_id, refresh).await?;
+    if let Some(installed) = installed(&state) {
+        installed.annotate(std::slice::from_mut(&mut detail.entry));
+    }
+    Ok(detail)
+}
+
+/// What this machine already holds, as the scan last reported it.
+///
+/// The Hub's own cache deliberately plays no part: an installed copy is not the Hub's memory of
+/// what it wrote — it is a skill or a server on disk, and the scan is what knows it is there. A
+/// machine that has not scanned yet simply has no owners to name.
+fn installed(state: &AppState) -> Option<InstalledIndex> {
+    state
+        .report()
+        .ok()
+        .map(|report| InstalledIndex::of(&report))
 }
 
 /// Install one entry for any owner the scan knows.
