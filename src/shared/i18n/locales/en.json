@@ -235,6 +235,19 @@
     "notFound": "This agent is not in the catalog any more.",
     "notInstalledHint": "Ahabby knows how to manage this agent, but the executable is not on this machine."
   },
+  "browser": {
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload the page",
+    "address": "Address",
+    "copyAddress": "Copy the address",
+    "openExternal": "Open in your browser",
+    "emptyTitle": "Nothing to read on this page",
+    "emptyHint": "The page draws itself with its own scripts, and Ahabby runs no third-party code. Open it in your browser instead.",
+    "unsupportedTitle": "Ahabby cannot show this",
+    "linksOnPage": "Links on the page",
+    "truncated": "The page is longer than the reader reads at once, so only its beginning is shown."
+  },
   "configs": {
     "title": "Configuration files",
     "none": "No config files declared",

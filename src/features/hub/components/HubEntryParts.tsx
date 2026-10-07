@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { ExternalLink } from 'lucide-react'
 
-import { ipc } from '@/shared/api/ipc'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubFileInfo } from '@/shared/bindings/HubFileInfo'
 import { formatBytes, isKnownNumber } from '@/shared/lib/format'
@@ -10,8 +9,9 @@ import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
-import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
+
+import { useBrowser } from '@/features/browser/context'
 
 /**
  * The pieces an entry is shown with, shared by the preview and the install dialog.
@@ -21,19 +21,13 @@ import { Tooltip } from '@/shared/ui/Tooltip'
  * preview, and the target, the values and the confirmation for an install.
  */
 
-/** A link out of Ahabby, opened in the OS browser with the URL as its tooltip. */
+/** A link out of Ahabby, opened in Ahabby's own browser with the URL as its tooltip. */
 function HubLink({ label, href }: { label: string; href: string | null | undefined }) {
+  const browser = useBrowser()
   if (!href) return null
   return (
     <Tooltip content={href}>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={href}
-        onClick={() => {
-          void ipc.openUrl(href).catch(toastAppError)
-        }}
-      >
+      <Button variant="ghost" size="sm" aria-label={href} onClick={() => browser.open(href)}>
         <ExternalLink className="size-3.5" aria-hidden />
         {label}
       </Button>

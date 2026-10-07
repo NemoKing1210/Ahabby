@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, Download, ExternalLink, Info, RefreshCw, Store } from 'lucide-react'
 
-import { ipc } from '@/shared/api/ipc'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubSource } from '@/shared/bindings/HubSource'
 import { copyText } from '@/shared/lib/clipboard'
@@ -14,7 +13,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/shared/ui/ContextMenu'
-import { toast, toastAppError } from '@/shared/ui/Toast'
+import { toast } from '@/shared/ui/Toast'
+
+import { useBrowser } from '@/features/browser/context'
 
 /**
  * What a right click on an entry offers: the two things the card's own body and button do, plus
@@ -44,6 +45,7 @@ export function HubContextMenu({
   children: ReactNode
 }) {
   const { t } = useTranslation()
+  const browser = useBrowser()
   const page = entry.homepage ?? entry.repository
   const collection = source.homepage ?? source.docs
 
@@ -70,13 +72,13 @@ export function HubContextMenu({
 
         {page || collection ? <ContextMenuSeparator /> : null}
         {page ? (
-          <ContextMenuItem onSelect={() => void ipc.openUrl(page).catch(toastAppError)}>
+          <ContextMenuItem onSelect={() => browser.open(page)}>
             <ExternalLink aria-hidden />
             {t('hub.entryPage')}
           </ContextMenuItem>
         ) : null}
         {collection ? (
-          <ContextMenuItem onSelect={() => void ipc.openUrl(collection).catch(toastAppError)}>
+          <ContextMenuItem onSelect={() => browser.open(collection)}>
             <Store aria-hidden />
             {t('hub.openSource')}
           </ContextMenuItem>

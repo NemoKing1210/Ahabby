@@ -12,6 +12,7 @@ pub mod projects;
 pub mod settings;
 pub mod skills;
 pub mod terminal;
+pub mod web;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

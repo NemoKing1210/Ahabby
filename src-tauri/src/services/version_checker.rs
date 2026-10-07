@@ -8,10 +8,15 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tracing::warn;
-
-use crate::domain::{AgentManifest, Proxy, ProxyMode, Version};
+use crate::domain::{AgentManifest, Proxy, Version};
 use crate::platform::now_ms;
+
+use super::http;
+
+/// A registry that does not answer within this is a registry Ahabby does without.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+/// Registry and release APIs redirect to their own asset hosts, so a handful of hops is normal.
+const MAX_REDIRECTS: usize = 10;
 
 /// Where a "latest version" can be read from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,26 +69,8 @@ impl VersionChecker {
     /// system (`reqwest`'s own `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` detection), or one
     /// manual URL.
     pub fn new(enabled: bool, cache_minutes: u32, proxy: &Proxy) -> Self {
-        let mut builder = reqwest::Client::builder()
-            .user_agent(concat!("Ahabby/", env!("CARGO_PKG_VERSION")))
-            .timeout(Duration::from_secs(8));
-        match proxy.mode() {
-            // `reqwest` picks up the environment on its own, so "no proxy" has to be said out loud.
-            ProxyMode::None => builder = builder.no_proxy(),
-            ProxyMode::System => {}
-            ProxyMode::Manual => {
-                if let Some(url) = proxy.url() {
-                    match reqwest::Proxy::all(url) {
-                        Ok(configured) => builder = builder.proxy(configured),
-                        // Settings validation already rejects bad URLs; a hand-edited file lands here.
-                        Err(error) => warn!("ignoring proxy '{url}': {error}"),
-                    }
-                }
-            }
-        }
-        let client = builder.build().unwrap_or_default();
         Self {
-            client,
+            client: http::client(proxy, REQUEST_TIMEOUT, MAX_REDIRECTS),
             cache: Mutex::new(HashMap::new()),
             ttl_ms: i64::from(cache_minutes.max(1)) * 60_000,
             enabled,

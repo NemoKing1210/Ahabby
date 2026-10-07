@@ -11,7 +11,13 @@ import { AgentFactsCard } from './AgentFactsCard'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
-    openUrl: vi.fn().mockResolvedValue(undefined),
+    fetchWebPage: vi.fn().mockResolvedValue({
+      url: 'https://api.example.com/v1',
+      kind: 'text',
+      body: '{ "ok": true }',
+      truncated: false,
+    }),
+    fetchWebImage: vi.fn().mockResolvedValue({ mime: 'image/png', base64: '' }),
     revealConfigFact: vi.fn().mockResolvedValue('sk-real-value'),
   },
 }))
@@ -124,7 +130,7 @@ describe('AgentFactsCard', () => {
     expect(screen.getByRole('button', { name: 'Copy value' })).toBeTruthy()
   })
 
-  it('opens an endpoint through the backend', async () => {
+  it("opens an endpoint in Ahabby's own browser", async () => {
     render([
       fact({
         id: 'config:base_url',
@@ -136,7 +142,7 @@ describe('AgentFactsCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open link' }))
     await waitFor(() =>
-      expect(vi.mocked(ipc.openUrl)).toHaveBeenCalledWith('https://api.example.com/v1'),
+      expect(vi.mocked(ipc.fetchWebPage)).toHaveBeenCalledWith('https://api.example.com/v1'),
     )
   })
 })

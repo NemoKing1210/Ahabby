@@ -21,6 +21,7 @@ pub mod shared;
 pub mod skill;
 pub mod terminal;
 pub mod version;
+pub mod web;
 
 pub use agent::{
     Agent, AgentRef, AgentRemoval, AgentStatus, Detection, HiddenAgent, InstallAction,
@@ -57,6 +58,7 @@ pub use terminal::{
     TerminalOutput, TerminalSession,
 };
 pub use version::Version;
+pub use web::{WebImage, WebPage, WebPageKind};
 
 /// Default for a `bool` field added after a report was cached.
 ///

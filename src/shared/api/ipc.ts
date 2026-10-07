@@ -41,6 +41,8 @@ import type { SkillToggle } from '@/shared/bindings/SkillToggle'
 import type { TerminalCatalog } from '@/shared/bindings/TerminalCatalog'
 import type { TerminalSession } from '@/shared/bindings/TerminalSession'
 import type { Theme } from '@/shared/bindings/Theme'
+import type { WebImage } from '@/shared/bindings/WebImage'
+import type { WebPage } from '@/shared/bindings/WebPage'
 
 export const ipc = {
   // --- agents -------------------------------------------------------------------------
@@ -55,6 +57,13 @@ export const ipc = {
     invoke<MutationResult<HiddenAgent>>('restore_agent', { agentId }),
   listPackageManagers: () => invoke<PackageManagerInfo[]>('list_package_managers'),
   revealPath: (path: string) => invoke<void>('reveal_path', { path }),
+  /**
+   * Hand a URL to the operating system's browser.
+   *
+   * This is the *escape hatch* of Ahabby's own browser, not a way to open a link: every link in
+   * the app goes to the reader first (see `features/browser`), and the user's own browser is
+   * what is offered for a page the reader will not show.
+   */
   openUrl: (url: string) => invoke<void>('open_url', { url }),
 
   // --- configs ------------------------------------------------------------------------
@@ -158,4 +167,17 @@ export const ipc = {
   /** Start an agent in a terminal installed on this machine. */
   openInTerminal: (agentId: string, terminalId: string, cwd: string | null) =>
     invoke<void>('open_in_terminal', { agentId, terminalId, cwd }),
+
+  // --- browser ------------------------------------------------------------------------
+  /**
+   * Read one page for Ahabby's own browser.
+   *
+   * The window never loads a remote origin, so a link cannot navigate the app away and a
+   * third-party page never runs next to the IPC bridge; a document the reader cannot show
+   * (a PDF, an image, a scheme no desktop app honours) comes back as `not_supported` and the
+   * dialog offers the user's own browser instead.
+   */
+  fetchWebPage: (url: string) => invoke<WebPage>('fetch_web_page', { url }),
+  /** One image of a page, base64, which the reader turns into a `data:` URL. */
+  fetchWebImage: (url: string) => invoke<WebImage>('fetch_web_image', { url }),
 }

@@ -5,6 +5,27 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0] - 2026-10-07
+
+### Added
+
+- **Ahabby has its own browser, and a link can no longer take the window with it.** Clicking a link in a
+  document — a `SKILL.md`, a user's `AGENTS.md` or `USER.md`, a command's markdown, an agent's website or
+  docs button, a URL printed in the terminal — opens it in a reader inside the app instead of navigating
+  Ahabby's window away to a page it cannot come back from. The reader is a window of its own: back, forward,
+  reload, an address bar you can type an address into, copy, and **Open in your browser** for the pages it
+  will not show.
+- **The window never loads a remote origin.** A page is read by the backend — through the same proxy as every
+  other network call, with a size cap, a timeout, a redirect limit, and the charset the page declares — and
+  sanitized before it is drawn, so a third-party page can never run script next to the app or be framed into
+  it, and its images travel through the backend too. The reader shows the article with Ahabby's own
+  typography, drops the navigation, footers and sidebars around it, and keeps its own place in the page.
+- **A link Ahabby cannot open is text, not a trap.** Documents are full of relative and in-page links that
+  the window used to resolve against Ahabby's own address, which is what broke the app; those now read as
+  plain text, while a host written without a scheme (`docs.example.com`) becomes a working link. A page that
+  draws itself with its own scripts, one that is too short to be worth reading, or one the reader cannot show
+  at all (a PDF, an image) says so and hands it to your browser instead.
+
 ## [0.30.0] - 2026-10-07
 
 ### Added

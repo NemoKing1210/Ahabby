@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
 import { cn } from '@/shared/lib/cn'
 import { shortenPath } from '@/shared/lib/format'
@@ -22,8 +21,9 @@ import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
-import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
+
+import { useBrowser } from '@/features/browser/context'
 
 import { AgentContextMenu } from './AgentContextMenu'
 
@@ -61,6 +61,7 @@ export function AgentCard({
   landed?: boolean
 }) {
   const { t } = useTranslation()
+  const browser = useBrowser()
   const installed = agent.status === 'installed'
 
   return (
@@ -199,7 +200,7 @@ export function AgentCard({
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('agents.website')}
-                  onClick={() => void ipc.openUrl(agent.website ?? '').catch(toastAppError)}
+                  onClick={() => browser.open(agent.website ?? '')}
                 >
                   <ExternalLink className="size-3.5" />
                 </Button>
@@ -211,7 +212,7 @@ export function AgentCard({
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('agents.docs')}
-                  onClick={() => void ipc.openUrl(agent.docs ?? '').catch(toastAppError)}
+                  onClick={() => browser.open(agent.docs ?? '')}
                 >
                   <FileText className="size-3.5" />
                 </Button>
@@ -233,7 +234,7 @@ export function AgentCard({
                 variant="secondary"
                 size="sm"
                 disabled={!agent.installDocsUrl}
-                onClick={() => void ipc.openUrl(agent.installDocsUrl ?? '').catch(toastAppError)}
+                onClick={() => browser.open(agent.installDocsUrl ?? '')}
               >
                 {t('install.docsInstead')}
               </Button>

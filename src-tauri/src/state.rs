@@ -21,6 +21,7 @@ use crate::platform::PlatformContext;
 use crate::services::{
     self, HubService, JobOutcome, JobOutputEvent, JobRunner, JobSink, ScanCache, ScanReport,
     ScanSink, Scanner, Settings, SettingsService, TerminalManager, TerminalSink, VersionChecker,
+    WebService,
 };
 
 /// Event names the frontend listens to. Kept in one place so both sides cannot drift.
@@ -198,6 +199,7 @@ pub struct AppState {
     terminals: Arc<TerminalManager>,
     versions: RwLock<Arc<VersionChecker>>,
     hub: RwLock<Arc<HubService>>,
+    web: WebService,
 }
 
 impl AppState {
@@ -241,6 +243,7 @@ impl AppState {
                 &proxy,
             ))),
             hub: RwLock::new(Arc::new(HubService::new(&proxy))),
+            web: WebService::new(&proxy),
             scan_sink: Arc::new(TauriScanSink { app: app.clone() }),
             scanner,
             scan_cache,
@@ -278,6 +281,7 @@ impl AppState {
         if let Ok(hub) = self.hub.read() {
             hub.set_proxy(&proxy);
         }
+        self.web.set_proxy(&proxy);
         Ok(saved)
     }
 
@@ -345,6 +349,11 @@ impl AppState {
     /// The hub's sources: the builtin ones merged with the user's own from `<config>/hub`.
     pub fn hub_sources(&self) -> crate::domain::HubSourceCatalog {
         self.hub().sources(&self.app_config.join("hub"))
+    }
+
+    /// Ahabby's own browser: reads the pages and images the reader shows, through the same proxy.
+    pub fn web(&self) -> &WebService {
+        &self.web
     }
 
     /// Reload the catalog from disk (user manifests may have changed) and scan.

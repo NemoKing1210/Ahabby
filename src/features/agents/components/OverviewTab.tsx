@@ -11,6 +11,8 @@ import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
 import { toastAppError } from '@/shared/ui/Toast'
 
+import { useBrowser } from '@/features/browser/context'
+
 import { AgentFactsCard } from './AgentFactsCard'
 
 /**
@@ -25,6 +27,7 @@ export function OverviewTab({
   onInstall: (agent: Agent, action: InstallAction) => void
 }) {
   const { t } = useTranslation()
+  const browser = useBrowser()
   const installed = agent.status === 'installed'
 
   return (
@@ -55,7 +58,7 @@ export function OverviewTab({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => void ipc.openUrl(agent.website ?? '').catch(toastAppError)}
+                  onClick={() => browser.open(agent.website ?? '')}
                 >
                   <Globe className="size-3.5" aria-hidden />
                   {t('agents.website')}
@@ -65,7 +68,7 @@ export function OverviewTab({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => void ipc.openUrl(agent.docs ?? '').catch(toastAppError)}
+                  onClick={() => browser.open(agent.docs ?? '')}
                 >
                   <FileText className="size-3.5" aria-hidden />
                   {t('agents.docs')}
@@ -75,11 +78,7 @@ export function OverviewTab({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
-                    void ipc
-                      .openUrl(`https://github.com/${agent.github ?? ''}`)
-                      .catch(toastAppError)
-                  }
+                  onClick={() => browser.open(`https://github.com/${agent.github ?? ''}`)}
                 >
                   <GitBranch className="size-3.5" aria-hidden />
                   {t('agent.overview.repository')}
@@ -225,7 +224,7 @@ export function OverviewTab({
               variant="link"
               size="sm"
               className="self-start px-0"
-              onClick={() => void ipc.openUrl(agent.installDocsUrl ?? '').catch(toastAppError)}
+              onClick={() => browser.open(agent.installDocsUrl ?? '')}
             >
               {t('install.docsInstead')}
             </Button>

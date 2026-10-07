@@ -86,6 +86,8 @@ macro_rules! handlers {
             commands::terminal::close_terminal,
             commands::terminal::list_terminal_sessions,
             commands::terminal::open_in_terminal,
+            commands::web::fetch_web_page,
+            commands::web::fetch_web_image,
         ]
     };
 }

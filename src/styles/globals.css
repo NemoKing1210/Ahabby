@@ -415,6 +415,35 @@
     }
   }
 
+  /* The indeterminate bar under the toolbar of Ahabby's browser. */
+  @keyframes ah-progress {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
+  .ah-reader-progress {
+    position: relative;
+    flex-shrink: 0;
+    height: 2px;
+    overflow: hidden;
+    background-color: var(--color-surface-2);
+  }
+
+  .ah-reader-progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 40%;
+    background-color: var(--color-accent);
+    animation: ah-progress 1100ms var(--ease-warm) infinite;
+  }
+
   /* Radix unmounts a toast only once its exit animation ends, and a swiped toast matches
      both state selectors — the swipe rule must be the later one, so both live here. */
   .ah-toast[data-state='closed'] {
@@ -580,6 +609,64 @@
   .ah-prose th {
     background-color: var(--color-surface-2);
     font-weight: 500;
+  }
+
+  /* A page read by Ahabby's own browser. It is the same typography as rendered markdown
+     (the `.ah-prose` rules above), plus what a *page* brings that a document does not:
+     tables wider than the window, images that arrive one by one, and headings a page
+     anchors to. The markup it styles was sanitized in `features/browser/lib/readable.ts`. */
+  .ah-reader {
+    overflow-wrap: break-word;
+  }
+
+  .ah-reader > :first-child {
+    margin-top: 0;
+  }
+
+  /* A table of a documentation page is often wider than the dialog: it scrolls itself
+     instead of pushing the article sideways. */
+  .ah-reader table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .ah-reader figure {
+    margin: 1.25em 0;
+  }
+
+  .ah-reader figcaption {
+    color: var(--color-muted);
+    margin-top: 0.5em;
+    font-size: 0.9em;
+  }
+
+  .ah-reader img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+  }
+
+  /* Until the backend hands the image over it is a placeholder, not a broken picture. */
+  .ah-reader img[data-src] {
+    background-color: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    min-height: 2rem;
+    min-width: 2rem;
+  }
+
+  .ah-reader summary {
+    cursor: pointer;
+  }
+
+  /* `text/plain` and `text/markdown` pages: shown as the text they are. */
+  .ah-reader-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    line-height: 1.6;
   }
 }
 

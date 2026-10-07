@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.30.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.31.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -64,6 +64,9 @@ hub sources → services::hub (one request per source, cached) → HubEntry → 
                     skills directory or MCP config file
 
 agent id ──→ AppState::agent (the scan's binary) ──→ services::terminal (PTY) ──→ terminal://output ──→ xterm
+
+external link ──→ features/browser (the one click listener) ──→ fetch_web_page / fetch_web_image
+                      └→ services::web (proxy, caps, charset) ──→ the reader sanitizes and renders it
 ```
 
 - One scan, one source of truth; the last report is cached in memory so navigation is instant.
@@ -99,28 +102,29 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 
 ## Key Directories
 
-| Path                               | Purpose                                                                                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                            |
-| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, hub, projects, install, settings, terminal |
-| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                           |
-| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                               |
-| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                            |
-| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                                                       |
-| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                  |
-| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                               |
-| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                              |
-| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services               |
-| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                 |
-| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                              |
-| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                   |
-| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                 |
-| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time               |
-| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                        |
-| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, per-source paging) + `parse.rs` (the three formats, pure and unit-tested)                                 |
-| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its context menu, the read-only preview, the install dialog           |
-| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                      |
-| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                              |
+| Path                               | Purpose                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                                     |
+| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, hub, browser, projects, install, settings, terminal |
+| `src/features/browser/`            | Ahabby's own browser: the one click listener, the modal window, the sanitizer and the image proxy                                          |
+| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                                    |
+| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                                        |
+| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                                     |
+| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard, `links` (where a link leads)                                                                  |
+| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                           |
+| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                                        |
+| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                                       |
+| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services                        |
+| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                          |
+| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                                       |
+| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                            |
+| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                          |
+| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time                        |
+| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                                 |
+| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, per-source paging) + `parse.rs` (the three formats, pure and unit-tested)                                          |
+| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its context menu, the read-only preview, the install dialog                    |
+| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                               |
+| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                                       |
 
 ## Development Commands
 
@@ -274,6 +278,16 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   items, which agents are runnable) and only then turned into native items, which is what makes it testable
   without a running application; the "Go to" labels are compared against `nav.*` by a unit test, so the tray
   and the sidebar cannot describe one screen differently.
+- **A link never takes the window with it.** Every external link in the app is caught by one capture-phase
+  listener in `features/browser/context.tsx` (`BrowserProvider`, mounted above the router) and opened in
+  Ahabby's own browser: a modal with its own history, an address bar, back/forward/reload, copy and **Open in
+  your browser**. The listener decides on the _attribute_, never on `anchor.href` (a resolved href already
+  points at Ahabby's own origin), and `shared/lib/links.ts` is the one place that says what an href means —
+  `reader` for `http(s)` and a bare host, `block` for a scheme no desktop app honours, `inline` for the hash
+  the router owns and for a relative path. `Markdown` renders a link the reader cannot open as its own text
+  (the `<a>` goes, so a document's `#…` or `./file.md` link cannot navigate either), and every button that
+  means "open the website" (an agent's, a hub entry's, the install docs, the terminal's own hyperlinks) calls
+  `useBrowser().open`: the OS browser is what the reader _offers_, not what a link does.
 - **The window opens where the user left it.** `Settings::sidebar_collapsed` and `Settings::last_route` are
   the shell's own state: they are written by `set_sidebar_collapsed` / `set_last_route` (never by the
   Settings page, whose whole-document save the backend makes ignore them) and read back in `main.tsx`
@@ -302,6 +316,16 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   `platform::chrome_tokens` (a unit test reads `globals.css` and fails if the two drift).
 - Services take a `PlatformContext` and must not depend on `AppHandle` (except where a `JobSink` is needed).
   The tray, the window and the login item need one, which is why they live in `desktop/` and not in a service.
+- **The reader fetches, the frontend sanitizes.** `services::web` reads one page — `http(s)` only, host
+  required, credentials dropped, 3 MiB cap, 20 s timeout, 5 redirects — and answers with the document as the
+  server sent it, decoded with the charset the header or a `<meta>` declares;
+  `features/browser/lib/readable.ts` then parses it inert, drops the page's chrome, sanitizes the rest against
+  an allow-list and rewrites every link and image, with the images coming back through `fetch_web_image` as
+  base64 — which is what keeps `img-src 'self' data:` true and a third-party page out of the process that
+  holds the IPC bridge. A document it cannot render (a PDF, an image, an unexpected type) is a `not_supported`
+  error the dialog turns into "open it in your browser", never an empty page. The Hub's, the version checker's
+  and the reader's HTTP clients all come from `services::http::client(proxy, timeout, redirects)`, so a proxy
+  change is one rebuild per service and no service can quietly ignore the setting.
 - **The tray menu is replaced, never patched, and `desktop::sync` is the only way in.** It is called at
   startup, on every settings save and from the scan sink the moment a report lands (that is how the status
   line and the list of runnable agents stay current), it does its work on the main thread (menus belong
@@ -467,9 +491,14 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   context menu), the terminal tab store (buffered output,
   finishing and closing a tab), the animated list (the row order it renders, and a removed row staying in
   the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
-  composed within one tick, and one key not leaking into another), and the Settings areas (appearance, and
-  window & tray: what the document says, and that a hidden window needs the tray icon). Feature hooks are not
-  tested otherwise.
+  composed within one tick, and one key not leaking into another), the Settings areas (appearance, and
+  window & tray: what the document says, and that a hidden window needs the tray icon), and Ahabby's own
+  browser: what an href means (`shared/lib/links.ts` — opened, completed, refused, or left to the router), what
+  the markdown renderer keeps as a link and what it turns into text, the reader's sanitizer (the article it
+  takes, the chrome it drops, the ids it renames, the images it hands to the proxy), the image proxy's
+  deduplication and its concurrency limit, and the modal end to end (a link of a document opening it, a link
+  inside it navigating in the same window, Back, an address typed into the bar, and the images arriving from
+  the backend). Feature hooks are not tested otherwise.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch
   the real environment or network. Manifest fixtures use `catalog::parse_manifest(toml, "test")`.
@@ -480,6 +509,9 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   hold the unit tests around discovery, markers, the reserved owner ids and the re-rooted reads.
   `services::terminal` tests are the only ones that spawn a real process (a PTY is the product): they run the
   user's own shell, answer ConPTY's cursor query themselves, and cover output, input, resize and closing.
+  `services::web` is tested on its pure parts only — which URLs it refuses (`file:`, a bare path, a URL with
+  credentials in it), what a `Content-Type` means, and the charset it decodes with, header or `<meta>` — since
+  no test in the suite touches the network.
   `desktop::tray` plans its menu as plain data and asserts the plan (the status line, the two submenus, that
   only installed agents are offered), including a test that reads `src/shared/i18n/locales/*.json` and fails
   when the tray's screen names drift from the sidebar's — the same trick `platform::chrome_tokens` uses on

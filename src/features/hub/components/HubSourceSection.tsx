@@ -17,8 +17,9 @@ import { Card } from '@/shared/ui/Card'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
 import { SkeletonList } from '@/shared/ui/Primitives'
 import { SectionHeader } from '@/shared/ui/SectionHeader'
-import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
+
+import { useBrowser } from '@/features/browser/context'
 
 import { HubEntryCard } from './HubEntryCard'
 
@@ -58,6 +59,7 @@ export function HubSourceSection({
   refreshingId?: string | null
 }) {
   const { t } = useTranslation()
+  const browser = useBrowser()
   // The last generation whose first page was already asked for with `refresh`. A ref rather than
   // state: it must not re-render, and it must survive the query key changing under it.
   const forced = useRef(generation)
@@ -104,9 +106,7 @@ export function HubSourceSection({
               variant="ghost"
               size="icon-sm"
               aria-label={t('hub.openSource')}
-              onClick={() => {
-                void ipc.openUrl(link).catch(toastAppError)
-              }}
+              onClick={() => browser.open(link)}
             >
               <ExternalLink className="size-3.5" />
             </Button>

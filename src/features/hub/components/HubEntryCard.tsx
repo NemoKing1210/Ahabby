@@ -2,15 +2,15 @@ import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Server, Sparkles } from 'lucide-react'
 
-import { ipc } from '@/shared/api/ipc'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubSource } from '@/shared/bindings/HubSource'
 import { formatBytes, isKnownNumber } from '@/shared/lib/format'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
-import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
+
+import { useBrowser } from '@/features/browser/context'
 
 import { HubContextMenu } from './HubContextMenu'
 import { HubTagList } from './HubEntryParts'
@@ -40,6 +40,7 @@ export function HubEntryCard({
   refreshing?: boolean
 }) {
   const { t } = useTranslation()
+  const browser = useBrowser()
   const size = formatBytes(entry.sizeBytes)
   const Icon = entry.kind === 'skill' ? Sparkles : Server
   const page = entry.homepage ?? entry.repository
@@ -119,9 +120,7 @@ export function HubEntryCard({
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('hub.entryPage')}
-                  onClick={() => {
-                    void ipc.openUrl(page).catch(toastAppError)
-                  }}
+                  onClick={() => browser.open(page)}
                 >
                   <ExternalLink className="size-3.5" />
                 </Button>

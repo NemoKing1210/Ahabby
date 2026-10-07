@@ -29,11 +29,12 @@ use crate::domain::skill::{SkillInstall, SkillInstallFile};
 use crate::domain::{
     normalize_tags, tags_match, HubEntry, HubEntryDetail, HubFileInfo, HubInput, HubPage,
     HubPreview, HubQuery, HubResourceKind, HubSource, HubSourceCatalog, HubSourceKind,
-    HubSourceReport, McpTransport, Proxy, ProxyMode,
+    HubSourceReport, McpTransport, Proxy,
 };
 use crate::error::{AppError, Result};
 use crate::platform::now_ms;
 
+use super::http;
 use parse::{IndexItem, RegistryItem, RepoSkill, TarFile};
 
 /// Repository payloads kept in memory before the oldest one is dropped.
@@ -42,6 +43,8 @@ const CACHE_BUDGET_BYTES: u64 = 96 * 1024 * 1024;
 const CACHE_TTL_MS: i64 = 10 * 60 * 1000;
 /// A source that does not answer within this is reported as unreachable.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(25);
+/// How many hops a source may take (a repository download goes through a redirect).
+const MAX_REDIRECTS: usize = 10;
 /// Largest body Ahabby will read from one source (a repository tarball is the big one).
 const MAX_DOWNLOAD_BYTES: u64 = parse::MAX_ARCHIVE_BYTES;
 
@@ -58,7 +61,7 @@ impl HubService {
     /// `proxy` decides how requests leave the machine, exactly as it does for version checks.
     pub fn new(proxy: &Proxy) -> Self {
         Self {
-            client: RwLock::new(http_client(proxy)),
+            client: RwLock::new(http::client(proxy, REQUEST_TIMEOUT, MAX_REDIRECTS)),
             cache: Mutex::new(Cache::default()),
         }
     }
@@ -66,7 +69,7 @@ impl HubService {
     /// Settings changed: the cache is still valid, the connection is not.
     pub fn set_proxy(&self, proxy: &Proxy) {
         match self.client.write() {
-            Ok(mut client) => *client = http_client(proxy),
+            Ok(mut client) => *client = http::client(proxy, REQUEST_TIMEOUT, MAX_REDIRECTS),
             Err(error) => warn!("could not rebuild the hub client: {error}"),
         }
     }
@@ -625,7 +628,7 @@ impl HubService {
     fn http(&self) -> reqwest::Client {
         match self.client.read() {
             Ok(client) => client.clone(),
-            Err(_) => http_client(&Proxy::none()),
+            Err(_) => http::client(&Proxy::none(), REQUEST_TIMEOUT, MAX_REDIRECTS),
         }
     }
 
@@ -640,7 +643,7 @@ impl HubService {
             .timeout(REQUEST_TIMEOUT)
             .send()
             .await
-            .map_err(|error| network_error(url, &error))?;
+            .map_err(|error| http::network_error(url, &error, REQUEST_TIMEOUT))?;
         let status = response.status();
         if !status.is_success() {
             return Err(AppError::Network(format!("{url} answered {status}")));
@@ -652,7 +655,7 @@ impl HubService {
         while let Some(chunk) = response
             .chunk()
             .await
-            .map_err(|error| network_error(url, &error))?
+            .map_err(|error| http::network_error(url, &error, REQUEST_TIMEOUT))?
         {
             if body.len() as u64 + chunk.len() as u64 > MAX_DOWNLOAD_BYTES {
                 return Err(AppError::Network(format!(
@@ -670,34 +673,6 @@ impl HubService {
         serde_json::from_slice(&body)
             .map_err(|error| AppError::other(format!("{url} did not answer JSON: {error}")))
     }
-}
-
-fn network_error(url: &str, error: &reqwest::Error) -> AppError {
-    if error.is_timeout() {
-        AppError::Timeout(REQUEST_TIMEOUT.as_secs())
-    } else {
-        AppError::Network(format!("{url}: {error}"))
-    }
-}
-
-fn http_client(proxy: &Proxy) -> reqwest::Client {
-    let mut builder = reqwest::Client::builder()
-        .user_agent(concat!("Ahabby/", env!("CARGO_PKG_VERSION")))
-        .timeout(REQUEST_TIMEOUT);
-    match proxy.mode() {
-        // `reqwest` picks the environment up on its own, so "no proxy" has to be said out loud.
-        ProxyMode::None => builder = builder.no_proxy(),
-        ProxyMode::System => {}
-        ProxyMode::Manual => {
-            if let Some(url) = proxy.url() {
-                match reqwest::Proxy::all(url) {
-                    Ok(configured) => builder = builder.proxy(configured),
-                    Err(error) => warn!("ignoring proxy '{url}' for the hub: {error}"),
-                }
-            }
-        }
-    }
-    builder.build().unwrap_or_default()
 }
 
 /// One page of one source.

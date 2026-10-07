@@ -70,10 +70,6 @@ export function useRevealPath() {
   return useMutation({ mutationFn: (path: string) => ipc.revealPath(path) })
 }
 
-export function useOpenUrl() {
-  return useMutation({ mutationFn: (url: string) => ipc.openUrl(url) })
-}
-
 /**
  * Reads exactly one credential the user asked to see. Quick info only ever receives masked
  * values, so this is the single path that can bring the real text into the webview.

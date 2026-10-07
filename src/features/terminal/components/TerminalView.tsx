@@ -26,8 +26,9 @@ import {
   ContextMenuTrigger,
 } from '@/shared/ui/ContextMenu'
 import { Input } from '@/shared/ui/Input'
-import { toast, toastAppError } from '@/shared/ui/Toast'
+import { toast } from '@/shared/ui/Toast'
 
+import { useBrowser } from '@/features/browser/context'
 import { useSettings } from '@/features/settings/api/hooks'
 
 import type { TerminalTab } from '../store'
@@ -62,6 +63,7 @@ export function TerminalView({
   className?: string
 }) {
   const { t } = useTranslation()
+  const browser = useBrowser()
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -125,7 +127,7 @@ export function TerminalView({
     term.loadAddon(
       new WebLinksAddon((event, uri) => {
         event.preventDefault()
-        void ipc.openUrl(uri).catch(toastAppError)
+        browser.open(uri)
       }),
     )
     term.open(host)

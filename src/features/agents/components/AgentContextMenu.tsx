@@ -27,6 +27,8 @@ import {
 } from '@/shared/ui/ContextMenu'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
+import { useBrowser } from '@/features/browser/context'
+
 /**
  * What a right click on an agent card offers: the same actions the card's buttons perform,
  * minus the ones that need a keyboard — plus the two path actions the card does not have
@@ -55,6 +57,7 @@ export function AgentContextMenu({
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const browser = useBrowser()
 
   const action =
     agent.status === 'installed'
@@ -106,16 +109,14 @@ export function AgentContextMenu({
         ) : null}
 
         {agent.website ? (
-          <ContextMenuItem
-            onSelect={() => void ipc.openUrl(agent.website ?? '').catch(toastAppError)}
-          >
+          <ContextMenuItem onSelect={() => browser.open(agent.website ?? '')}>
             <ExternalLink aria-hidden />
             {t('agents.website')}
           </ContextMenuItem>
         ) : null}
 
         {agent.docs ? (
-          <ContextMenuItem onSelect={() => void ipc.openUrl(agent.docs ?? '').catch(toastAppError)}>
+          <ContextMenuItem onSelect={() => browser.open(agent.docs ?? '')}>
             <FileText aria-hidden />
             {t('agents.docs')}
           </ContextMenuItem>

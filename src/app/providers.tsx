@@ -9,6 +9,7 @@ import { Toaster } from '@/shared/ui/Toast'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { ScanRefreshProvider } from '@/features/agents/api/scan'
+import { BrowserProvider } from '@/features/browser/context'
 import { useJobStore } from '@/features/install/store'
 import { reconcileTerminalSessions, writeTerminalOutput } from '@/features/terminal/lib/session'
 import { useTerminalStore } from '@/features/terminal/store'
@@ -116,7 +117,11 @@ export function AppProviders({ children, client }: { children: ReactNode; client
         <TooltipProvider delayDuration={250}>
           <JobEventBridge />
           <TerminalEventBridge />
-          <ScanRefreshProvider>{children}</ScanRefreshProvider>
+          <ScanRefreshProvider>
+            {/* Ahabby's own browser sits above every screen: one click listener catches the
+                external links anywhere in the app, and the reader is a modal over the shell. */}
+            <BrowserProvider>{children}</BrowserProvider>
+          </ScanRefreshProvider>
         </TooltipProvider>
         <Toaster />
       </MotionConfig>

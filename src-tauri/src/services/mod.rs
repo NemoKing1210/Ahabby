@@ -2,6 +2,7 @@
 //! individually testable modules.
 
 pub mod config_editor;
+pub mod http;
 pub mod hub;
 pub mod installer;
 pub mod library;
@@ -12,6 +13,7 @@ pub mod settings;
 pub mod shared;
 pub mod terminal;
 pub mod version_checker;
+pub mod web;
 
 pub use config_editor::{list_backups, preview, read_snapshot, restore, save, MAX_EDITABLE_BYTES};
 pub use hub::{HubService, Prepared};
@@ -24,3 +26,4 @@ pub use settings::{
 };
 pub use terminal::{TerminalManager, TerminalRequest, TerminalSink};
 pub use version_checker::{ReleaseSource, VersionChecker};
+pub use web::WebService;

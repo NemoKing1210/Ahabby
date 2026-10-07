@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Play, TriangleAlert } from 'lucide-react'
 
-import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
@@ -20,6 +19,8 @@ import { EmptyState } from '@/shared/ui/EmptyState'
 import { Spinner } from '@/shared/ui/Primitives'
 import { Select } from '@/shared/ui/Select'
 import { toastAppError } from '@/shared/ui/Toast'
+
+import { useBrowser } from '@/features/browser/context'
 
 import { useInstallPlan, useRunInstall } from '../api/mutations'
 import { JobConsole } from './JobConsole'
@@ -43,6 +44,7 @@ export function InstallDialog({
   onOpenChange: () => void
 }) {
   const { t } = useTranslation()
+  const browser = useBrowser()
   const run = useRunInstall()
   const [methodOverride, setMethodOverride] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -215,7 +217,7 @@ export function InstallDialog({
                   variant="link"
                   size="sm"
                   className="self-start px-0"
-                  onClick={() => void ipc.openUrl(docsUrl).catch(toastAppError)}
+                  onClick={() => browser.open(docsUrl)}
                 >
                   <ExternalLink className="size-3.5" aria-hidden />
                   {t('install.docsInstead')}

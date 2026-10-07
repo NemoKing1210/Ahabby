@@ -11,7 +11,9 @@ import { Card } from '@/shared/ui/Card'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
-import { useOpenUrl, useRevealConfigFact } from '../api/queries'
+import { useBrowser } from '@/features/browser/context'
+
+import { useRevealConfigFact } from '../api/queries'
 
 /**
  * "Quick info": the few values a user wants at a glance, lifted out of the agent's own
@@ -72,7 +74,7 @@ export function AgentFactsCard({ agent }: { agent: Agent }) {
 function FactRow({ agentId, fact }: { agentId: string; fact: ConfigFact }) {
   const { t } = useTranslation()
   const reveal = useRevealConfigFact()
-  const openUrl = useOpenUrl()
+  const browser = useBrowser()
   const [shown, setShown] = useState<string | null>(null)
 
   const value = fact.masked ? (shown ?? fact.value) : fact.value
@@ -124,7 +126,7 @@ function FactRow({ agentId, fact }: { agentId: string; fact: ConfigFact }) {
             variant="ghost"
             size="icon-sm"
             aria-label={t('agent.facts.open')}
-            onClick={() => openUrl.mutate(value, { onError: toastAppError })}
+            onClick={() => browser.open(value)}
           >
             <ExternalLink className="size-3.5" />
           </Button>

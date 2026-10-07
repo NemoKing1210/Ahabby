@@ -11,7 +11,13 @@ import { AgentCard } from './AgentCard'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
-    openUrl: vi.fn().mockResolvedValue(undefined),
+    fetchWebPage: vi.fn().mockResolvedValue({
+      url: 'https://claude.com/claude-code',
+      kind: 'text',
+      body: 'Claude Code',
+      truncated: false,
+    }),
+    fetchWebImage: vi.fn().mockResolvedValue({ mime: 'image/png', base64: '' }),
     revealPath: vi.fn().mockResolvedValue(undefined),
   },
 }))

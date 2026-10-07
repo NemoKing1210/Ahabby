@@ -1,6 +1,6 @@
 [package]
 name = "ahabby"
-version = "0.30.0"
+version = "0.31.0"
 description = "Ahabby — a control panel for the AI coding agents installed on your machine"
 authors = ["Ahabby contributors"]
 license = "MIT"
@@ -49,6 +49,10 @@ walkdir = "2.5"
 semver = "1.0"
 # Already in the tree through reqwest (used to validate manual proxy URLs in Settings).
 url = "2.5"
+# A page Ahabby's own browser reads declares its charset and often is not UTF-8 (a Russian
+# documentation site is the common case); this is the WHATWG label table that turns that
+# declaration into a decoder, plus the `windows-1251`/`koi8-r` tables themselves.
+encoding_rs = "0.8"
 # The Hub reads a GitHub collection of skills as one gzip tarball; both crates are already in
 # the tree through tauri, and reading the archive in memory is what makes browsing a repository
 # of hundreds of skills a single request instead of one per skill.
