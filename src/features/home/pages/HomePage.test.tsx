@@ -113,6 +113,8 @@ const SETTINGS: Settings = {
   hiddenAgents: [],
   favoriteAgents: ['codex'],
   projectFolders: [],
+  sidebarCollapsed: false,
+  lastRoute: null,
 }
 
 function renderPage() {

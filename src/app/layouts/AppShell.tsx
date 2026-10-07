@@ -45,6 +45,7 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 import { useAgents, useFavoriteAgents } from '@/features/agents/api/queries'
 import { useScanRefresh } from '@/features/agents/api/scan'
 import { useLibrary } from '@/features/library/api/queries'
+import { useSetLastRoute, useSetSidebarCollapsed, useSettings } from '@/features/settings/api/hooks'
 import { useRunAgentInTerminal, useTerminals } from '@/features/terminal/api/hooks'
 import { NewTerminalDialog } from '@/features/terminal/components/NewTerminalDialog'
 import { useTerminalStore } from '@/features/terminal/store'
@@ -116,6 +117,29 @@ function NavSection({ children }: { children: string }) {
   )
 }
 
+/**
+ * Remembers the screen the window is on, so the next launch opens there — `boot()` reads the value
+ * before the first render.
+ *
+ * Like the rail, this belongs to the shell and not to the Settings page: the backend keeps
+ * `lastRoute` out of a whole-document save, so a Settings draft fetched earlier can never roll it
+ * back. The comparison against what the backend already holds is what keeps a screen the user
+ * stays on from being written again on every render, and a failed write from being retried in a
+ * loop.
+ */
+function RouteMemory() {
+  const { pathname } = useLocation()
+  const cached = useSettings().data?.lastRoute
+  const remember = useSetLastRoute()
+
+  useEffect(() => {
+    if (cached === undefined || cached === pathname) return
+    remember.mutate(pathname)
+  }, [cached, pathname, remember])
+
+  return null
+}
+
 function ScanSummary() {
   const { t, i18n } = useTranslation()
   const { data } = useAgents()
@@ -151,7 +175,10 @@ export function AppShell() {
   const { t } = useTranslation()
   const { rescan, isScanning } = useScanRefresh()
   const scrollRef = useRef<HTMLElement>(null)
-  const [collapsed, setCollapsed] = useState(false)
+  // The rail's state is remembered between launches, so it lives in settings rather than in this
+  // component — `boot()` primes it before the first render and the rail opens the way it was left.
+  const collapsed = useSettings().data?.sidebarCollapsed ?? false
+  const setSidebarCollapsed = useSetSidebarCollapsed()
   const toggleLabel = collapsed ? t('nav.expand') : t('nav.collapse')
 
   const tabs = useTerminalStore((state) => state.tabs)
@@ -210,6 +237,7 @@ export function AppShell() {
   // rail never fuses with the window edges and reads as its own surface.
   return (
     <div className="bg-background flex h-full gap-3 p-3">
+      <RouteMemory />
       <aside
         className={cn(
           'border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col gap-2 rounded-2xl border p-2.5 transition-[width] duration-200',
@@ -225,7 +253,7 @@ export function AppShell() {
               size="icon-sm"
               aria-label={toggleLabel}
               aria-expanded={!collapsed}
-              onClick={() => setCollapsed((value) => !value)}
+              onClick={() => setSidebarCollapsed.mutate(!collapsed)}
             >
               {collapsed ? (
                 <PanelLeftOpen className="size-4.5" aria-hidden />

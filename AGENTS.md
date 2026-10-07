@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.26.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.27.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -256,6 +256,13 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   a hover action beside the agent, plus a one-item menu on the row itself so the collapsed rail has it too)
   calls the same `useRunAgentInTerminal` hook, which follows `Settings::terminal`: the built-in terminal opens
   a tab in the dock (expanding it, without navigating) and an external one is launched as its own window.
+- **The window opens where the user left it.** `Settings::sidebar_collapsed` and `Settings::last_route` are
+  the shell's own state: they are written by `set_sidebar_collapsed` / `set_last_route` (never by the
+  Settings page, whose whole-document save the backend makes ignore them) and read back in `main.tsx`
+  before the first render — the route into `window.location.hash` before `AppRouter` builds the router
+  (`app/routeMemory.ts`) and the settings straight into a query cache primed for `AppShell`. The rail is
+  therefore already collapsed and the right screen is the first thing painted; a hash the app was started
+  with wins over the remembered route.
 
 ### Backend patterns
 

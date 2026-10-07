@@ -53,3 +53,38 @@ export function useSaveSettings() {
     },
   })
 }
+
+/**
+ * Collapses or opens the sidebar rail.
+ *
+ * The two shell-owned settings (`sidebarCollapsed`, `lastRoute`) are written by these hooks, not
+ * by `useSaveSettings`: the backend keeps them out of a whole-document save, so the Settings
+ * page's draft can never roll them back. The rail moves from the click instead of from the round
+ * trip, and falls back to where it was if the write fails.
+ */
+export function useSetSidebarCollapsed() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (collapsed: boolean) => ipc.setSidebarCollapsed(collapsed),
+    onMutate: (collapsed) => {
+      const previous = client.getQueryData<Settings>(queryKeys.settings())
+      if (previous) {
+        client.setQueryData(queryKeys.settings(), { ...previous, sidebarCollapsed: collapsed })
+      }
+      return { previous }
+    },
+    onError: (_error, _collapsed, context) => {
+      if (context?.previous) client.setQueryData(queryKeys.settings(), context.previous)
+    },
+    onSuccess: (saved) => client.setQueryData(queryKeys.settings(), saved),
+  })
+}
+
+/** Remembers the screen the window is on, so the next launch opens there. */
+export function useSetLastRoute() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (route: string) => ipc.setLastRoute(route),
+    onSuccess: (saved) => client.setQueryData(queryKeys.settings(), saved),
+  })
+}

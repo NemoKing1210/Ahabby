@@ -150,6 +150,42 @@ pub struct Settings {
     /// skills, MCP servers and documents it finds. Only Ahabby's own list changes — nothing is
     /// written until the user edits something inside a project.
     pub project_folders: Vec<ProjectFolder>,
+    /// Interface state the shell remembers between launches — *not* something the Settings page
+    /// edits. The settings document is the one place Ahabby persists anything, so "where was I"
+    /// lives here too instead of in a second file; [`SettingsService::save`] deliberately keeps
+    /// whatever these two fields already hold, so a whole-document save from the Settings page
+    /// (whose copy predates the last collapse or navigation) cannot roll them back.
+    ///
+    /// Whether the sidebar rail is collapsed.
+    pub sidebar_collapsed: bool,
+    /// The screen the window was on (`/agents`, `/settings/terminal`, …). `None` opens the home
+    /// screen. `boot()` reads it before the first render, so the app opens where the user left
+    /// it instead of painting home and navigating away.
+    pub last_route: Option<String>,
+}
+
+/// Longest remembered route Ahabby keeps. Every real screen is far shorter; anything longer is
+/// junk that came from a hand-edited file.
+const MAX_ROUTE_LEN: usize = 200;
+
+/// Clean a remembered route, or drop it.
+///
+/// Only an absolute, single-slash path with plain segments survives: the value is navigated to on
+/// the next launch, so `..`, an empty segment, whitespace and anything absurdly long are refused
+/// instead of being handed to the router.
+fn normalize_route(route: &str) -> Option<String> {
+    let route = route.trim();
+    let usable = route.len() <= MAX_ROUTE_LEN
+        && route.starts_with('/')
+        && (route == "/" || !route.ends_with('/'))
+        && !route.contains("//")
+        && !route
+            .split('/')
+            .any(|segment| segment == "." || segment == "..")
+        && !route
+            .chars()
+            .any(|character| character.is_whitespace() || character.is_control());
+    usable.then(|| route.to_string())
 }
 
 fn is_hex_color(value: &str) -> bool {
@@ -188,6 +224,8 @@ impl Default for Settings {
             terminal: crate::platform::terminals::BUILTIN_ID.to_string(),
             terminal_theme: TerminalTheme::Auto,
             project_folders: Vec::new(),
+            sidebar_collapsed: false,
+            last_route: None,
         }
     }
 }
@@ -227,6 +265,9 @@ impl Settings {
                 seen_folders.insert(folder.id.clone()).then_some(folder)
             })
             .collect();
+        // A remembered route is kept only when it is one the router can resolve: a hand-edited
+        // file must not be able to point the shell at a screen that does not exist.
+        self.last_route = self.last_route.as_deref().and_then(normalize_route);
         // The terminal must be one Ahabby knows how to start. A terminal that is merely *not
         // installed right now* keeps its place in the setting: the UI flags it and the user can
         // reinstall it, which a silent reset to the built-in terminal would not allow.
@@ -307,7 +348,23 @@ impl SettingsService {
         &self.path
     }
 
-    pub fn save(&self, settings: Settings) -> Result<Settings> {
+    /// Write a whole settings document — what the Settings page does.
+    ///
+    /// The sidebar and the remembered screen belong to the shell, and a whole-document save is
+    /// never about them: the Settings page saves a copy fetched before the user last collapsed the
+    /// rail or navigated, so writing that copy back would undo state the user just set. Only
+    /// [`SettingsService::set_sidebar_collapsed`] / [`SettingsService::set_last_route`] move those
+    /// two, and they write through [`SettingsService::persist`] instead.
+    pub fn save(&self, mut settings: Settings) -> Result<Settings> {
+        let current = self.get();
+        settings.sidebar_collapsed = current.sidebar_collapsed;
+        settings.last_route = current.last_route;
+        self.persist(settings)
+    }
+
+    /// Write a document that is already the whole truth, sanitized and atomically, then adopt it
+    /// as the current settings.
+    fn persist(&self, settings: Settings) -> Result<Settings> {
         let settings = settings.sanitized();
         let parent = self
             .path
@@ -345,6 +402,29 @@ impl SettingsService {
             settings.favorite_agents.retain(|existing| existing != id);
         }
         self.save(settings)
+    }
+
+    /// Remember whether the sidebar rail is collapsed. Written on every toggle, so an unchanged
+    /// value returns without touching the disk.
+    pub fn set_sidebar_collapsed(&self, collapsed: bool) -> Result<Settings> {
+        let mut settings = self.get();
+        if settings.sidebar_collapsed == collapsed {
+            return Ok(settings);
+        }
+        settings.sidebar_collapsed = collapsed;
+        self.persist(settings)
+    }
+
+    /// Remember the screen the window is on. `None` — or a value [`normalize_route`] refuses —
+    /// forgets it, which means the next launch opens on the home screen.
+    pub fn set_last_route(&self, route: Option<&str>) -> Result<Settings> {
+        let mut settings = self.get();
+        let route = route.and_then(normalize_route);
+        if settings.last_route == route {
+            return Ok(settings);
+        }
+        settings.last_route = route;
+        self.persist(settings)
     }
 
     /// Add a folder to the Projects screen. The folder itself is validated by the caller (it has
@@ -529,6 +609,103 @@ mod tests {
         let mut broken = reloaded;
         broken.proxy_url = Some("127.0.0.1:7890".to_string());
         assert_eq!(broken.proxy().unwrap_err().code(), "invalid_input");
+    }
+
+    #[test]
+    fn the_shell_remembers_the_collapsed_sidebar_and_the_screen() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+
+        assert!(!service.get().sidebar_collapsed, "the rail starts open");
+        assert!(service.get().last_route.is_none(), "and on the home screen");
+
+        service.set_sidebar_collapsed(true).unwrap();
+        let saved = service.set_last_route(Some("/settings/terminal")).unwrap();
+        assert!(saved.sidebar_collapsed);
+        assert_eq!(saved.last_route.as_deref(), Some("/settings/terminal"));
+
+        let reloaded = SettingsService::load(dir.path()).get();
+        assert!(
+            reloaded.sidebar_collapsed,
+            "the next launch opens the same way"
+        );
+        assert_eq!(reloaded.last_route.as_deref(), Some("/settings/terminal"));
+
+        // Forgetting the route is an explicit `None`, which puts the window back on home.
+        let forgotten = service.set_last_route(None).unwrap();
+        assert!(forgotten.last_route.is_none());
+        assert_eq!(SettingsService::load(dir.path()).get(), forgotten);
+    }
+
+    #[test]
+    fn saving_the_settings_page_does_not_roll_back_what_the_shell_remembers() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        service.set_sidebar_collapsed(true).unwrap();
+        service.set_last_route(Some("/library")).unwrap();
+
+        // What the Settings page holds: a document fetched *before* the rail was collapsed.
+        let stale = Settings {
+            language: Language::Ru,
+            sidebar_collapsed: false,
+            last_route: None,
+            ..Settings::default()
+        };
+        let saved = service.save(stale).unwrap();
+
+        assert_eq!(saved.language, Language::Ru, "the real setting is written");
+        assert!(
+            saved.sidebar_collapsed && saved.last_route.as_deref() == Some("/library"),
+            "the shell's own state survives a whole-document save: {saved:?}"
+        );
+        assert_eq!(SettingsService::load(dir.path()).get(), saved);
+    }
+
+    #[test]
+    fn a_route_the_router_cannot_resolve_is_dropped() {
+        assert_eq!(
+            normalize_route("/projects/a1b2").as_deref(),
+            Some("/projects/a1b2")
+        );
+        assert_eq!(
+            normalize_route("  /settings/terminal  ").as_deref(),
+            Some("/settings/terminal")
+        );
+        assert_eq!(normalize_route("/").as_deref(), Some("/"));
+
+        for rejected in [
+            "",
+            "   ",
+            "agents",
+            "#/agents",
+            "https://example.com/agents",
+            "/agents/../settings",
+            "/agents//claude-code",
+            "/agents/",
+            "/agents claude",
+            "/\u{1b}[31m",
+        ] {
+            assert_eq!(
+                normalize_route(rejected),
+                None,
+                "{rejected:?} must be refused"
+            );
+        }
+        assert_eq!(
+            normalize_route(&format!("/{}", "a".repeat(MAX_ROUTE_LEN))),
+            None
+        );
+
+        // A hand-edited file is cleaned up when it loads rather than being navigated to.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"sidebarCollapsed":true,"lastRoute":"../../etc/passwd"}"#,
+        )
+        .unwrap();
+        let settings = SettingsService::load(dir.path()).get();
+        assert!(settings.sidebar_collapsed);
+        assert!(settings.last_route.is_none());
     }
 
     #[test]

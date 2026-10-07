@@ -85,4 +85,20 @@ terminalTheme: TerminalTheme,
  * skills, MCP servers and documents it finds. Only Ahabby's own list changes — nothing is
  * written until the user edits something inside a project.
  */
-projectFolders: Array<ProjectFolder>, };
+projectFolders: Array<ProjectFolder>, 
+/**
+ * Interface state the shell remembers between launches — *not* something the Settings page
+ * edits. The settings document is the one place Ahabby persists anything, so "where was I"
+ * lives here too instead of in a second file; [`SettingsService::save`] deliberately keeps
+ * whatever these two fields already hold, so a whole-document save from the Settings page
+ * (whose copy predates the last collapse or navigation) cannot roll them back.
+ *
+ * Whether the sidebar rail is collapsed.
+ */
+sidebarCollapsed: boolean, 
+/**
+ * The screen the window was on (`/agents`, `/settings/terminal`, …). `None` opens the home
+ * screen. `boot()` reads it before the first render, so the app opens where the user left
+ * it instead of painting home and navigating away.
+ */
+lastRoute: string | null, };

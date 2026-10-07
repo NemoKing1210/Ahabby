@@ -13,7 +13,7 @@ import { useJobStore } from '@/features/install/store'
 import { reconcileTerminalSessions, writeTerminalOutput } from '@/features/terminal/lib/session'
 import { useTerminalStore } from '@/features/terminal/store'
 
-function createQueryClient() {
+export function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
@@ -100,9 +100,13 @@ function TerminalEventBridge() {
  * Language and theme are applied in `main.tsx` *before* React mounts (they are read from
  * the backend once), so the first frame is already correct and no component has to sync
  * them afterwards — later changes go through `useSaveSettings`.
+ *
+ * `client` is how `boot()` hands over the query cache it already primed with the settings it read:
+ * the shell asks for them on its first render, and a cache that starts empty would paint the rail
+ * open (and the wrong screen) before the same document arrived a second time over IPC.
  */
-export function AppProviders({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(createQueryClient)
+export function AppProviders({ children, client }: { children: ReactNode; client?: QueryClient }) {
+  const [queryClient] = useState(() => client ?? createQueryClient())
 
   return (
     <QueryClientProvider client={queryClient}>

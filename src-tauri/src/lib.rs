@@ -74,6 +74,8 @@ macro_rules! handlers {
             commands::install::rescan_after_job,
             commands::settings::get_settings,
             commands::settings::set_agent_favorite,
+            commands::settings::set_sidebar_collapsed,
+            commands::settings::set_last_route,
             commands::settings::save_settings,
             commands::settings::set_window_theme,
             commands::terminal::list_terminals,

@@ -5,6 +5,16 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 2026-10-07
+
+### Added
+
+- **The window opens where you left it.** The sidebar's collapsed state and the screen that was on are
+  remembered in settings and restored on the next launch — the rail is already in the shape you left it
+  and the app paints that screen directly, home never flashes past. Both are the shell's own state: the
+  Settings page cannot roll them back, and a hand-edited `lastRoute` is dropped unless it is a path the
+  router can actually open.
+
 ## [0.26.1] - 2026-10-07
 
 ### Changed

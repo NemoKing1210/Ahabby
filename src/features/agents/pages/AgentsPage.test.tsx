@@ -106,6 +106,8 @@ const SETTINGS: Settings = {
   hiddenAgents: [],
   favoriteAgents: [],
   projectFolders: [],
+  sidebarCollapsed: false,
+  lastRoute: null,
 }
 
 function renderPage() {

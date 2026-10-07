@@ -21,6 +21,26 @@ pub async fn set_agent_favorite(
     state.set_agent_favorite(&agent_id, favorite)
 }
 
+/**
+ * Remember that the sidebar rail is collapsed (or open again).
+ *
+ * The shell owns this: the Settings page never edits it, and `save_settings` keeps whatever the
+ * last toggle wrote, so the two can never disagree.
+ */
+#[tauri::command]
+pub async fn set_sidebar_collapsed(
+    state: State<'_, AppState>,
+    collapsed: bool,
+) -> Result<Settings> {
+    state.set_sidebar_collapsed(collapsed)
+}
+
+/// Remember the screen the window is on, so the next launch opens there.
+#[tauri::command]
+pub async fn set_last_route(state: State<'_, AppState>, route: Option<String>) -> Result<Settings> {
+    state.set_last_route(route.as_deref())
+}
+
 #[tauri::command]
 pub async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<Settings> {
     for path in &settings.extra_scan_paths {

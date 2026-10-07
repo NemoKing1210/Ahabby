@@ -46,6 +46,8 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     hiddenAgents: [],
     favoriteAgents: [],
     projectFolders: [],
+    sidebarCollapsed: false,
+    lastRoute: null,
     ...overrides,
   }
 }

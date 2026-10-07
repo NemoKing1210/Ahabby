@@ -281,6 +281,17 @@ impl AppState {
         self.settings.set_favorite(id, favorite)
     }
 
+    /// Remember whether the sidebar rail is collapsed. Only that field moves, and nothing derived
+    /// from settings (the version checker, the hub's client) is rebuilt for a click on the rail.
+    pub fn set_sidebar_collapsed(&self, collapsed: bool) -> Result<Settings> {
+        self.settings.set_sidebar_collapsed(collapsed)
+    }
+
+    /// Remember the screen the window is on, so the next launch opens there.
+    pub fn set_last_route(&self, route: Option<&str>) -> Result<Settings> {
+        self.settings.set_last_route(route)
+    }
+
     /// The proxy every version check and install job uses.
     pub fn proxy(&self) -> Proxy {
         proxy_or_default(&self.settings())

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Navigate, RouterProvider, createHashRouter } from 'react-router-dom'
 
 import { AgentPage } from '@/features/agents/pages/AgentPage'
@@ -22,7 +23,7 @@ import { AppShell } from './layouts/AppShell'
  * There is no route for the terminal: it is a dock of the shell (`AppShell`), so several agents
  * can run in tabs under every screen instead of behind one.
  */
-const router = createHashRouter([
+const routes = [
   {
     path: '/',
     element: <AppShell />,
@@ -38,8 +39,11 @@ const router = createHashRouter([
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-])
+]
 
 export function AppRouter() {
+  // Built on the first render, not when this module is imported: `boot()` puts the remembered
+  // screen into the hash before React mounts, and a hash router reads the URL when it is created.
+  const [router] = useState(() => createHashRouter(routes))
   return <RouterProvider router={router} />
 }

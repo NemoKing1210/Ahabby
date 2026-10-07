@@ -136,6 +136,10 @@ export const ipc = {
   setAgentFavorite: (agentId: string, favorite: boolean) =>
     invoke<Settings>('set_agent_favorite', { agentId, favorite }),
   saveSettings: (settings: Settings) => invoke<Settings>('save_settings', { settings }),
+  /** The shell's own state: written by the sidebar and by navigation, never by the Settings page. */
+  setSidebarCollapsed: (collapsed: boolean) =>
+    invoke<Settings>('set_sidebar_collapsed', { collapsed }),
+  setLastRoute: (route: string | null) => invoke<Settings>('set_last_route', { route }),
   setWindowTheme: (theme: Theme, dark: boolean, caption: string, text: string) =>
     invoke<void>('set_window_theme', { theme, dark, caption, text }),
 
