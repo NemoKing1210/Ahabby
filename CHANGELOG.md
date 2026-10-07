@@ -5,6 +5,15 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.7] - 2026-10-07
+
+### Changed
+
+- **The background refresh is a whisper now.** The band that crosses a card while its agent is being
+  re-inspected is a one-pixel hairline at two thirds of the accent's strength, sweeping over 2.6 s instead of
+  1.2 s, and the wash that fades out on a card whose fresh data just landed starts at half opacity — a scan
+  running behind the screen is something to notice in the corner of the eye, not to watch.
+
 ## [0.28.6] - 2026-10-07
 
 ### Changed

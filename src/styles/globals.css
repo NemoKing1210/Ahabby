@@ -319,8 +319,9 @@
     }
   }
 
-  /* Background refresh: a light band crosses the top edge of every card that is still being
-     inspected, and a soft wash fades out on the one that just received fresh data. */
+  /* Background refresh: a hairline band crosses the top edge of every card that is still
+     being inspected, and a faint wash fades out on the one that just received fresh data.
+     Both stay low-key — the refresh should be noticed, not watched. */
   @keyframes ah-scan-sweep {
     from {
       transform: translateX(-100%);
@@ -332,7 +333,7 @@
 
   @keyframes ah-scan-land {
     from {
-      opacity: 1;
+      opacity: 0.5;
     }
     to {
       opacity: 0;
@@ -609,9 +610,12 @@
   border-bottom-right-radius: var(--radius-group);
 }
 
-/* A card whose agent is being re-inspected: an indeterminate band crosses its top edge. The
+/* A card whose agent is being re-inspected: a hairline band crosses its top edge. The
    band is per card on purpose — the backend reports each agent as it finishes, so the cards
    settle one by one instead of all at once.
+   Kept deliberately quiet: a hairline at two thirds of the accent's strength on a slow sweep,
+   so a background refresh reads as a whisper in the corner of the eye and never competes with
+   the cards' own content.
    These use the `--ah-*` tokens directly: the `--color-*` aliases are declared on `:root`,
    so their `var()` is substituted once there and would freeze a subtree to one theme. */
 .ah-scan-line {
@@ -619,13 +623,18 @@
   top: 0;
   right: 0;
   left: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--ah-accent), transparent);
-  animation: ah-scan-sweep 1.2s var(--ease-warm) infinite;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--ah-accent) 65%, transparent),
+    transparent
+  );
+  animation: ah-scan-sweep 2.6s var(--ease-warm) infinite;
 }
 
-/* A card whose fresh data just arrived: one soft accent wash that fades away, so the update
-   registers without the card moving. */
+/* A card whose fresh data just arrived: one faint accent wash that fades away from half
+   strength, so the update registers without the card moving — or flashing. */
 .ah-scan-landed::after {
   content: '';
   position: absolute;
