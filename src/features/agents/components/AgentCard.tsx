@@ -21,6 +21,7 @@ import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
+import { ManagerIcon } from '@/shared/ui/ManagerIcon'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useBrowser } from '@/features/browser/context'
@@ -63,6 +64,8 @@ export function AgentCard({
   const { t } = useTranslation()
   const browser = useBrowser()
   const installed = agent.status === 'installed'
+  // The method the scan recognised the install by, so its own manager can mark the line.
+  const installedViaOption = agent.installOptions.find((option) => option.id === agent.installedVia)
 
   return (
     <AgentContextMenu
@@ -123,7 +126,12 @@ export function AgentCard({
                   <code className="font-mono">{shortenPath(agent.binaryPath, 3)}</code>
                 ) : null}
                 {agent.installedVia ? (
-                  <span>{t('agents.detectedVia', { method: agent.installedVia })}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {installedViaOption ? (
+                      <ManagerIcon manager={installedViaOption.manager} size="xs" />
+                    ) : null}
+                    {t('agents.detectedVia', { method: agent.installedVia })}
+                  </span>
                 ) : null}
                 {agent.warnings.length > 0 ? (
                   <Tooltip content={agent.warnings.join('\n')}>

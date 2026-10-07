@@ -9,6 +9,7 @@ import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card, KeyValue } from '@/shared/ui/Card'
+import { ManagerBadge, ManagerIcon } from '@/shared/ui/ManagerIcon'
 import { toastAppError } from '@/shared/ui/Toast'
 
 import { useBrowser } from '@/features/browser/context'
@@ -29,6 +30,8 @@ export function OverviewTab({
   const { t } = useTranslation()
   const browser = useBrowser()
   const installed = agent.status === 'installed'
+  // The method the scan recognised the install by, so its own manager can mark the row.
+  const installedViaOption = agent.installOptions.find((option) => option.id === agent.installedVia)
 
   return (
     <div className="flex flex-col gap-5">
@@ -148,7 +151,16 @@ export function OverviewTab({
             </KeyValue>
 
             <KeyValue label={t('agent.overview.installedVia')}>
-              {agent.installedVia ?? <span className="text-muted">{t('common.unknown')}</span>}
+              {agent.installedVia ? (
+                <span className="flex items-center gap-2">
+                  {installedViaOption ? (
+                    <ManagerIcon manager={installedViaOption.manager} size="xs" />
+                  ) : null}
+                  <span>{agent.installedVia}</span>
+                </span>
+              ) : (
+                <span className="text-muted">{t('common.unknown')}</span>
+              )}
             </KeyValue>
 
             <KeyValue label={t('agent.overview.manifest')}>
@@ -186,7 +198,7 @@ export function OverviewTab({
                   <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-foreground text-[0.8125rem]">{option.id}</span>
-                      <Badge tone="outline">{option.manager}</Badge>
+                      <ManagerBadge manager={option.manager} />
                       {option.detected ? (
                         <Badge tone="accent">
                           {t('agents.detectedVia', { method: option.manager })}

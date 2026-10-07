@@ -2,7 +2,8 @@ import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { AnimatedList } from '@/shared/ui/AnimatedList'
-import { Badge } from '@/shared/ui/Badge'
+import { ManagerIcon } from '@/shared/ui/ManagerIcon'
+import { MANAGER_NAME_KEY } from '@/shared/ui/managerBrands'
 
 import {
   SettingsPageHeading,
@@ -33,8 +34,11 @@ export function SettingsAboutPage() {
           {managers.data && managers.data.length > 0 ? (
             <AnimatedList as="ul" grouped={false} className="flex flex-col gap-2 py-3">
               {managers.data.map((manager) => (
-                <div key={manager.manager} className="flex items-center gap-2">
-                  <Badge tone="outline">{manager.manager}</Badge>
+                <div key={manager.manager} className="flex items-center gap-3">
+                  <ManagerIcon manager={manager.manager} />
+                  <span className="text-foreground text-[0.8125rem]">
+                    {t(MANAGER_NAME_KEY[manager.manager])}
+                  </span>
                   <code className="text-faint truncate font-mono text-[0.6875rem]">
                     {manager.path}
                   </code>

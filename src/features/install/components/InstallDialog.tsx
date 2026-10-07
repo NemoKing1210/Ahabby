@@ -16,6 +16,8 @@ import {
   DialogTitle,
 } from '@/shared/ui/Dialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
+import { ManagerBadge, ManagerIcon } from '@/shared/ui/ManagerIcon'
+import { MANAGER_NAME_KEY } from '@/shared/ui/managerBrands'
 import { Spinner } from '@/shared/ui/Primitives'
 import { Select } from '@/shared/ui/Select'
 import { toastAppError } from '@/shared/ui/Toast'
@@ -151,17 +153,26 @@ export function InstallDialog({
                   ariaLabel={t('install.manager')}
                   value={methodId ?? ''}
                   onValueChange={setMethodOverride}
-                  options={options.map((option) => ({
-                    value: option.id,
-                    label: option.available
-                      ? option.id
-                      : `${option.id} — ${option.unavailableReason ?? t('common.notAvailable')}`,
-                  }))}
+                  options={options.map((option) => {
+                    const name = t(MANAGER_NAME_KEY[option.manager])
+                    return {
+                      value: option.id,
+                      label: option.available
+                        ? option.id
+                        : `${option.id} — ${option.unavailableReason ?? t('common.notAvailable')}`,
+                      icon: <ManagerIcon manager={option.manager} size="sm" />,
+                      // The manager's own name, unless the method is already named after it.
+                      description:
+                        name.toLowerCase() === option.id.toLowerCase() ? undefined : name,
+                    }
+                  })}
                 />
                 {selected?.detected ? (
                   <Badge tone="accent">{t('agents.detectedVia', { method: selected.id })}</Badge>
                 ) : null}
-                {selected?.manager === 'script' ? <Badge tone="warning">script</Badge> : null}
+                {selected?.manager === 'script' ? (
+                  <ManagerBadge manager={selected.manager} tone="warning" />
+                ) : null}
               </div>
 
               {plan.isLoading ? (
@@ -179,11 +190,17 @@ export function InstallDialog({
                     {plan.data.displayCommand}
                   </code>
                   {plan.data.managerAvailable ? null : (
-                    <div className="border-border bg-surface flex items-start gap-2 rounded-lg border p-3">
-                      <TriangleAlert className="text-warning-fg mt-0.5 size-4" aria-hidden />
+                    <div className="border-border bg-surface flex items-start gap-3 rounded-lg border p-3">
+                      <ManagerIcon manager={plan.data.manager} size="sm" />
                       <div className="flex flex-col gap-1">
-                        <span className="text-foreground text-[0.8125rem]">
-                          {t('install.managerMissing', { manager: plan.data.manager })}
+                        <span className="text-foreground flex items-center gap-1.5 text-[0.8125rem]">
+                          <TriangleAlert
+                            className="text-warning-fg size-3.5 shrink-0"
+                            aria-hidden
+                          />
+                          {t('install.managerMissing', {
+                            manager: t(MANAGER_NAME_KEY[plan.data.manager]),
+                          })}
                         </span>
                         <span className="text-muted text-[0.75rem]">
                           {t('install.managerMissingHint')}

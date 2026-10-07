@@ -461,6 +461,12 @@
       "skill": "Скиллы",
       "mcp": "MCP-серверы"
     },
+    "kindFilter": "Фильтр по типу",
+    "installedFilter": "Фильтр по установке",
+    "installedState": {
+      "installed": "Установленные",
+      "missing": "Не установленные"
+    },
     "tags": "Теги",
     "tagFilter": "Фильтр по тегам",
     "moreTags": "Показать ещё {{count}}",
@@ -474,6 +480,8 @@
     "noSourcesHint": "Добавьте свой файл источника или проверьте, что встроенные коллекции загрузились — о проблемах сказано выше.",
     "sourceFailed": "Коллекция недоступна",
     "sourceEmpty": "Здесь пока ничего нет",
+    "filteredEmpty": "Под этот фильтр ничего не подходит",
+    "filteredEmptyHint": "Нажмите «Показать ещё», чтобы прочитать остальную часть коллекции",
     "noResults": "Ничего не найдено по «{{query}}»",
     "loadMore": "Показать ещё",
     "loadedOf": "{{loaded}} из {{total}}",
@@ -605,6 +613,21 @@
     "cancelled": "{{agent}} отменён",
     "uninstallHint": "Команда разрушительная: агент будет удалён с компьютера.",
     "noMethods": "Для этой платформы нет доступного способа установки."
+  },
+  "managers": {
+    "npm": "npm",
+    "pnpm": "pnpm",
+    "yarn": "Yarn",
+    "bun": "Bun",
+    "brew": "Homebrew",
+    "winget": "WinGet",
+    "scoop": "Scoop",
+    "pipx": "pipx",
+    "pip": "pip",
+    "cargo": "Cargo",
+    "go": "Go",
+    "script": "Скрипт установки",
+    "manual": "Вручную"
   },
   "terminal": {
     "panel": "Терминал",

@@ -13,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/Dialog'
+import { ManagerIcon } from '@/shared/ui/ManagerIcon'
+import { MANAGER_NAME_KEY } from '@/shared/ui/managerBrands'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { useRemoveAgent } from '../api/queries'
@@ -93,6 +95,7 @@ export function RemoveAgentDialog({
 
   const uninstallable = agent.installOptions.filter((option) => option.uninstallCommand)
   const uninstallOption = uninstallable.find((option) => option.available) ?? uninstallable[0]
+  const uninstallManager = uninstallable[0]?.manager
   const canUninstall = agent.canUninstall
   const canDeleteManifest = agent.removal === 'manifest'
 
@@ -100,7 +103,9 @@ export function RemoveAgentDialog({
   const deleteUnavailableHint =
     uninstallable.length === 0
       ? t('agents.uninstallNoCommand')
-      : t('agents.uninstallManagerMissing', { manager: uninstallable[0]?.manager ?? '' })
+      : t('agents.uninstallManagerMissing', {
+          manager: uninstallManager ? t(MANAGER_NAME_KEY[uninstallManager]) : '',
+        })
 
   const fail = (error: unknown) => {
     toastAppError(error)
@@ -158,7 +163,13 @@ export function RemoveAgentDialog({
 
           {canUninstall ? (
             <RemovalOption
-              icon={<PackageX className="size-4" />}
+              icon={
+                uninstallOption ? (
+                  <ManagerIcon manager={uninstallOption.manager} size="xs" />
+                ) : (
+                  <PackageX className="size-4" />
+                )
+              }
               label={t('agents.removeUninstall')}
               hint={t('agents.removeUninstallHint')}
               command={uninstallOption?.uninstallCommand ?? undefined}

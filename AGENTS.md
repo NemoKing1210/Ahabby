@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.35.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.36.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -256,7 +256,14 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   plus `anyAgentOption` for the "no filter" row, whose `NeutralTile` keeps the logo column straight), so a
   picker shows the brand tile in the closed trigger and in every row. Radix drops the `className` given to
   `Select.Value` and `SelectItemText`, which is why the trigger paints the selected option itself and a row
-  keeps its spacing in a wrapper of its own.
+  keeps its spacing in a wrapper of its own. `ManagerIcon` gives a package manager the same treatment from
+  `src/shared/ui/managerBrands.ts` (`simple-icons`, CC0, for the managers that publish a mark, and two paths
+  Ahabby draws itself for WinGet and Scoop, which publish none; `script`/`manual` are not products and keep
+  the neutral tile). It is used as a bigger tile where a manager is the subject (a method picker, the
+  managers list of Settings → About) and through `ManagerBadge` — the same tile in a chip next to the name —
+  where a manager is metadata of something else (an install method of an overview, the detected install of a
+  card). Both take the manager's name from `managers.*` in the locales, so a manager is never shown as the
+  raw id its manifest happens to use.
 - **Terminal**: `src/features/terminal` renders PTY sessions with xterm.js inside `TerminalDock`, a footer the
   shell owns (`AppShell` lazy-loads it the first time a terminal exists — xterm is the one heavy dependency the
   other screens should not pay for). The dock's tab strip is always on screen; collapsing it sets the body to

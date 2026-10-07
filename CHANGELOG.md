@@ -5,6 +5,25 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.0] - 2026-10-07
+
+### Added
+
+- **Every package manager and installer has its own mark.** npm, pnpm, Yarn, Bun, Homebrew, WinGet,
+  Scoop, pipx, pip, Cargo and Go are identified by a brand tile wherever Ahabby names them: the install
+  methods of an agent's overview, the detected method on its card, the package-manager picker of the run
+  dialog, the removal dialog and the list of managers found on Settings → About. The marks come from
+  simple-icons (CC0-1.0); WinGet and Scoop publish none, so Ahabby draws those two itself. An official
+  install script and a manual install are not products, so they keep the neutral tile with a mark that
+  says which they are instead of a made-up colour.
+
+### Changed
+
+- **A manager is named the way people say it.** Where the id of an install method was shown raw, the
+  method now reads with its manager — `Homebrew`, `WinGet`, `Install script`, `Manual` — translated in
+  both languages, and the picker adds that name beside a method whose own id does not already say it
+  (`native-installer`).
+
 ## [0.35.0] - 2026-10-07
 
 ### Added

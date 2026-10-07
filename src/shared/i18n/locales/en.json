@@ -461,6 +461,12 @@
       "skill": "Skills",
       "mcp": "MCP servers"
     },
+    "kindFilter": "Filter by kind",
+    "installedFilter": "Filter by installed state",
+    "installedState": {
+      "installed": "Installed",
+      "missing": "Not installed"
+    },
     "tags": "Tags",
     "tagFilter": "Filter by tag",
     "moreTags": "Show {{count}} more",
@@ -474,6 +480,8 @@
     "noSourcesHint": "Add a source file of your own, or check that the collections Ahabby ships with loaded — the problems above say what went wrong.",
     "sourceFailed": "This collection could not be reached",
     "sourceEmpty": "Nothing here yet",
+    "filteredEmpty": "No entries match this filter",
+    "filteredEmptyHint": "Load more to read the rest of the collection",
     "noResults": "No results for “{{query}}”",
     "loadMore": "Load more",
     "loadedOf": "{{loaded}} of {{total}}",
@@ -605,6 +613,21 @@
     "cancelled": "{{agent}} was cancelled",
     "uninstallHint": "This command is destructive: it removes the agent from your machine.",
     "noMethods": "No install method is available for this platform."
+  },
+  "managers": {
+    "npm": "npm",
+    "pnpm": "pnpm",
+    "yarn": "Yarn",
+    "bun": "Bun",
+    "brew": "Homebrew",
+    "winget": "WinGet",
+    "scoop": "Scoop",
+    "pipx": "pipx",
+    "pip": "pip",
+    "cargo": "Cargo",
+    "go": "Go",
+    "script": "Install script",
+    "manual": "Manual"
   },
   "terminal": {
     "panel": "Terminal",
