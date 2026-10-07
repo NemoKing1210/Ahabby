@@ -5,6 +5,17 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 2026-10-07
+
+### Added
+
+- **The Agents screen can filter for the agents that route through a proxy.** A "With proxy" chip joins the
+  property filters, and it means exactly what the scan already knows: the agent's own config files — a JSON,
+  TOML or YAML setting, or an `env` section (or a `.env` file) with `HTTP_PROXY` and friends — carry a value
+  the scan read as a proxy, with the credentials in it masked. Such an agent now also says so on its card, so
+  the chip never hides a property you cannot see; an agent that is not installed has no config to read and is
+  therefore not counted.
+
 ## [0.28.7] - 2026-10-07
 
 ### Changed

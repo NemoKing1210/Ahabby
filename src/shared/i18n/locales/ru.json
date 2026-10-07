@@ -128,7 +128,8 @@
       "configs_one": "{{count}} конфиг",
       "configs_other": "{{count}} конфигов",
       "other_one": "{{count}} ресурс",
-      "other_other": "{{count}} ресурсов"
+      "other_other": "{{count}} ресурсов",
+      "proxy": "Прокси"
     },
     "unverified": "Требует проверки",
     "unverifiedHint": "Часть путей в манифесте ещё не сверена с официальной документацией.",
@@ -146,7 +147,8 @@
       "scopeAvailable": "Доступные",
       "warnings": "С предупреждениями",
       "skills": "Со скиллами",
-      "mcp": "С MCP"
+      "mcp": "С MCP",
+      "proxy": "С прокси"
     },
     "remove": "Убрать",
     "removeTitle": "Убрать {{name}} из Ahabby?",

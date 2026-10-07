@@ -38,6 +38,11 @@ export const AGENT_FACETS = [
     labelKey: 'agents.filters.mcp',
     matches: (agent: Agent) => agent.mcpServers.length > 0,
   },
+  {
+    id: 'proxy',
+    labelKey: 'agents.filters.proxy',
+    matches: (agent: Agent) => agent.facts.some((fact) => fact.kind === 'proxy'),
+  },
 ] as const
 
 export type AgentFacet = (typeof AGENT_FACETS)[number]['id']

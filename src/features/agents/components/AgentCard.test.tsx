@@ -154,6 +154,21 @@ describe('AgentCard', () => {
     expect(screen.queryByText('0 configs')).not.toBeInTheDocument()
   })
 
+  it('marks an agent that routes through a proxy', () => {
+    const withProxy = renderWithProviders(
+      <AgentCard
+        agent={agent({ facts: [{ kind: 'proxy' }] as Agent['facts'] })}
+        onInstall={() => undefined}
+      />,
+    )
+    expect(within(withProxy.container).getByText('Proxy')).toBeInTheDocument()
+    withProxy.unmount()
+
+    const without = renderWithProviders(<AgentCard agent={agent()} onInstall={() => undefined} />)
+    expect(within(without.container).queryByText('Proxy')).toBeNull()
+    without.unmount()
+  })
+
   it('offers removal only when the page wires a handler', async () => {
     const onRemove = vi.fn()
     const withRemove = renderWithProviders(

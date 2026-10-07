@@ -4,6 +4,7 @@ import {
   ExternalLink,
   FileCog,
   FileText,
+  Network,
   Server,
   Sparkles,
   Star,
@@ -129,6 +130,12 @@ export function AgentCard({
                       {t('agents.warnings', { count: agent.warnings.length })}
                     </span>
                   </Tooltip>
+                ) : null}
+                {agent.facts.some((fact) => fact.kind === 'proxy') ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Network className="size-3" aria-hidden />
+                    {t('agents.card.proxy')}
+                  </span>
                 ) : null}
                 {agent.skills.length > 0 ? (
                   <span className="inline-flex items-center gap-1">

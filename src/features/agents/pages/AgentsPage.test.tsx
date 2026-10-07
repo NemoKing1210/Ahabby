@@ -66,6 +66,19 @@ const REPORT: ScanReport = {
       id: 'claude-code',
       name: 'Claude Code',
       update: { latest: '2.0.0', source: 'npm', checkedAtMs: 0 },
+      // One agent routes through a proxy; the others declare none.
+      facts: [
+        {
+          id: 'settings:env.HTTPS_PROXY',
+          kind: 'proxy',
+          key: 'env.HTTPS_PROXY',
+          value: 'http://proxy.example.com:8080',
+          masked: false,
+          configId: 'settings',
+          configLabel: 'User settings',
+          configPath: 'C:/Users/u/.claude/settings.json',
+        },
+      ],
     }),
     agent({
       id: 'codex',
@@ -159,6 +172,19 @@ describe('AgentsPage filters', () => {
     await waitFor(() =>
       expect(within(container).queryByRole('button', { name: /^Update available/ })).toBeNull(),
     )
+  })
+
+  it('scopes the list to the agents whose config or env declares a proxy', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByText('Claude Code')
+
+    await user.click(within(container).getByRole('button', { name: 'With proxy 1' }))
+
+    expect(within(container).getByText('Claude Code')).toBeTruthy()
+    // The other three declare none, and the section they sit in folds away with them.
+    await waitFor(() => expect(within(container).queryByText('Codex')).toBeNull())
+    expect(within(container).queryByRole('heading', { name: /^Available/ })).toBeNull()
   })
 
   it('counts every chip against the search box', async () => {

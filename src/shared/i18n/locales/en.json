@@ -128,7 +128,8 @@
       "configs_one": "{{count}} config",
       "configs_other": "{{count}} configs",
       "other_one": "{{count}} resource",
-      "other_other": "{{count}} resources"
+      "other_other": "{{count}} resources",
+      "proxy": "Proxy"
     },
     "unverified": "Needs verification",
     "unverifiedHint": "Some paths of this manifest have not been confirmed against the official documentation yet.",
@@ -146,7 +147,8 @@
       "scopeAvailable": "Available",
       "warnings": "With warnings",
       "skills": "With skills",
-      "mcp": "With MCP"
+      "mcp": "With MCP",
+      "proxy": "With proxy"
     },
     "remove": "Remove",
     "removeTitle": "Remove {{name}} from Ahabby?",
