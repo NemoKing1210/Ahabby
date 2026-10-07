@@ -8,6 +8,7 @@ import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { Spinner } from '@/shared/ui/Primitives'
+import { AhabbyLogo } from '@/shared/ui/AhabbyLogo'
 
 import { useScanRefresh } from '@/features/agents/api/scan'
 
@@ -16,38 +17,6 @@ const OS_LABEL: Record<Os, string> = {
   windows: 'Windows',
   macos: 'macOS',
   linux: 'Linux',
-}
-
-/**
- * The app's own mark — the same letterform the boot splash draws (`index.html`), so the first
- * thing the window paints and the front door of the interface carry one identity. The tile is
- * the foreground token rather than the splash's literal hex: near-black in the light theme and
- * `--ah-surface-2` in the dark one, which is what the splash resolves to anyway.
- */
-function AhabbyMark({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={`bg-foreground dark:bg-surface-2 inline-flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl ${className ?? ''}`}
-    >
-      <svg viewBox="0 0 100 100" className="text-accent size-full">
-        <clipPath id="ah-mark-clip">
-          <rect x="0" y="0" width="100" height="78" />
-        </clipPath>
-        <g
-          clipPath="url(#ah-mark-clip)"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={10}
-          strokeLinecap="butt"
-          strokeLinejoin="miter"
-        >
-          <path d="M30.5 80.5 L50 33 L69.5 80.5" />
-          <path d="M38 59.5 H62" />
-        </g>
-      </svg>
-    </span>
-  )
 }
 
 /**
@@ -78,7 +47,7 @@ export function HomeHero({ report }: { report: ScanReport | undefined }) {
       />
       <div className="relative flex flex-col gap-6 p-6">
         <div className="flex flex-wrap items-start gap-x-5 gap-y-4">
-          <AhabbyMark />
+          <AhabbyLogo className="size-16 rounded-[22%]" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-3xl">Ahabby</h1>

@@ -14,8 +14,7 @@
       `globals.css`: colours come from the real tokens with the light values as `var()`
       fallbacks, so the fallbacks only cover the instant before the stylesheet lands — after
       that the tokens win and the splash follows the pinned theme. The mark is the exception:
-      it keeps the brand colour (`--s-logo`, the same letter as `src-tauri/icons`) whatever
-      accent the user picked.
+      it keeps the app mark's own palette whatever accent the user picked.
     -->
     <style>
       html {
@@ -32,11 +31,10 @@
       #ah-splash {
         --s-bg: var(--ah-background, #faf9f5);
         --s-fg: var(--ah-foreground, #141413);
-        --s-logo: #d97757;
-        --s-tile: #1f1e1d;
+        --s-tile: #151619;
         --s-ring: rgb(20 20 19 / 0);
         --s-elevation: 0 18px 44px -20px rgb(20 20 19 / 0.45);
-        --s-halo: rgb(217 119 87 / 0.16);
+        --s-halo: rgb(255 132 102 / 0.15);
         --s-filter: none;
 
         position: fixed;
@@ -68,21 +66,21 @@
         #ah-splash {
           --s-bg: var(--ah-background, #1f1e1d);
           --s-fg: var(--ah-foreground, #faf9f5);
-          --s-tile: #2c2b29;
+          --s-tile: #151619;
           --s-ring: rgb(250 249 245 / 0.08);
           --s-elevation: 0 18px 44px -20px rgb(0 0 0 / 0.6);
-          --s-halo: rgb(217 119 87 / 0.24);
-          --s-filter: drop-shadow(0 0 6px rgb(217 119 87 / 0.55));
+          --s-halo: rgb(255 132 102 / 0.22);
+          --s-filter: drop-shadow(0 0 7px rgb(167 139 250 / 0.42));
         }
       }
 
       /* Once `themeApplier` has run, the resolved theme — not the OS — decides. */
       html.dark #ah-splash {
-        --s-tile: #2c2b29;
+        --s-tile: #151619;
         --s-ring: rgb(250 249 245 / 0.08);
         --s-elevation: 0 18px 44px -20px rgb(0 0 0 / 0.6);
-        --s-halo: rgb(217 119 87 / 0.24);
-        --s-filter: drop-shadow(0 0 6px rgb(217 119 87 / 0.55));
+        --s-halo: rgb(255 132 102 / 0.22);
+        --s-filter: drop-shadow(0 0 7px rgb(167 139 250 / 0.42));
       }
 
       #ah-splash .ah-splash__halo {
@@ -126,18 +124,6 @@
         width: 100%;
         height: 100%;
         filter: var(--s-filter);
-      }
-
-      #ah-splash .ah-splash__letter {
-        fill: none;
-        stroke: var(--s-logo);
-        stroke-width: 10;
-        stroke-linecap: butt;
-        stroke-linejoin: miter;
-      }
-
-      #ah-splash .ah-splash__crossbar {
-        stroke-width: 10;
       }
 
       #ah-splash .ah-splash__sheen {
@@ -215,13 +201,36 @@
       <div class="ah-splash__stack">
         <div class="ah-splash__mark" aria-hidden="true">
           <svg viewBox="0 0 100 100">
-            <clipPath id="ah-splash-clip">
-              <rect x="0" y="0" width="100" height="78" />
-            </clipPath>
-            <g class="ah-splash__letter" clip-path="url(#ah-splash-clip)">
-              <path d="M30.5 80.5 L50 33 L69.5 80.5" />
-              <path class="ah-splash__crossbar" d="M38 59.5 H62" />
-            </g>
+            <defs>
+              <linearGradient
+                id="ah-splash-mark"
+                x1="24"
+                y1="76"
+                x2="77"
+                y2="22"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0" stop-color="#ff8466" />
+                <stop offset="0.48" stop-color="#ffb36b" />
+                <stop offset="1" stop-color="#a78bfa" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M27 72 L43 31 Q50 13 57 31 L73 72"
+              fill="none"
+              stroke="url(#ah-splash-mark)"
+              stroke-width="14"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M37 56 C44 53 56 53 63 56"
+              fill="none"
+              stroke="url(#ah-splash-mark)"
+              stroke-width="12"
+              stroke-linecap="round"
+            />
+            <circle cx="50" cy="28" r="3.6" fill="#fff8ef" />
           </svg>
           <span class="ah-splash__sheen"></span>
         </div>

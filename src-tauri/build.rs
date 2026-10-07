@@ -1,12 +1,15 @@
 //! Build script.
 //!
-//! Two jobs:
+//! Three jobs:
 //! 1. `tauri_build` — codegen required by Tauri v2.
 //! 2. Generate `builtin_manifests.rs` (the agent manifests embedded in the binary) and
 //!    `builtin_hub_sources.rs` (the hub sources embedded in the binary). Both lists are derived
 //!    from the directory contents, so **adding a new agent is literally dropping a TOML file
 //!    into `catalog/builtin/`** and **adding a new place the hub reads a library from is
 //!    dropping one into `catalog/hub/`** — no Rust code changes anywhere.
+//! 3. Announce `icons/` as a build input — `tauri_build` compiles the icon into the binary's
+//!    resource without telling cargo it did, so without this a new icon never reaches the window,
+//!    the taskbar or the tray.
 
 use std::env;
 use std::fs;
@@ -18,6 +21,7 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
 
+    watch_icons(&manifest_dir);
     embed(
         &manifest_dir,
         &out_dir,
@@ -34,6 +38,23 @@ fn main() {
         "BUILTIN_HUB_SOURCES",
         "hub source TOML",
     );
+}
+
+/// Announce the application icons as build inputs.
+///
+/// `tauri_build` compiles `icons/icon.ico` into the Windows resource file it links into the binary
+/// (and the codegen embeds an icon elsewhere), but it emits `rerun-if-changed` for the configuration
+/// and the capabilities only. Without this, cargo considers the build script up to date after an
+/// icon-only change, keeps the resource it compiled last time, and the new icon never reaches the
+/// window, the taskbar button or the tray.
+fn watch_icons(manifest_dir: &Path) {
+    let dir = manifest_dir.join("icons");
+    println!("cargo:rerun-if-changed={}", dir.display());
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            println!("cargo:rerun-if-changed={}", entry.path().display());
+        }
+    }
 }
 
 /// Embed every `*.toml` of one catalog directory as `(file stem, contents)` pairs.

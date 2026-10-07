@@ -5,6 +5,20 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.1] - 2026-10-07
+
+### Changed
+
+- **Ahabby wears its new icon.** The window, the title bar, the taskbar button and the tray all draw the
+  application icon the binary carries, and that icon is now the new mark.
+
+### Fixed
+
+- Replacing `src-tauri/icons/icon.ico` no longer leaves the old icon in the built binary. The build script
+  now tracks the `icons/` directory, so the next build re-embeds the icon instead of reusing the resource it
+  compiled before the change — previously a rebuild after an icon-only change silently kept the old face on
+  the window, the taskbar and the tray.
+
 ## [0.31.0] - 2026-10-07
 
 ### Added
