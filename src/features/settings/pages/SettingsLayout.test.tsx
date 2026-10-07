@@ -46,6 +46,10 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     hiddenAgents: [],
     favoriteAgents: [],
     projectFolders: [],
+    launchAtLogin: false,
+    trayIcon: true,
+    closeToTray: true,
+    startMinimized: false,
     sidebarCollapsed: false,
     lastRoute: null,
     ...overrides,
@@ -55,7 +59,11 @@ function settings(overrides: Partial<Settings> = {}): Settings {
 /** The stylesheet `appearanceApplier` installs for a non-default accent. */
 const accentStyles = () => document.getElementById('ah-accent-styles')?.textContent ?? ''
 
-async function openSettings(data = settings(), route = '/settings/appearance') {
+async function openSettings(
+  data = settings(),
+  route = '/settings/appearance',
+  heading = 'Appearance',
+) {
   vi.mocked(ipc.getSettings).mockResolvedValue(data)
   vi.mocked(ipc.listPackageManagers).mockResolvedValue([])
   vi.mocked(ipc.userCatalogDir).mockResolvedValue('/catalog')
@@ -76,8 +84,8 @@ async function openSettings(data = settings(), route = '/settings/appearance') {
   )
   await screen.findByRole('heading', { level: 1, name: 'Settings' })
   // The subpage paints through its own transition, so a bare `getBy*` right after this would be
-  // a race — every test starts on the appearance area.
-  await screen.findByRole('heading', { level: 2, name: 'Appearance' })
+  // a race — wait for the area that was asked for before touching its fields.
+  await screen.findByRole('heading', { level: 2, name: heading })
   return data
 }
 
@@ -214,6 +222,55 @@ describe('Settings appearance', () => {
           monoFont: 'jetbrains',
           theme: 'dark',
           language: 'en',
+        }),
+      )
+    })
+  })
+})
+
+describe('Settings window & tray', () => {
+  it('shows what the document says', async () => {
+    await openSettings(
+      settings({ launchAtLogin: true, startMinimized: true, closeToTray: false }),
+      '/settings/window',
+      'Window & tray',
+    )
+
+    expect(screen.getByRole('switch', { name: 'Launch at login' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Show the tray icon' })).toBeChecked()
+    expect(
+      screen.getByRole('switch', { name: 'Keep running when the window is closed' }),
+    ).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Start in the tray' })).toBeChecked()
+  })
+
+  it('refuses to spend the way back: no tray icon, no hidden window', async () => {
+    await openSettings(settings({ trayIcon: false }), '/settings/window', 'Window & tray')
+
+    const closeToTray = screen.getByRole('switch', {
+      name: 'Keep running when the window is closed',
+    })
+    expect(closeToTray).toBeDisabled()
+    expect(closeToTray).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Start in the tray' })).toBeDisabled()
+    expect(screen.getAllByText('Turn the tray icon on first.')).toHaveLength(2)
+  })
+
+  it('saves the switches and drops the ones the tray icon takes with it', async () => {
+    await openSettings(settings(), '/settings/window', 'Window & tray')
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Launch at login' }))
+    await userEvent.click(screen.getByRole('switch', { name: 'Start in the tray' }))
+    await userEvent.click(screen.getByRole('switch', { name: 'Show the tray icon' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(ipc.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          launchAtLogin: true,
+          trayIcon: false,
+          closeToTray: false,
+          startMinimized: false,
         }),
       )
     })

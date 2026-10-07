@@ -5,6 +5,37 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] - 2026-10-07
+
+### Added
+
+- **Ahabby has a system tray, and its menu is a control panel of its own.** The icon says what the last scan
+  found (how many agents, how many have an update), a left click brings the window back or puts it away, and
+  a right click opens a menu that reopens the window, jumps straight to Agents, Projects, Library, Hub or
+  Settings, starts an installed agent in the terminal — Ahabby's own or the external one picked in Settings —
+  scans the machine again, and quits. The menu is written in the interface language and is rebuilt after
+  every scan, so it never offers an agent that is not there any more.
+- **Settings → Window & tray** groups how Ahabby starts and how it ends: launch at login, the tray icon, keep
+  running when the window is closed, and start hidden in the tray. The login item is registered with the
+  operating system before the setting is stored, so a registration that fails is an error instead of a saved
+  lie — and a login item removed in the OS's own startup settings turns the switch off rather than being
+  silently put back.
+- **Closing the window can now mean "keep working".** With the tray icon on, the close button hides the
+  window instead of quitting: a running install and the open terminal sessions go on, and Quit in the tray
+  menu is what really exits. Without a tray icon — or on a machine where one cannot be created — the window
+  is never hidden, because a process with no surface to click is worse than a closed window.
+
+## [0.29.1] - 2026-10-07
+
+### Changed
+
+- **The filters a screen is left with are still there when you come back to it.** The Agents search box, its
+  scope and its facet chips, the Hub's search, kind, source and tags, the Library's search, owning agent,
+  origin, sort, facet, tab and activity, and which half of a skills or MCP list you were looking at all
+  survive a trip to another screen — and from one agent's skills tab to the next agent's. Nothing is written
+  to disk: a filter is a way of looking at a list, not a preference, so it is kept for exactly as long as the
+  session is, and a restart starts from a clean slate.
+
 ## [0.29.0] - 2026-10-07
 
 ### Added

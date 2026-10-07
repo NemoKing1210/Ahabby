@@ -8,6 +8,7 @@ import type { Skill } from '@/shared/bindings/Skill'
 import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
 import { formatRelative } from '@/shared/lib/format'
 import { isSharedOwner, ownerName, SHARED_OWNER } from '@/shared/lib/owners'
+import { useSessionState } from '@/shared/lib/sessionState'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
@@ -165,14 +166,16 @@ export function LibraryPage() {
   const setSkillEnabled = useSetSkillEnabled()
   const setServerEnabled = useSetMcpServerEnabled()
 
-  const [query, setQuery] = useState('')
-  const [agentFilter, setAgentFilter] = useState('all')
-  const [origin, setOrigin] = useState<LibraryOrigin>('all')
-  const [sort, setSort] = useState<LibrarySort>('name')
-  const [facet, setFacet] = useState('all')
-  const [activity, setActivity] = useState<ActivityFilter>('all')
-  const [groupMode, setGroupMode] = useState<LibraryGroupMode>('name')
-  const [tab, setTab] = useState<LibraryTab>('skills')
+  // Every filter, the sort and the tab are kept for the session (`useSessionState`): the library is
+  // read, walked into one resource and left, and coming back should not cost the refinement.
+  const [query, setQuery] = useSessionState('library.query', '')
+  const [agentFilter, setAgentFilter] = useSessionState('library.owner', 'all')
+  const [origin, setOrigin] = useSessionState<LibraryOrigin>('library.origin', 'all')
+  const [sort, setSort] = useSessionState<LibrarySort>('library.sort', 'name')
+  const [facet, setFacet] = useSessionState('library.facet', 'all')
+  const [activity, setActivity] = useSessionState<ActivityFilter>('library.activity', 'all')
+  const [groupMode, setGroupMode] = useSessionState<LibraryGroupMode>('library.group', 'name')
+  const [tab, setTab] = useSessionState<LibraryTab>('library.tab', 'skills')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteSkillTarget, setDeleteSkillTarget] = useState<Skill | null>(null)
@@ -221,7 +224,8 @@ export function LibraryPage() {
   }
 
   // Every tab has its own facets and its own activity filter, so a refinement never survives a
-  // switch to another tab.
+  // switch to another tab. The tab itself is remembered with the rest, which keeps the two in
+  // step: a revisit returns to the tab its facet belongs to.
   const switchTab = (value: string) => {
     setTab(value as LibraryTab)
     setFacet('all')

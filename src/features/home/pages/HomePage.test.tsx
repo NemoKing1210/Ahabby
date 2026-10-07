@@ -176,6 +176,10 @@ const SETTINGS: Settings = {
   hiddenAgents: [],
   favoriteAgents: ['codex'],
   projectFolders: [],
+  launchAtLogin: false,
+  trayIcon: true,
+  closeToTray: true,
+  startMinimized: false,
   sidebarCollapsed: false,
   lastRoute: null,
 }

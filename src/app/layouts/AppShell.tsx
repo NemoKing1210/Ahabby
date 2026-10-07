@@ -52,6 +52,8 @@ import { useRunAgentInTerminal, useTerminals } from '@/features/terminal/api/hoo
 import { NewTerminalDialog } from '@/features/terminal/components/NewTerminalDialog'
 import { useTerminalStore } from '@/features/terminal/store'
 
+import { TrayBridge } from './TrayBridge'
+
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.home', icon: House, end: true },
   { to: '/agents', labelKey: 'nav.agents', icon: Boxes, end: false },
@@ -240,6 +242,7 @@ export function AppShell() {
   return (
     <div className="bg-background flex h-full gap-3 p-3">
       <RouteMemory />
+      <TrayBridge />
       <aside
         className={cn(
           'border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col gap-2 rounded-2xl border p-2.5 transition-[width] duration-200',

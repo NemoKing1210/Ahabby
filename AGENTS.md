@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.29.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.30.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -46,6 +46,11 @@ commands → services → adapters → catalog → domain
   sessions, `project` (project discovery + reading), and `hub` (reading the collections of skills and MCP
   servers the Hub installs from, with its own in-memory cache).
 - `commands` — thin Tauri command surface; validates input, calls a service.
+- `desktop` — the three surfaces the OS draws _for_ Ahabby and no service can own, because each needs
+  the live `AppHandle`: the tray icon and its menu (`desktop::tray`), the window's life cycle
+  (`desktop::window` — show, hide, and whether the close button quits) and the login item
+  (`desktop::autostart`). It depends on `state`/`services` and nothing depends on it, which is why it
+  sits beside `state.rs` rather than inside the service layer.
 
 Data flow:
 
@@ -74,7 +79,7 @@ Frontend boundaries (enforce them):
 
 - **`src/shared/api/ipc.ts` is the only module that calls Tauri `invoke`.** No component or hook calls it.
 - **`src/shared/api/events.ts` is the only module that calls `listen`** (`job://output`, `job://done`,
-  `terminal://output`, `terminal://exit`).
+  `scan://…`, `terminal://output`, `terminal://exit`, `tray://navigate`, `tray://run-agent`).
 - Server state = React Query (per-feature `api/` hooks, keys in `src/shared/api/keys.ts`). Zustand is used in
   exactly three places: the install-job console store, the toast store and the terminal tab store.
 - Routing is hash-based (`createHashRouter` in `src/app/router.tsx`) because the packaged app has no server SPA
@@ -94,27 +99,28 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 
 ## Key Directories
 
-| Path                               | Purpose                                                                                                                      |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                       |
-| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, projects, install, settings, terminal |
-| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                      |
-| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                          |
-| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                       |
-| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                                                  |
-| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                             |
-| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                          |
-| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · state.rs · error.rs`                                   |
-| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                            |
-| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                         |
-| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                              |
-| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                            |
-| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time          |
-| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                   |
-| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, per-source paging) + `parse.rs` (the three formats, pure and unit-tested)                            |
-| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its context menu, the read-only preview, the install dialog      |
-| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                 |
-| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                         |
+| Path                               | Purpose                                                                                                                           |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                            |
+| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, library, hub, projects, install, settings, terminal |
+| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                           |
+| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                               |
+| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                            |
+| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard                                                                                       |
+| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                  |
+| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                               |
+| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                              |
+| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services               |
+| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                 |
+| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                              |
+| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                   |
+| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                 |
+| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time               |
+| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                        |
+| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, per-source paging) + `parse.rs` (the three formats, pure and unit-tested)                                 |
+| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its context menu, the read-only preview, the install dialog           |
+| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                      |
+| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                              |
 
 ## Development Commands
 
@@ -259,6 +265,15 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   a hover action beside the agent, plus a one-item menu on the row itself so the collapsed rail has it too)
   calls the same `useRunAgentInTerminal` hook, which follows `Settings::terminal`: the built-in terminal opens
   a tab in the dock (expanding it, without navigating) and an external one is launched as its own window.
+- **The tray is native UI, so its entries are split by who can finish them.** `desktop::tray` (Rust) owns the
+  icon and the whole menu — the status line, `Open Ahabby`, `Go to ▸`, `Run in terminal ▸`, `Scan again`,
+  `Quit Ahabby` — and shows the window itself; the two entries that need a screen the window owns come back
+  over the event bus (`tray://navigate`, `tray://run-agent`) and are carried out by `app/layouts/TrayBridge`,
+  which lives in the shell (it needs the router) and calls the very hooks the buttons use, so a session
+  started from the tray is a session like any other. The menu is planned as plain data in Rust (labels,
+  items, which agents are runnable) and only then turned into native items, which is what makes it testable
+  without a running application; the "Go to" labels are compared against `nav.*` by a unit test, so the tray
+  and the sidebar cannot describe one screen differently.
 - **The window opens where the user left it.** `Settings::sidebar_collapsed` and `Settings::last_route` are
   the shell's own state: they are written by `set_sidebar_collapsed` / `set_last_route` (never by the
   Settings page, whose whole-document save the backend makes ignore them) and read back in `main.tsx`
@@ -266,6 +281,12 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   (`app/routeMemory.ts`) and the settings straight into a query cache primed for `AppShell`. The rail is
   therefore already collapsed and the right screen is the first thing painted; a hash the app was started
   with wins over the remembered route.
+- **A filter outlives the screen that set it.** Leaving a screen unmounts it, so the search box, the facet
+  chips, the Hub's kind/source/tags and the Library's tab, owner, origin, sort and activity are held in
+  `shared/lib/sessionState.ts` — a process-lifetime map read and written by `useSessionState`, which is a
+  `useState` that survives its component (the test setup clears it per case, so one case's filters cannot
+  leak into the next). Navigating away and back, or from one agent's skills tab to another agent's, finds the
+  list as it was left; nothing goes to disk, because a filter is a way of looking at a list, not a preference.
 
 ### Backend patterns
 
@@ -280,6 +301,22 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   the whole splash. The palette is the one copy of the `--ah-background`/`--ah-foreground` tokens in
   `platform::chrome_tokens` (a unit test reads `globals.css` and fails if the two drift).
 - Services take a `PlatformContext` and must not depend on `AppHandle` (except where a `JobSink` is needed).
+  The tray, the window and the login item need one, which is why they live in `desktop/` and not in a service.
+- **The tray menu is replaced, never patched, and `desktop::sync` is the only way in.** It is called at
+  startup, on every settings save and from the scan sink the moment a report lands (that is how the status
+  line and the list of runnable agents stay current), it does its work on the main thread (menus belong
+  there), and it creates the icon, hands it a freshly built menu or removes it according to
+  `Settings::tray_icon` — one call, three outcomes. `desktop::window::close_to_tray` checks the tray icon
+  _exists_ and not only that the setting is on: a hidden window with no tray icon would have no way back.
+  `Settings::start_minimized` is honoured under the same guard, so a platform that cannot create a tray
+  never leaves a process with no surface at all.
+- **`launch_at_login` is reconciled with the OS around every save, and the OS wins whenever the switch did
+  not move.** `commands::settings::save_settings` reads the login item first: if the user moved the switch,
+  the OS is told and a refusal comes back as an error (nothing is written, so the document cannot claim
+  something the machine does not do); if the switch did not move but the machine disagrees — a login item
+  removed in the OS's own startup settings, say — the _document_ is corrected, never the OS. `run()`'s setup
+  applies the same rule at launch, so a login item the user took away is not silently put back. The plugin is
+  used from Rust only — the webview has none of its permissions, exactly like the folder picker.
 - Commands resolve inputs through `AppState` (`document_target(agent_id, path)` is the security seam: the path
   must exactly match a config declared by the manifest, a scanned resource file, or a skill's entry file —
   see `state::resolve_document` — else `CommandNotAllowed`; a document the manifest marks read-only, or a
@@ -407,7 +444,10 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   all I/O/process/network is in Rust. `tauri-plugin-dialog` is registered for one job and used **from Rust
   only**: `commands::projects::pick_project_folder` opens the OS folder picker and returns a path, so the
   webview still has no permission to open a dialog of its own (and there is no `@tauri-apps/plugin-dialog`
-  dependency in the frontend). The production CSP is strict (`script-src 'self'`, no eval,
+  dependency in the frontend). `tauri-plugin-autostart` is registered on the same terms: `desktop::autostart`
+  drives it, the webview is given none of its permissions either. The `tauri` crate is built with the
+  `tray-icon` feature — the only optional feature Ahabby turns on, and the only reason `libayatana-appindicator`
+  is among the Linux packages CI installs. The production CSP is strict (`script-src 'self'`, no eval,
   `connect-src ipc: http://ipc.localhost`); do not add remote scripts/fonts. `withGlobalTauri: false`.
 - App version lives in three places — `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` —
   bump them together (the UI reads the injected `__APP_VERSION__`).
@@ -425,8 +465,11 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   only the sources it includes, the read-only preview, the reviewed install request with `confirm: true`, a
   required value gating it, the tags on a card and the tag filter that reaches the backend, and the entry
   context menu), the terminal tab store (buffered output,
-  finishing and closing a tab), and the animated list (the row order it renders, and a removed row staying in
-  the tree for its exit before it goes). Hooks are not tested.
+  finishing and closing a tab), the animated list (the row order it renders, and a removed row staying in
+  the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
+  composed within one tick, and one key not leaking into another), and the Settings areas (appearance, and
+  window & tray: what the document says, and that a hidden window needs the tray icon). Feature hooks are not
+  tested otherwise.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch
   the real environment or network. Manifest fixtures use `catalog::parse_manifest(toml, "test")`.
@@ -437,6 +480,10 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   hold the unit tests around discovery, markers, the reserved owner ids and the re-rooted reads.
   `services::terminal` tests are the only ones that spawn a real process (a PTY is the product): they run the
   user's own shell, answer ConPTY's cursor query themselves, and cover output, input, resize and closing.
+  `desktop::tray` plans its menu as plain data and asserts the plan (the status line, the two submenus, that
+  only installed agents are offered), including a test that reads `src/shared/i18n/locales/*.json` and fails
+  when the tray's screen names drift from the sidebar's — the same trick `platform::chrome_tokens` uses on
+  `globals.css`. The tray _icon_ itself needs a running application and is not unit-tested.
 - **QA expectations**: prove the _refusal_ of dangerous write paths, not just happy paths; keep cross-boundary
   invariants tested (event-name strings, locale parity, Rust↔TS secret masking); prefer deterministic,
   isolated tests. No coverage thresholds are configured (`npx vitest run --coverage` is available).

@@ -1,8 +1,9 @@
 /**
  * Typed access to the backend's event bus.
  *
- * Two families of events: install/update jobs (`job://…`) and scans (`scan://…`). Event names
- * must match `state::events` in Rust (asserted by `src-tauri/src/state.rs` tests).
+ * Three families of events: install/update jobs (`job://…`), scans (`scan://…`) and the tray
+ * (`tray://…`). Event names must match `state::events` in Rust (asserted by
+ * `src-tauri/src/state.rs` tests).
  */
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -21,6 +22,8 @@ export const SCAN_AGENT_EVENT = 'scan://agent'
 export const SCAN_DONE_EVENT = 'scan://done'
 export const TERMINAL_OUTPUT_EVENT = 'terminal://output'
 export const TERMINAL_EXIT_EVENT = 'terminal://exit'
+export const TRAY_NAVIGATE_EVENT = 'tray://navigate'
+export const TRAY_RUN_AGENT_EVENT = 'tray://run-agent'
 
 export function onJobOutput(handler: (event: JobOutputEvent) => void): Promise<UnlistenFn> {
   return listen<JobOutputEvent>(JOB_OUTPUT_EVENT, (event) => {
@@ -65,6 +68,23 @@ export function onTerminalOutput(handler: (event: TerminalOutput) => void): Prom
 /** The process inside a terminal session ended; the tab stays open until it is closed. */
 export function onTerminalExit(handler: (event: TerminalExit) => void): Promise<UnlistenFn> {
   return listen<TerminalExit>(TERMINAL_EXIT_EVENT, (event) => {
+    handler(event.payload)
+  })
+}
+
+/**
+ * The tray asked for a screen. The payload is the route the shell itself uses (`/agents`,
+ * `/settings/…`), so the window opens exactly where the sidebar would have gone.
+ */
+export function onTrayNavigate(handler: (route: string) => void): Promise<UnlistenFn> {
+  return listen<string>(TRAY_NAVIGATE_EVENT, (event) => {
+    handler(event.payload)
+  })
+}
+
+/** The tray asked to start an agent in the terminal; the payload is its id. */
+export function onTrayRunAgent(handler: (agentId: string) => void): Promise<UnlistenFn> {
+  return listen<string>(TRAY_RUN_AGENT_EVENT, (event) => {
     handler(event.payload)
   })
 }

@@ -6,6 +6,7 @@ import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { ConfigFile } from '@/shared/bindings/ConfigFile'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
+import { useSessionState } from '@/shared/lib/sessionState'
 import { ActivityChips } from '@/shared/ui/ActivityChips'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
@@ -47,7 +48,9 @@ export function McpTab({
   const toggle = useSetMcpServerEnabled()
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null)
   const [open, setOpen] = useState<EditorDocument | null>(null)
-  const [activity, setActivity] = useState<ActivityFilter>('all')
+  // Kept for the session like the skills tab's: the switch is a way of looking at the list, not a
+  // property of the agent whose tab it is.
+  const [activity, setActivity] = useSessionState<ActivityFilter>('mcp.activity', 'all')
   const [createOpen, setCreateOpen] = useState(false)
   const createButton = owner ? (
     <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>

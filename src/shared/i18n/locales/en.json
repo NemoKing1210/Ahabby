@@ -617,6 +617,9 @@
     "copyFailed": "Could not copy to the clipboard",
     "pasteUnavailable": "This window does not allow reading the clipboard — use Ctrl+V"
   },
+  "tray": {
+    "agentMissing": "That agent is not in the last scan — scan the machine again and retry."
+  },
   "settings": {
     "title": "Settings",
     "subtitle": "Every area of Ahabby, grouped — each section is its own page.",
@@ -708,6 +711,20 @@
     "previewButton": "Primary action",
     "previewBadge": "Accent",
     "scanning": "Scanning",
+    "windowAndTray": "Window & tray",
+    "windowHint": "How Ahabby starts, and what closing its window means.",
+    "startup": "At startup",
+    "launchAtLogin": "Launch at login",
+    "launchAtLoginHint": "Ahabby starts together with your system and waits in the tray. The login item is listed in your operating system's startup settings as well — removing it there turns this off.",
+    "tray": "Tray",
+    "trayHint": "The tray icon is how Ahabby is reached while its window is closed. Right-click it for the menu: open the window, go to a screen, run an agent in the terminal, scan the machine again, or quit.",
+    "trayIcon": "Show the tray icon",
+    "trayIconHint": "Without it, closing the window quits Ahabby.",
+    "needsTray": "Turn the tray icon on first.",
+    "closeToTray": "Keep running when the window is closed",
+    "closeToTrayHint": "The close button puts the window away instead of quitting, so a running install and the open terminal sessions survive. Use Quit in the tray menu to exit.",
+    "startMinimized": "Start in the tray",
+    "startMinimizedHint": "Ahabby opens without showing its window; click the tray icon to bring it back.",
     "searchAndCatalog": "Search & catalog",
     "searchHint": "Where Ahabby looks for agent executables, and where extra agent definitions come from.",
     "scanPaths": "Additional scan paths",

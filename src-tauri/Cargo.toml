@@ -1,6 +1,6 @@
 [package]
 name = "ahabby"
-version = "0.29.0"
+version = "0.30.0"
 description = "Ahabby — a control panel for the AI coding agents installed on your machine"
 authors = ["Ahabby contributors"]
 license = "MIT"
@@ -16,11 +16,17 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = [] }
+# `tray-icon` is the only optional Tauri feature Ahabby turns on: the tray is built and driven
+# from Rust (`desktop::tray`), and the webview has no tray or menu permission at all.
+tauri = { version = "2.12", features = ["tray-icon"] }
 # The native folder picker of the Projects screen. Only the Rust side uses it (no JS package,
 # no webview capability): the dialog is opened by `commands::projects::pick_project_folder` and
 # the frontend receives a path, exactly like every other value it renders.
 tauri-plugin-dialog = "2.7.3"
+# The login item behind `Settings::launch_at_login`. Used from Rust only (`desktop::autostart`),
+# so the webview is not given the plugin's permissions either; it handles the three platforms'
+# own mechanisms — a `Run` registry value, a LaunchAgent plist and an XDG autostart entry.
+tauri-plugin-autostart = "2.6.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 toml_edit = { version = "0.25", features = ["serde"] }

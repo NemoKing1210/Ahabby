@@ -8,6 +8,7 @@ import { SettingsNetworkPage } from './pages/SettingsNetworkPage'
 import { SettingsSafetyPage } from './pages/SettingsSafetyPage'
 import { SettingsSearchPage } from './pages/SettingsSearchPage'
 import { SettingsTerminalPage } from './pages/SettingsTerminalPage'
+import { SettingsWindowPage } from './pages/SettingsWindowPage'
 
 /**
  * Settings is one layout with a subpage per area, exported as a route object so the app router
@@ -20,6 +21,7 @@ export const settingsRoutes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="/settings/appearance" replace /> },
       { path: 'appearance', element: <SettingsAppearancePage /> },
+      { path: 'window', element: <SettingsWindowPage /> },
       { path: 'terminal', element: <SettingsTerminalPage /> },
       { path: 'search', element: <SettingsSearchPage /> },
       { path: 'network', element: <SettingsNetworkPage /> },

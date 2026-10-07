@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react'
 
 import type { Agent } from '@/shared/bindings/Agent'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
+import { useSessionState } from '@/shared/lib/sessionState'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -41,7 +42,10 @@ export function AgentsPage() {
   const favoriteIds = useFavoriteAgents()
   const toggleFavorite = useToggleFavoriteAgent()
   const runInTerminal = useRunAgentInTerminal()
-  const [filters, setFilters] = useState<AgentFilterState>(EMPTY_FILTER)
+  // The filters are how this screen is being looked at, not a preference: `useSessionState`
+  // keeps them for the length of the session, so coming back from an agent page finds the same
+  // narrowed list instead of a reset one.
+  const [filters, setFilters] = useSessionState<AgentFilterState>('agents.filters', EMPTY_FILTER)
   const [installTarget, setInstallTarget] = useState<{
     agent: Agent
     action: InstallAction

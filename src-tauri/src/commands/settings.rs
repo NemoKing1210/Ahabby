@@ -41,8 +41,22 @@ pub async fn set_last_route(state: State<'_, AppState>, route: Option<String>) -
     state.set_last_route(route.as_deref())
 }
 
+/// Persist the settings document the Settings page edited.
+///
+/// Two of its fields describe the machine rather than Ahabby's own files, and both are applied
+/// here, around the write:
+///
+/// * the login item, *before* the document is stored — the file has to describe what the OS
+///   really does, so a registration the OS refused must not be saved as if it had worked (the
+///   error reaches the user as a toast and the draft stays unsaved);
+/// * the tray, after: the icon appears or goes away, and the menu is rebuilt in the language the
+///   document may have just changed.
 #[tauri::command]
-pub async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<Settings> {
+pub async fn save_settings(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    mut settings: Settings,
+) -> Result<Settings> {
     for path in &settings.extra_scan_paths {
         let trimmed = path.trim();
         if !trimmed.is_empty() && !std::path::Path::new(trimmed).exists() {
@@ -51,7 +65,23 @@ pub async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Re
             )));
         }
     }
-    state.save_settings(settings)
+    let current = state.settings().launch_at_login;
+    if let Some(enabled) = crate::desktop::autostart::is_enabled(&app) {
+        if settings.launch_at_login != current {
+            // The user moved the switch, so the OS follows — and a refusal is theirs to see:
+            // nothing is written, which is what keeps the document from claiming something the
+            // machine does not do.
+            crate::desktop::autostart::apply(&app, settings.launch_at_login)?;
+        } else if enabled != current {
+            // The switch was not touched, yet the machine disagrees (a login item removed in the
+            // OS's own startup settings, say): the document is corrected, never the OS — the same
+            // rule the launch itself applies.
+            settings.launch_at_login = enabled;
+        }
+    }
+    let saved = state.save_settings(settings)?;
+    crate::desktop::sync(&app);
+    Ok(saved)
 }
 
 /// Paints the native window chrome to match the theme the webview is rendering.

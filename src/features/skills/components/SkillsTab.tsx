@@ -5,6 +5,7 @@ import { Plus, Sparkles } from 'lucide-react'
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Skill } from '@/shared/bindings/Skill'
 import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
+import { useSessionState } from '@/shared/lib/sessionState'
 import { ActivityChips } from '@/shared/ui/ActivityChips'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
@@ -43,7 +44,9 @@ export function SkillsTab({
   const detail = skills.find((skill) => skill.id === detailId) ?? null
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null)
-  const [activity, setActivity] = useState<ActivityFilter>('all')
+  // Which half of the list is looked at is kept for the session, like the pages' own filters: an
+  // agent page, a project and the next agent all narrow the same tab.
+  const [activity, setActivity] = useSessionState<ActivityFilter>('skills.activity', 'all')
   const [createOpen, setCreateOpen] = useState(false)
   const createButton = owner ? (
     <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>

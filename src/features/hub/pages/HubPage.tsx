@@ -6,6 +6,7 @@ import { Store } from 'lucide-react'
 import { queryKeys } from '@/shared/api/keys'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubResourceKind } from '@/shared/bindings/HubResourceKind'
+import { useSessionState } from '@/shared/lib/sessionState'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { CatalogProblems } from '@/shared/ui/CatalogProblems'
@@ -38,14 +39,18 @@ export function HubPage() {
   const client = useQueryClient()
   const catalog = useHubSources()
 
-  const [query, setQuery] = useState('')
+  // The four filters a user sets here are kept for the session (`useSessionState`), so an entry
+  // previewed and installed, or a source read again, does not cost the search box its text.
+  const [query, setQuery] = useSessionState('hub.query', '')
   // Typing settles before it reaches the network: a source is a real request, not a local list.
-  const [settled, setSettled] = useState('')
-  const [kind, setKind] = useState<HubResourceKind | null>(null)
-  const [sourceId, setSourceId] = useState('all')
+  // The settled copy starts from the restored query, so a revisit asks for the filtered first
+  // page directly instead of asking twice.
+  const [settled, setSettled] = useState(() => query.trim())
+  const [kind, setKind] = useSessionState<HubResourceKind | null>('hub.kind', null)
+  const [sourceId, setSourceId] = useSessionState('hub.source', 'all')
   // Tags the user filters by. The chips themselves come from the source files: what a collection
   // declares is a subject a user can pick, while a plugin's own name would only be an identity.
-  const [tags, setTags] = useState<string[]>([])
+  const [tags, setTags] = useSessionState<string[]>('hub.tags', [])
   // One entry being read, one being installed: the preview is a place to look, the install dialog a
   // place to decide, and the second follows the first.
   const [viewEntry, setViewEntry] = useState<HubEntry | null>(null)

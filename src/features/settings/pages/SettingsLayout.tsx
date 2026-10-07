@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  AppWindow,
   EyeOff,
   Globe,
   Info,
@@ -33,6 +34,7 @@ import { SettingsDraftProvider } from '../lib/draft'
  */
 const SECTIONS = [
   { to: 'appearance', labelKey: 'settings.appearance', icon: Palette },
+  { to: 'window', labelKey: 'settings.windowAndTray', icon: AppWindow },
   { to: 'terminal', labelKey: 'settings.terminal', icon: TerminalIcon },
   { to: 'search', labelKey: 'settings.searchAndCatalog', icon: Search },
   { to: 'network', labelKey: 'settings.network', icon: Globe },

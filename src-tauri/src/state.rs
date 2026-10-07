@@ -39,6 +39,10 @@ pub mod events {
     pub const TERMINAL_OUTPUT: &str = "terminal://output";
     /// The process inside a terminal session ended.
     pub const TERMINAL_EXIT: &str = "terminal://exit";
+    /// The tray asked for a screen: the payload is the route to open.
+    pub const TRAY_NAVIGATE: &str = "tray://navigate";
+    /// The tray asked to start an agent: the payload is its id.
+    pub const TRAY_RUN_AGENT: &str = "tray://run-agent";
 }
 
 /// Emits job progress to the webview.
@@ -75,6 +79,9 @@ impl ScanSink for TauriScanSink {
 
     fn finished(&self, report: &ScanReport) {
         let _ = self.app.emit(events::SCAN_DONE, report);
+        // The tray menu is built out of this report — the counts and the agents it can start —
+        // so it is rebuilt for the scan that just landed, whoever asked for it.
+        crate::desktop::sync(&self.app);
     }
 }
 
@@ -290,6 +297,12 @@ impl AppState {
     /// Remember the screen the window is on, so the next launch opens there.
     pub fn set_last_route(&self, route: Option<&str>) -> Result<Settings> {
         self.settings.set_last_route(route)
+    }
+
+    /// Adopt the login item the OS actually holds, so the settings page never claims something
+    /// this machine does not do. Written by the startup check in `run()`, never by the UI.
+    pub fn set_launch_at_login(&self, enabled: bool) -> Result<Settings> {
+        self.settings.set_launch_at_login(enabled)
     }
 
     /// The proxy every version check and install job uses.
@@ -677,6 +690,8 @@ mod tests {
         assert_eq!(events::SCAN_DONE, "scan://done");
         assert_eq!(events::TERMINAL_OUTPUT, "terminal://output");
         assert_eq!(events::TERMINAL_EXIT, "terminal://exit");
+        assert_eq!(events::TRAY_NAVIGATE, "tray://navigate");
+        assert_eq!(events::TRAY_RUN_AGENT, "tray://run-agent");
     }
 
     fn manifest(id: &str, source: ManifestSource) -> AgentManifest {

@@ -31,22 +31,25 @@ export function SwitchField({
   checked,
   onCheckedChange,
   id,
+  disabled = false,
 }: {
   label: string
   hint?: string
   checked: boolean
   onCheckedChange: (checked: boolean) => void
   id: string
+  /** Dims the row and locks the switch — for a setting another one has to be on first. */
+  disabled?: boolean
 }) {
   return (
-    <div className="flex items-start justify-between gap-6 py-3">
+    <div className={cn('flex items-start justify-between gap-6 py-3', disabled && 'opacity-60')}>
       <div className="flex flex-col gap-0.5">
         <label htmlFor={id} className="text-foreground text-sm">
           {label}
         </label>
         {hint ? <p className="text-muted max-w-prose text-[0.8125rem]">{hint}</p> : null}
       </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
     </div>
   )
 }

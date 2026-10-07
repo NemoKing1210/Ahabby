@@ -19,6 +19,7 @@
 pub mod adapters;
 pub mod catalog;
 pub mod commands;
+pub mod desktop;
 pub mod domain;
 pub mod error;
 pub mod platform;
@@ -106,7 +107,39 @@ pub fn run() {
         // screen): the webview has no permission for it, so nothing in the frontend can open a
         // dialog of its own.
         .plugin(tauri_plugin_dialog::init())
+        // Same terms for the login item: `desktop::autostart` drives it from Rust, the webview is
+        // given none of its permissions and no package for it. No arguments are passed to the
+        // registered command line — whether a launch shows its window is `Settings::start_minimized`,
+        // which is applied on every save instead of being frozen into the login item.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        // The close button is the tray's business: with `close_to_tray` the window is not closed
+        // at all, it is put away, and Ahabby lives on in the tray until `Quit` is picked there.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if desktop::window::close_to_tray(window.app_handle()) {
+                    api.prevent_close();
+                }
+            }
+        })
         .setup(|app| {
+            let state = state::AppState::new(app.handle())?;
+            // The login item is the only thing Ahabby describes that lives outside its own config
+            // directory, so the OS is asked what it actually holds and the file is corrected
+            // rather than re-applied blindly: a user who removed Ahabby from their startup apps
+            // must not have it put back by the next launch.
+            if let Some(enabled) = desktop::autostart::is_enabled(app.handle()) {
+                if enabled != state.settings().launch_at_login {
+                    let _ = state.set_launch_at_login(enabled);
+                }
+            }
+            app.manage(state);
+            // The tray exists before the window is shown, because the window may never be shown:
+            // it is also what makes `start_minimized` safe to honour.
+            desktop::sync(app.handle());
+
             // The window is created hidden (`"visible": false` in `tauri.conf.json`) and is shown
             // below, once its caption is painted: the webview cannot colour it — the splash is on
             // screen before its bundle, stylesheet or theme round-trip exist, and this closure
@@ -117,15 +150,22 @@ pub fn run() {
                 .map(|webview| webview.as_ref().window());
             if let Some(window) = &window {
                 // Read the settings straight from the file: the service that holds them is built
-                // with the rest of the state, below.
+                // with the rest of the state, above.
                 if let Ok(config) = app.path().app_config_dir() {
                     let theme = services::SettingsService::load(&config).get().theme;
                     let _ = commands::settings::paint_startup_window_theme(window, theme);
                 }
-                let _ = window.show();
+                // A launch that starts in the tray leaves the window hidden — but only when a tray
+                // icon is really there: a platform that could not create one must never leave a
+                // running process with no surface to click, whatever the settings file says.
+                let start_in_tray = app.state::<state::AppState>().settings().starts_in_tray()
+                    && app.tray_by_id(desktop::tray::TRAY_ID).is_some();
+                if start_in_tray {
+                    tracing::info!("starting in the tray: the window stays hidden");
+                } else {
+                    let _ = window.show();
+                }
             }
-            let state = state::AppState::new(app.handle())?;
-            app.manage(state);
             Ok(())
         })
         .invoke_handler(handlers!())

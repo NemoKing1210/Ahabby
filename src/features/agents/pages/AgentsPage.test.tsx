@@ -119,6 +119,10 @@ const SETTINGS: Settings = {
   hiddenAgents: [],
   favoriteAgents: [],
   projectFolders: [],
+  launchAtLogin: false,
+  trayIcon: true,
+  closeToTray: true,
+  startMinimized: false,
   sidebarCollapsed: false,
   lastRoute: null,
 }
@@ -215,6 +219,23 @@ describe('AgentsPage filters', () => {
 
     expect(within(container).getByText('Claude Code')).toBeTruthy()
     expect(within(container).getByText('Warp')).toBeTruthy()
+  })
+
+  it('hands the filters to the next visit of the screen', async () => {
+    const user = userEvent.setup()
+    const first = renderPage()
+    await within(first.container).findByText('Claude Code')
+
+    await user.type(within(first.container).getByRole('textbox', { name: 'Search' }), 'aider')
+    await user.click(within(first.container).getByRole('button', { name: 'Available 1' }))
+    // Leaving the screen is what unmounts the page (the router does it on navigation).
+    first.unmount()
+
+    const { container } = renderPage()
+    await within(container).findByText('Aider')
+
+    expect(within(container).getByRole('textbox', { name: 'Search' })).toHaveValue('aider')
+    expect(within(container).queryByText('Claude Code')).toBeNull()
   })
 
   it('removes an agent from its card menu after confirmation', async () => {

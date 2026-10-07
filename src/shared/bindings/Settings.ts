@@ -87,6 +87,29 @@ terminalTheme: TerminalTheme,
  */
 projectFolders: Array<ProjectFolder>, 
 /**
+ * Whether Ahabby starts with the system: the login item is registered on save and taken
+ * back when this goes off. The one setting here that changes something *outside* the app
+ * config directory, which is why [`SettingsService::save`] is not the one that applies it —
+ * see `desktop::autostart`.
+ */
+launchAtLogin: boolean, 
+/**
+ * Whether Ahabby keeps an icon in the system tray. The tray is what a minimized Ahabby is
+ * reached through, so turning it off also turns off the two settings below.
+ */
+trayIcon: boolean, 
+/**
+ * Whether the window's close button hides Ahabby in the tray instead of quitting it. The
+ * window is not closed at all, so the webview, the scan and any running install survive.
+ */
+closeToTray: boolean, 
+/**
+ * Whether a launch opens the window on screen. Off means Ahabby comes up in the tray
+ * (unless the tray could not be created, when the window is shown anyway so the user is
+ * never left with a process that has no surface).
+ */
+startMinimized: boolean, 
+/**
  * Interface state the shell remembers between launches — *not* something the Settings page
  * edits. The settings document is the one place Ahabby persists anything, so "where was I"
  * lives here too instead of in a second file; [`SettingsService::save`] deliberately keeps

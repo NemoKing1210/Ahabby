@@ -150,6 +150,21 @@ pub struct Settings {
     /// skills, MCP servers and documents it finds. Only Ahabby's own list changes — nothing is
     /// written until the user edits something inside a project.
     pub project_folders: Vec<ProjectFolder>,
+    /// Whether Ahabby starts with the system: the login item is registered on save and taken
+    /// back when this goes off. The one setting here that changes something *outside* the app
+    /// config directory, which is why [`SettingsService::save`] is not the one that applies it —
+    /// see `desktop::autostart`.
+    pub launch_at_login: bool,
+    /// Whether Ahabby keeps an icon in the system tray. The tray is what a minimized Ahabby is
+    /// reached through, so turning it off also turns off the two settings below.
+    pub tray_icon: bool,
+    /// Whether the window's close button hides Ahabby in the tray instead of quitting it. The
+    /// window is not closed at all, so the webview, the scan and any running install survive.
+    pub close_to_tray: bool,
+    /// Whether a launch opens the window on screen. Off means Ahabby comes up in the tray
+    /// (unless the tray could not be created, when the window is shown anyway so the user is
+    /// never left with a process that has no surface).
+    pub start_minimized: bool,
     /// Interface state the shell remembers between launches — *not* something the Settings page
     /// edits. The settings document is the one place Ahabby persists anything, so "where was I"
     /// lives here too instead of in a second file; [`SettingsService::save`] deliberately keeps
@@ -224,6 +239,13 @@ impl Default for Settings {
             terminal: crate::platform::terminals::BUILTIN_ID.to_string(),
             terminal_theme: TerminalTheme::Auto,
             project_folders: Vec::new(),
+            // Ahabby is a control panel the user opens and closes, so nothing is registered with
+            // the OS and no window is hidden from them until they ask for it — but the tray icon
+            // itself is on: that is what makes closing the window a choice.
+            launch_at_login: false,
+            tray_icon: true,
+            close_to_tray: true,
+            start_minimized: false,
             sidebar_collapsed: false,
             last_route: None,
         }
@@ -281,7 +303,28 @@ impl Settings {
                 platform::terminals::BUILTIN_ID.to_string()
             }
         };
+        // Without a tray icon a hidden window has no way back, so neither field that can hide it
+        // is allowed to stand on its own: a hand-edited file cannot leave Ahabby running with no
+        // surface at all.
+        if !self.tray_icon {
+            self.close_to_tray = false;
+            self.start_minimized = false;
+        }
         self
+    }
+
+    /// Whether a launch should leave the window hidden, so the user lands on the tray icon.
+    ///
+    /// The tray icon is part of the answer — [`Settings::sanitized`] refuses the two together —
+    /// but the caller still has to check that the tray *exists*: a platform where it could not be
+    /// created must never leave Ahabby running with no surface to click.
+    pub fn starts_in_tray(&self) -> bool {
+        self.tray_icon && self.start_minimized
+    }
+
+    /// Whether the window's close button should hide Ahabby in the tray instead of quitting it.
+    pub fn keeps_running_in_tray(&self) -> bool {
+        self.tray_icon && self.close_to_tray
     }
 
     /// Validated proxy configuration for version checks and install/update jobs.
@@ -457,6 +500,20 @@ impl SettingsService {
         self.save(settings)?;
         Ok(removed)
     }
+
+    /// Adopt what the OS says about the login item.
+    ///
+    /// The one setting whose truth lives outside this file: the OS is asked at startup, and when
+    /// the two disagree the OS wins — a user who took Ahabby out of their startup apps must not
+    /// have it put back by the next launch.
+    pub fn set_launch_at_login(&self, enabled: bool) -> Result<Settings> {
+        let mut settings = self.get();
+        if settings.launch_at_login == enabled {
+            return Ok(settings);
+        }
+        settings.launch_at_login = enabled;
+        self.persist(settings)
+    }
 }
 
 #[cfg(test)]
@@ -481,6 +538,27 @@ mod tests {
         assert!(settings.favorite_agents.is_empty());
         assert_eq!(settings.terminal, "builtin");
         assert_eq!(settings.terminal_theme, TerminalTheme::Auto);
+        // Nothing is registered with the OS, but the tray icon is there: closing the window keeps
+        // Ahabby running until the user says otherwise.
+        assert!(!settings.launch_at_login);
+        assert!(settings.keeps_running_in_tray());
+        assert!(!settings.starts_in_tray());
+    }
+
+    #[test]
+    fn a_hidden_window_always_keeps_a_tray_icon_to_come_back_from() {
+        let settings = Settings {
+            tray_icon: false,
+            close_to_tray: true,
+            start_minimized: true,
+            ..Settings::default()
+        }
+        .sanitized();
+
+        assert!(!settings.keeps_running_in_tray());
+        assert!(!settings.starts_in_tray());
+        assert!(!settings.close_to_tray);
+        assert!(!settings.start_minimized);
     }
 
     #[test]
