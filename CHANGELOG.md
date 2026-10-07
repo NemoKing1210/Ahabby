@@ -5,6 +5,13 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.2] - 2026-10-07
+
+### Fixed
+
+- The window opens already in the app's colour: the native title bar no longer wears the OS caption while the
+  boot splash is on screen (the window stays hidden until the backend has painted it from the saved theme).
+
 ## [0.28.1] - 2026-10-07
 
 ### Added

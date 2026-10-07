@@ -59,6 +59,20 @@ mod imp {
 
 pub use imp::set_window_chrome;
 
+/// The caption palette the chrome is pinned to: `--ah-background` / `--ah-foreground`.
+///
+/// A copy of two tokens of `globals.css`, and only the startup paint needs one: the splash is
+/// on screen before the stylesheet lands, so the colours cannot be read out of the DOM — and the
+/// webview, which is what reads them (`src/app/theme.ts`) for every later paint, has not run yet.
+/// `chrome_tokens_mirror_the_stylesheet` is what keeps this copy from drifting.
+pub fn chrome_tokens(dark: bool) -> (&'static str, &'static str) {
+    if dark {
+        ("#1f1e1d", "#faf9f5")
+    } else {
+        ("#faf9f5", "#141413")
+    }
+}
+
 /// `#rrggbb` (or `rrggbb`) into a Win32 `COLORREF` (`0x00bbggrr`).
 ///
 /// Kept out of the Windows-only module so the parsing is covered on every CI platform.
@@ -74,7 +88,39 @@ pub fn caption_colorref(value: &str) -> Result<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::caption_colorref;
+    use super::{caption_colorref, chrome_tokens};
+
+    /// The value `name` is declared with inside `scope`, e.g. `#faf9f5`.
+    fn css_value(scope: &str, name: &str) -> String {
+        scope
+            .split_once(&format!("{name}:"))
+            .and_then(|(_, declaration)| declaration.split(';').next())
+            .map(|value| value.trim().to_string())
+            .expect("the token is not declared in this scope")
+    }
+
+    /// [`chrome_tokens`] is a copy of two stylesheet tokens: this fails the moment one side
+    /// moves without the other, which is the whole risk of the startup paint.
+    #[test]
+    fn chrome_tokens_mirror_the_stylesheet() {
+        let css = include_str!("../../../src/styles/globals.css");
+        let (light, dark) = css
+            .split_once("\n.dark {")
+            .expect("globals.css declares a .dark block");
+
+        for (scope, dark_theme) in [(light, false), (dark, true)] {
+            let tokens = (
+                css_value(scope, "--ah-background"),
+                css_value(scope, "--ah-foreground"),
+            );
+            assert_eq!(
+                chrome_tokens(dark_theme),
+                (tokens.0.as_str(), tokens.1.as_str()),
+                "the {} chrome palette drifted from globals.css",
+                if dark_theme { "dark" } else { "light" }
+            );
+        }
+    }
 
     #[test]
     fn colorref_is_byte_swapped() {

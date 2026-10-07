@@ -47,7 +47,7 @@ pub use process::{
     shell_invocation, CommandOutput,
 };
 pub use which::{find_binary, find_binary_in_dirs, BinaryLookup};
-pub use window::set_window_chrome;
+pub use window::{chrome_tokens, set_window_chrome};
 
 /// Epoch milliseconds — the only timestamp format that crosses the IPC boundary.
 pub fn now_ms() -> i64 {

@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.28.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.28.2`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -270,7 +270,12 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   backup first, Unix permissions preserved). Do not open a config file for writing anywhere else.
 - The native title bar is painted by `set_window_theme` → `platform::set_window_chrome`. On Windows it
   must go through DWM, not `Window::set_theme`: tao turns that into a theme change that reaches our own
-  webview and flips the `prefers-color-scheme` a `system` theme is resolved from.
+  webview and flips the `prefers-color-scheme` a `system` theme is resolved from. The window is created
+  hidden (`visible: false`) and `run()`'s setup paints the chrome from the settings file and only then shows
+  it: the webview cannot colour the caption before its bundle, stylesheet and settings round-trip exist, and
+  our own setup runs only after WebView2 is up — so a window shown at creation would wear the OS caption for
+  the whole splash. The palette is the one copy of the `--ah-background`/`--ah-foreground` tokens in
+  `platform::chrome_tokens` (a unit test reads `globals.css` and fails if the two drift).
 - Services take a `PlatformContext` and must not depend on `AppHandle` (except where a `JobSink` is needed).
 - Commands resolve inputs through `AppState` (`document_target(agent_id, path)` is the security seam: the path
   must exactly match a config declared by the manifest, a scanned resource file, or a skill's entry file —

@@ -107,6 +107,23 @@ pub fn run() {
         // dialog of its own.
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // The window is created hidden (`"visible": false` in `tauri.conf.json`) and is shown
+            // below, once its caption is painted: the webview cannot colour it — the splash is on
+            // screen before its bundle, stylesheet or theme round-trip exist, and this closure
+            // only ever runs after WebView2 is up — so a window shown at creation would wear the
+            // OS caption for as long as the boot takes.
+            let window = app
+                .get_webview_window("main")
+                .map(|webview| webview.as_ref().window());
+            if let Some(window) = &window {
+                // Read the settings straight from the file: the service that holds them is built
+                // with the rest of the state, below.
+                if let Ok(config) = app.path().app_config_dir() {
+                    let theme = services::SettingsService::load(&config).get().theme;
+                    let _ = commands::settings::paint_startup_window_theme(window, theme);
+                }
+                let _ = window.show();
+            }
             let state = state::AppState::new(app.handle())?;
             app.manage(state);
             Ok(())

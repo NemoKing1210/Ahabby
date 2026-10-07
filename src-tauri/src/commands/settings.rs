@@ -70,6 +70,28 @@ pub async fn set_window_theme(
     apply_window_theme(&window, theme, dark, &caption, &text)
 }
 
+/// Paints the chrome for the theme the app is about to render, before the webview can say.
+///
+/// `run()`'s setup calls this just before it shows the window — the window is created hidden for
+/// exactly that reason. The webview cannot colour the caption first: the splash is painted from
+/// `index.html` before the bundle, the stylesheet or the settings round-trip that
+/// `set_window_theme` needs, so a window shown earlier would wear the OS caption over a themed
+/// splash. The palette and the OS preference (`system`) are answered here because the webview has
+/// neither yet.
+pub(crate) fn paint_startup_window_theme(window: &tauri::Window, theme: Theme) -> Result<()> {
+    let dark = match theme {
+        Theme::Light => false,
+        Theme::Dark => true,
+        // The same answer `prefers-color-scheme` gives the webview once it loads.
+        Theme::System => window
+            .theme()
+            .map(|system| system == tauri::Theme::Dark)
+            .unwrap_or(false),
+    };
+    let (caption, text) = crate::platform::chrome_tokens(dark);
+    apply_window_theme(window, theme, dark, caption, text)
+}
+
 #[cfg(windows)]
 fn apply_window_theme(
     window: &tauri::Window,
