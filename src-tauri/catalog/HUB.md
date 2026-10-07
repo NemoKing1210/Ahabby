@@ -36,6 +36,8 @@ and prints what it answered — sources, a first page each, one detail of each k
 | `git_ref`     | no                     | Branch, tag or commit to read. Defaults to `main`.                                                                                           |
 | `path`        | `githubSkills`         | Only skills under this repository directory are offered.                                                                                     |
 | `exclude`     | no                     | Repository paths that are never offered — a template skeleton, a vendored copy.                                                              |
+| `tags`        | no                     | Tags every entry of this source carries.                                                                                                     |
+| `tag_rules`   | no                     | `[[tag_rules]]` blocks (`prefix`, `tags`) for the entries a source addresses under that prefix — see [Tags](#tags).                          |
 
 `deny_unknown_fields` is on, so a typo fails loudly instead of silently disabling half of a source.
 A source that does not parse or validate is skipped and reported in the Hub screen (as a warning on
@@ -138,6 +140,48 @@ Reads a JSON document published by anyone:
   is not plain — is skipped and the reason is reported under the source's heading: the document is
   the publisher's own file, so the message is what they fix.
 - unknown fields are ignored, so a document may carry its own metadata.
+
+## Tags
+
+A tag says what an entry is _for_ — `documents`, `design`, `review` — so a library of hundreds of
+entries can be browsed by subject instead of by repository layout. Every entry carries a list of
+them: they are shown on its card and in the dialogs, they widen the free-text search, and the Hub
+screen offers the ones the loaded sources declare as filters (asking for several keeps an entry
+carrying _any_ of them).
+
+Three things put a tag on an entry, in this order:
+
+1. **the entry's own declaration** — an `index` document's `tags`, or a skill's frontmatter
+   (`tags` or `keywords`, as a list or one comma-separated line: what the publisher wrote);
+2. **what the source declares** — `tags` for every entry of the source, and `[[tag_rules]]` for
+   the entries it names by prefix:
+
+   ```toml
+   tags = ["development"]
+
+   [[tag_rules]]
+   prefix = "skills/pdf"
+   tags = ["documents", "pdf"]
+   ```
+
+   The `prefix` is compared with the name the _source_ uses for an entry: a skill's repository
+   directory (`skills/pdf`), an `index` entry's id, a registry server's name. A rule covers that
+   name and everything under it (`skills` covers `skills/pdf`, but not `skills-extra/pdf`), so one
+   rule tags a whole directory of skills;
+
+3. **the collection a skill sits in** — `plugins/<group>/skills/<skill>` gives every such skill
+   `<group>` as a tag.
+
+Tags are trimmed, deduplicated case-insensitively (the first spelling wins, so a publisher's own
+casing survives), and kept to 12 tags of at most 40 characters per entry: a tag list is browsing
+metadata, and a source is third-party input. A tag that cannot be used is reported as a warning
+next to the source — it never fails the source.
+
+Two things follow from where the tags come from. A `mcpRegistry` entry has no tags of its own (a
+registry record declares none), so a tag filter the source does not declare returns an empty
+section _without_ a request. And because the registry pages server-side, a tag filter there can
+only drop entries from the page it answered, while a GitHub collection and an `index` document are
+filtered before the page is cut — so their counts stay exact.
 
 ## What the Hub fetches, and what it will not
 

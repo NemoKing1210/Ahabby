@@ -13,6 +13,7 @@ import { toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { HubContextMenu } from './HubContextMenu'
+import { HubTagList } from './HubEntryParts'
 
 /**
  * One installable entry, as a row of the hub.
@@ -94,6 +95,8 @@ export function HubEntryCard({
               {entry.description ? (
                 <p className="text-muted line-clamp-2 text-[0.8125rem]">{entry.description}</p>
               ) : null}
+
+              <HubTagList entry={entry} />
 
               {/* Why it cannot be installed is the publisher's own wording: the hub shows it as it is. */}
               {!entry.installable && entry.installProblem ? (

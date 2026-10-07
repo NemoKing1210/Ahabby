@@ -19,3 +19,74 @@ license = "See each skill's LICENSE.txt"
 description = """Document skills (pdf, docx, xlsx, pptx), the artifact builders and the webapp
 testing toolkit — the skills Anthropic itself publishes and maintains, each with the scripts and
 templates it needs."""
+
+# What each skill is *for*, so the Hub can be browsed and filtered by subject instead of by
+# directory layout. The prefixes are the repository's own directories (see `catalog/HUB.md`); a
+# skill with no rule simply carries no tags.
+[[tag_rules]]
+prefix = "skills/pdf"
+tags = ["documents"]
+
+[[tag_rules]]
+prefix = "skills/docx"
+tags = ["documents"]
+
+[[tag_rules]]
+prefix = "skills/xlsx"
+tags = ["documents"]
+
+[[tag_rules]]
+prefix = "skills/pptx"
+tags = ["documents"]
+
+[[tag_rules]]
+prefix = "skills/doc-coauthoring"
+tags = ["documents", "writing"]
+
+[[tag_rules]]
+prefix = "skills/internal-comms"
+tags = ["writing"]
+
+[[tag_rules]]
+prefix = "skills/algorithmic-art"
+tags = ["design"]
+
+[[tag_rules]]
+prefix = "skills/canvas-design"
+tags = ["design"]
+
+[[tag_rules]]
+prefix = "skills/brand-guidelines"
+tags = ["design"]
+
+[[tag_rules]]
+prefix = "skills/frontend-design"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/theme-factory"
+tags = ["design"]
+
+[[tag_rules]]
+prefix = "skills/slack-gif-creator"
+tags = ["design", "media"]
+
+[[tag_rules]]
+prefix = "skills/web-artifacts-builder"
+tags = ["frontend"]
+
+[[tag_rules]]
+prefix = "skills/webapp-testing"
+tags = ["testing", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/mcp-builder"
+tags = ["agents", "development"]
+
+[[tag_rules]]
+prefix = "skills/skill-creator"
+tags = ["agents"]
+
+[[tag_rules]]
+prefix = "skills/claude-api"
+tags = ["ai", "development"]

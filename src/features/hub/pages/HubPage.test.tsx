@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,6 +40,8 @@ const SKILLS_SOURCE: HubSource = {
   gitRef: null,
   path: null,
   exclude: [],
+  tags: ['development'],
+  tagRules: [{ prefix: 'skills/pdf', tags: ['documents'] }],
   builtin: true,
   sourceFile: null,
 }
@@ -382,6 +384,43 @@ describe('HubPage', () => {
     // …and the install dialog is one step on from there, not a separate journey.
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Install' }))
     expect(await screen.findByText('What will be written')).toBeTruthy()
+  })
+
+  it('shows what an entry is for, and filters the sources by tag', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.searchHub).mockImplementation((sourceId) =>
+      Promise.resolve(
+        sourceId === SKILLS_SOURCE.id
+          ? page({ entries: [entry({ tags: ['documents', 'design'] })] })
+          : page({ entries: [] }),
+      ),
+    )
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    // The entry's own tags are on its card, next to what it is.
+    const card = within(container).getByRole('button', { name: 'pdf' })
+    expect(within(card).getByText('documents')).toBeTruthy()
+    expect(within(card).getByText('design')).toBeTruthy()
+
+    // The chips are the tags the source declares, so a subject can be picked without reading a
+    // second collection; picking one asks the backend for it.
+    vi.mocked(ipc.searchHub).mockClear()
+    await user.click(screen.getByRole('button', { name: 'documents' }))
+
+    await waitFor(() => {
+      expect(vi.mocked(ipc.searchHub).mock.calls.at(-1)?.[1]).toMatchObject({
+        tags: ['documents'],
+      })
+    })
+
+    // …and picking a second one asks for entries carrying either.
+    await user.click(screen.getByRole('button', { name: 'development' }))
+    await waitFor(() => {
+      expect(vi.mocked(ipc.searchHub).mock.calls.at(-1)?.[1]).toMatchObject({
+        tags: ['documents', 'development'],
+      })
+    })
   })
 
   it('offers the card actions from the context menu, including re-reading the collection', async () => {

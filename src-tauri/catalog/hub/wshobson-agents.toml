@@ -18,3 +18,375 @@ license = "MIT"
 description = """A wide, plugin-organised collection: accessibility audits, agent-team patterns,
 language deep dives, document pipelines, testing strategies. The largest single source of skills
 Ahabby ships with."""
+
+# What each plugin is *for*, so the Hub can be browsed and filtered by subject: a skill keeps the
+# plugin's own name as a tag as well (its directory is `plugins/<plugin>/skills/<skill>`), and the
+# rules below add the subject the plugin's skills are about. The prefixes are the repository's own
+# directories (see `catalog/HUB.md`).
+[[tag_rules]]
+prefix = "plugins/accessibility-compliance"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "plugins/agent-orchestration"
+tags = ["agents"]
+
+[[tag_rules]]
+prefix = "plugins/agent-teams"
+tags = ["agents"]
+
+[[tag_rules]]
+prefix = "plugins/api-scaffolding"
+tags = ["api", "development"]
+
+[[tag_rules]]
+prefix = "plugins/api-testing-observability"
+tags = ["api", "testing"]
+
+[[tag_rules]]
+prefix = "plugins/application-performance"
+tags = ["performance"]
+
+[[tag_rules]]
+prefix = "plugins/arm-cortex-microcontrollers"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/avoid-ai-writing"
+tags = ["writing"]
+
+[[tag_rules]]
+prefix = "plugins/backend-api-security"
+tags = ["security", "api"]
+
+[[tag_rules]]
+prefix = "plugins/backend-development"
+tags = ["development", "api"]
+
+[[tag_rules]]
+prefix = "plugins/before-you-build"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "plugins/block-no-verify"
+tags = ["workflow", "git"]
+
+[[tag_rules]]
+prefix = "plugins/blockchain-web3"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/brand-landingpage"
+tags = ["design", "frontend", "marketing"]
+
+[[tag_rules]]
+prefix = "plugins/business-analytics"
+tags = ["data"]
+
+[[tag_rules]]
+prefix = "plugins/c4-architecture"
+tags = ["docs", "planning"]
+
+[[tag_rules]]
+prefix = "plugins/cicd-automation"
+tags = ["ci", "ops"]
+
+[[tag_rules]]
+prefix = "plugins/cloud-infrastructure"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "plugins/code-documentation"
+tags = ["docs"]
+
+[[tag_rules]]
+prefix = "plugins/code-refactoring"
+tags = ["refactoring"]
+
+[[tag_rules]]
+prefix = "plugins/codebase-cleanup"
+tags = ["refactoring"]
+
+[[tag_rules]]
+prefix = "plugins/comprehensive-review"
+tags = ["review"]
+
+[[tag_rules]]
+prefix = "plugins/conductor"
+tags = ["agents", "workflow"]
+
+[[tag_rules]]
+prefix = "plugins/content-marketing"
+tags = ["marketing", "writing"]
+
+[[tag_rules]]
+prefix = "plugins/context-management"
+tags = ["agents"]
+
+[[tag_rules]]
+prefix = "plugins/customer-sales-automation"
+tags = ["marketing"]
+
+[[tag_rules]]
+prefix = "plugins/data-engineering"
+tags = ["data"]
+
+[[tag_rules]]
+prefix = "plugins/data-validation-suite"
+tags = ["data", "testing"]
+
+[[tag_rules]]
+prefix = "plugins/database-cloud-optimization"
+tags = ["data", "performance"]
+
+[[tag_rules]]
+prefix = "plugins/database-design"
+tags = ["data"]
+
+[[tag_rules]]
+prefix = "plugins/database-migrations"
+tags = ["data"]
+
+[[tag_rules]]
+prefix = "plugins/debugging-toolkit"
+tags = ["debugging"]
+
+[[tag_rules]]
+prefix = "plugins/dependency-management"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/deployment-strategies"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "plugins/deployment-validation"
+tags = ["ops", "testing"]
+
+[[tag_rules]]
+prefix = "plugins/developer-essentials"
+tags = ["development", "workflow"]
+
+[[tag_rules]]
+prefix = "plugins/dgx-spark-ops"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "plugins/distributed-debugging"
+tags = ["debugging", "ops"]
+
+[[tag_rules]]
+prefix = "plugins/documentation-generation"
+tags = ["docs"]
+
+[[tag_rules]]
+prefix = "plugins/documentation-standards"
+tags = ["docs"]
+
+[[tag_rules]]
+prefix = "plugins/dotnet-contribution"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/error-debugging"
+tags = ["debugging"]
+
+[[tag_rules]]
+prefix = "plugins/error-diagnostics"
+tags = ["debugging"]
+
+[[tag_rules]]
+prefix = "plugins/file-conversion"
+tags = ["documents"]
+
+[[tag_rules]]
+prefix = "plugins/framework-migration"
+tags = ["development", "refactoring"]
+
+[[tag_rules]]
+prefix = "plugins/frontend-mobile-development"
+tags = ["frontend", "mobile"]
+
+[[tag_rules]]
+prefix = "plugins/frontend-mobile-security"
+tags = ["security", "frontend"]
+
+[[tag_rules]]
+prefix = "plugins/full-stack-orchestration"
+tags = ["development", "agents"]
+
+[[tag_rules]]
+prefix = "plugins/functional-programming"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/game-development"
+tags = ["games"]
+
+[[tag_rules]]
+prefix = "plugins/git-pr-workflows"
+tags = ["git", "workflow"]
+
+[[tag_rules]]
+prefix = "plugins/hermes-tweet"
+tags = ["marketing", "writing"]
+
+[[tag_rules]]
+prefix = "plugins/hr-legal-compliance"
+tags = ["docs"]
+
+[[tag_rules]]
+prefix = "plugins/incident-response"
+tags = ["ops", "debugging"]
+
+[[tag_rules]]
+prefix = "plugins/javascript-typescript"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/julia-development"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/jvm-languages"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/kubernetes-operations"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "plugins/llm-application-dev"
+tags = ["ai", "development"]
+
+[[tag_rules]]
+prefix = "plugins/llm-finetuning"
+tags = ["ai"]
+
+[[tag_rules]]
+prefix = "plugins/machine-learning-ops"
+tags = ["ai", "ops"]
+
+[[tag_rules]]
+prefix = "plugins/meigen-ai-design"
+tags = ["design", "ai"]
+
+[[tag_rules]]
+prefix = "plugins/multi-platform-apps"
+tags = ["frontend", "mobile"]
+
+[[tag_rules]]
+prefix = "plugins/observability-monitoring"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "plugins/operating-kit"
+tags = ["workflow"]
+
+[[tag_rules]]
+prefix = "plugins/payment-processing"
+tags = ["development", "security"]
+
+[[tag_rules]]
+prefix = "plugins/performance-testing-review"
+tags = ["performance", "testing"]
+
+[[tag_rules]]
+prefix = "plugins/plugin-eval"
+tags = ["agents", "testing"]
+
+[[tag_rules]]
+prefix = "plugins/pptx-deck-creation"
+tags = ["documents", "design"]
+
+[[tag_rules]]
+prefix = "plugins/protect-mcp"
+tags = ["security", "agents"]
+
+[[tag_rules]]
+prefix = "plugins/python-development"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/quantitative-trading"
+tags = ["data"]
+
+[[tag_rules]]
+prefix = "plugins/reverse-engineering"
+tags = ["security", "debugging"]
+
+[[tag_rules]]
+prefix = "plugins/review-agent-governance"
+tags = ["review", "agents"]
+
+[[tag_rules]]
+prefix = "plugins/security-compliance"
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "plugins/security-scanning"
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "plugins/seo-analysis-monitoring"
+tags = ["seo", "marketing"]
+
+[[tag_rules]]
+prefix = "plugins/seo-content-creation"
+tags = ["seo", "marketing", "writing"]
+
+[[tag_rules]]
+prefix = "plugins/seo-technical-optimization"
+tags = ["seo", "frontend"]
+
+[[tag_rules]]
+prefix = "plugins/shell-scripting"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/ship-mate"
+tags = ["workflow", "ops"]
+
+[[tag_rules]]
+prefix = "plugins/signed-audit-trails"
+tags = ["security", "data"]
+
+[[tag_rules]]
+prefix = "plugins/skill-forge-essentials"
+tags = ["agents", "docs"]
+
+[[tag_rules]]
+prefix = "plugins/social-publishing"
+tags = ["marketing"]
+
+[[tag_rules]]
+prefix = "plugins/startup-business-analyst"
+tags = ["planning", "data"]
+
+[[tag_rules]]
+prefix = "plugins/superself"
+tags = ["workflow"]
+
+[[tag_rules]]
+prefix = "plugins/systems-programming"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/tdd-workflows"
+tags = ["testing"]
+
+[[tag_rules]]
+prefix = "plugins/team-collaboration"
+tags = ["workflow"]
+
+[[tag_rules]]
+prefix = "plugins/ui-design"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "plugins/unit-testing"
+tags = ["testing"]
+
+[[tag_rules]]
+prefix = "plugins/web-scripting"
+tags = ["development"]

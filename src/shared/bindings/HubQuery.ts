@@ -14,6 +14,10 @@ query: string,
  */
 kind?: HubResourceKind | null, 
 /**
+ * Restrict to the entries carrying any of these tags (case-insensitive).
+ */
+tags?: Array<string>, 
+/**
  * Cursor returned by the previous page of the same source.
  */
 cursor?: string | null, 

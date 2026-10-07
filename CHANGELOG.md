@@ -5,6 +5,25 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] - 2026-10-07
+
+### Added
+
+- **Entries in the Hub say what they are for.** Every skill and MCP server now wears tags — `documents`,
+  `design`, `review`, `security`, `testing` and the like — on its card and in the preview and install
+  dialogs, so a collection of hundreds can be browsed by subject instead of by repository layout. The Hub
+  ships tags for the four skill collections it reads (Anthropic's, Superpowers, Sentry's and the 92 plugins
+  of Agentic Skills), a skill's own `tags:`/`keywords:` frontmatter is read where a publisher writes it, and
+  a source file can declare its own.
+- **A tag filter above the Hub.** The chips are the tags the collections in view declare; picking one asks
+  the source for the entries carrying it, and picking several asks for the entries carrying any of them —
+  the same tags narrow the free-text search.
+
+### Changed
+
+- A hub source declares tags in its own file: `tags = [...]` for every entry of the source and
+  `[[tag_rules]]` (`prefix`, `tags`) for the entries it names by prefix. See `catalog/HUB.md`.
+
 ## [0.27.0] - 2026-10-07
 
 ### Added

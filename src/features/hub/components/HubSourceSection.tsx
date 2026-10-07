@@ -37,6 +37,7 @@ export function HubSourceSection({
   source,
   kind,
   query,
+  tags,
   generation,
   onView,
   onInstall,
@@ -46,6 +47,8 @@ export function HubSourceSection({
   source: HubSource
   kind: HubResourceKind | null
   query: string
+  /** Tags the toolbar filters by; the backend applies them before the page is cut. */
+  tags: string[]
   /** Bumped when the user refreshes: the first page of a new generation ignores the backend cache. */
   generation: number
   onView: (entry: HubEntry) => void
@@ -59,13 +62,14 @@ export function HubSourceSection({
   // state: it must not re-render, and it must survive the query key changing under it.
   const forced = useRef(generation)
   const page = useInfiniteQuery({
-    queryKey: queryKeys.hubSource(source.id, kind, query, PAGE_SIZE, generation),
+    queryKey: queryKeys.hubSource(source.id, kind, query, PAGE_SIZE, generation, tags),
     queryFn: ({ pageParam }) => {
       const refresh = pageParam === null && forced.current !== generation
       forced.current = generation
       return ipc.searchHub(source.id, {
         query,
         kind,
+        tags,
         cursor: pageParam,
         limit: PAGE_SIZE,
         refresh,

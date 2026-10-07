@@ -11,8 +11,8 @@ use serde::Deserialize;
 
 use crate::adapters::frontmatter;
 use crate::domain::{
-    HubEntry, HubFileInfo, HubFileKind, HubInput, HubPreview, HubResourceKind, HubSource,
-    McpTransport,
+    normalize_tags, HubEntry, HubFileInfo, HubFileKind, HubInput, HubPreview, HubResourceKind,
+    HubSource, McpTransport,
 };
 use crate::error::{AppError, Result};
 
@@ -134,8 +134,10 @@ pub struct RepoSkill {
     pub size_bytes: u64,
     pub has_scripts: bool,
     /// The plugin/collection a skill belongs to, when the layout says so
-    /// (`plugins/<group>/skills/<skill>`) — a searchable tag, and how the UI can label it.
+    /// (`plugins/<group>/skills/<skill>`) — a tag, and how the UI can label it.
     pub group: Option<String>,
+    /// What the skill says about itself: its frontmatter `tags` (or `keywords`).
+    pub tags: Vec<String>,
 }
 
 /// Find every skill in a repository.
@@ -214,6 +216,7 @@ pub fn repo_skills(files: &[TarFile], source: &HubSource) -> Vec<RepoSkill> {
                     .any(|index| file_kind(&files[*index].path) == HubFileKind::Script),
                 file_indexes: indexes,
                 group: group_of(directory),
+                tags: markdown.as_ref().map(declared_tags).unwrap_or_default(),
             })
         })
         .collect()
@@ -250,6 +253,25 @@ fn group_of(directory: &str) -> Option<String> {
         return None;
     }
     Some(segments[skills - 1].to_string())
+}
+
+/// The tags a skill declares about itself, from the frontmatter of its own `SKILL.md`.
+///
+/// The convention spells them either way — `tags` or `keywords`, as a list or as one comma
+/// separated line (`adapters::frontmatter` flattens a YAML list into exactly that) — so both keys
+/// are read and both are split on commas. Nothing is invented here: a skill that declares no tags
+/// has none.
+fn declared_tags(markdown: &frontmatter::Markdown) -> Vec<String> {
+    normalize_tags(
+        markdown
+            .frontmatter
+            .iter()
+            .filter(|entry| {
+                entry.key.eq_ignore_ascii_case("tags") || entry.key.eq_ignore_ascii_case("keywords")
+            })
+            .flat_map(|entry| entry.value.split(','))
+            .map(str::to_string),
+    )
 }
 
 fn read_text(file: &TarFile) -> Option<String> {
@@ -405,7 +427,7 @@ fn item_from_record(record: RegistryRecord, source: &HubSource) -> RegistryItem 
         homepage: record.website_url.clone(),
         repository,
         license: source.license.clone(),
-        tags: Vec::new(),
+        tags: source.declared_tags(&record.name),
         file_count: None,
         size_bytes: None,
         installable: problem.is_none(),
@@ -845,7 +867,7 @@ fn item_from_index(
             homepage: entry.homepage,
             repository: entry.repository,
             license: entry.license.or_else(|| source.license.clone()),
-            tags: entry.tags,
+            tags: normalize_tags(entry.tags.into_iter().chain(source.declared_tags(id))),
             file_count: None,
             size_bytes: None,
             // An entry that made it this far has everything installing it needs; an entry that
@@ -1156,6 +1178,116 @@ provides = ["mcp"]
         let review = by_dir("plugins/teams/skills/review");
         assert_eq!(review.group.as_deref(), Some("teams"));
         assert!(!review.has_scripts);
+    }
+
+    #[test]
+    fn a_skill_declares_the_tags_it_carries() {
+        let files = read(&[
+            (
+                "skills/design/SKILL.md",
+                "---\nname: design\ntags: [design, documents]\n---\n",
+            ),
+            (
+                "skills/review/SKILL.md",
+                "---\nname: review\nkeywords: review, testing\n---\n",
+            ),
+            (
+                "skills/deck/SKILL.md",
+                "---\nname: deck\ntags: design, deck\n---\n",
+            ),
+            ("skills/plain/SKILL.md", "---\nname: plain\n---\n"),
+        ]);
+        let skills = repo_skills(&files, &skills_source(""));
+        let tags = |dir: &str| {
+            skills
+                .iter()
+                .find(|skill| skill.dir == dir)
+                .unwrap_or_else(|| panic!("no skill at {dir}"))
+                .tags
+                .clone()
+        };
+
+        assert_eq!(tags("skills/design"), ["design", "documents"]);
+        assert_eq!(tags("skills/review"), ["review", "testing"]);
+        assert_eq!(tags("skills/deck"), ["design", "deck"]);
+        assert!(tags("skills/plain").is_empty());
+    }
+
+    #[test]
+    fn a_source_declares_tags_for_the_entries_it_names() {
+        let registry = parse_source(
+            r#"
+id = "unit-registry"
+name = "Unit Registry"
+kind = "mcpRegistry"
+url = "https://registry.example.com"
+provides = ["mcp"]
+tags = ["mcp"]
+
+[[tag_rules]]
+prefix = "com.example/files"
+tags = ["files"]
+"#,
+            "test",
+        )
+        .expect("a valid source");
+        let page = serde_json::json!({
+            "servers": [
+                {
+                    "server": {
+                        "name": "com.example/files",
+                        "packages": [{
+                            "registryType": "npm",
+                            "identifier": "@example/files-mcp",
+                            "transport": { "type": "stdio" }
+                        }]
+                    }
+                },
+                { "server": { "name": "com.example/other", "version": "1.0.0" } }
+            ]
+        });
+        let (items, _) = mcp_registry(&page, &registry).expect("parsed");
+        assert_eq!(items[0].entry.tags, ["mcp", "files"]);
+        assert_eq!(items[1].entry.tags, ["mcp"]);
+
+        let index = parse_source(
+            r#"
+id = "unit-index"
+name = "Unit Index"
+kind = "index"
+url = "https://example.com/hub.json"
+provides = ["skill"]
+tags = ["hub"]
+
+[[tag_rules]]
+prefix = "design"
+tags = ["design"]
+"#,
+            "test",
+        )
+        .expect("a valid source");
+        let document = serde_json::json!({
+            "entries": [
+                {
+                    "id": "design",
+                    "kind": "skill",
+                    "name": "Design",
+                    "tags": ["ui"],
+                    "skill": { "repository": "owner/repo", "path": "skills/design" }
+                },
+                {
+                    "id": "other",
+                    "kind": "skill",
+                    "name": "Other",
+                    "skill": { "repository": "owner/repo", "path": "skills/other" }
+                }
+            ]
+        });
+        let (items, problems) = index_entries(&document, &index).expect("parsed");
+        assert!(problems.is_empty(), "{problems:#?}");
+        // The document's own tag first, then what the source declares for the entry.
+        assert_eq!(items[0].entry.tags, ["ui", "hub", "design"]);
+        assert_eq!(items[1].entry.tags, ["hub"]);
     }
 
     #[test]

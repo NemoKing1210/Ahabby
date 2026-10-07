@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.27.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.28.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -325,6 +325,15 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   fresh `.<slug>.ahabby-installing` directory with `SKILL.md` last and renames it into place, so an
   interrupted install leaves nothing an agent would load — and a payload path that is not a plain relative
   one, or a set where one file is the parent of another, is refused before a byte is written.
+- **A hub entry's tags are declared, never guessed.** `HubEntry.tags` carries, in this order, what the entry
+  itself declares (an index document's `tags`, a skill's frontmatter `tags`/`keywords`), what its source
+  declares for it (`tags` source-wide, `[[tag_rules]]` by prefix of the name the source uses — a skill's
+  repository directory, an index id, a registry name) and the plugin group a skill sits in
+  (`plugins/<group>/skills/<skill>`) — normalized to 12 tags of 40 characters, deduplicated
+  case-insensitively. `HubQuery::tags` keeps entries carrying _any_ of them: a GitHub collection and an
+  `index` document are filtered before the page is cut, the registry — which pages server-side and gives its
+  records no tags of their own — only from the page it answered, and a filter its vocabulary cannot answer is
+  answered from the source file without a request at all.
 - `services::hub` is rebuilt on a settings save (`HubService::set_proxy`) the way the version checker is: a
   proxy change is about the connection, not the cached data. Its HTTP client follows `Settings::proxy` exactly
   like the version checker's (`None` → `no_proxy`, `System` → environment, `Manual` → one URL).
@@ -398,7 +407,8 @@ github, adapter, binaries, search_paths, configs, skills, mcp, other, methods, u
   helpers, `AgentCard` (render, install gating, badges, click-to-navigate), the Projects page (folders,
   projects, the empty state, adding a folder), the Hub page (a section per source, a kind filter that asks
   only the sources it includes, the read-only preview, the reviewed install request with `confirm: true`, a
-  required value gating it, and the entry context menu), and the terminal tab store (buffered output,
+  required value gating it, the tags on a card and the tag filter that reaches the backend, and the entry
+  context menu), and the terminal tab store (buffered output,
   finishing and closing a tab). Hooks are not tested.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch

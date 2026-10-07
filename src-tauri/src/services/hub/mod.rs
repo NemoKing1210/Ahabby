@@ -27,9 +27,9 @@ use tracing::warn;
 use crate::catalog::hub as catalog_hub;
 use crate::domain::skill::{SkillInstall, SkillInstallFile};
 use crate::domain::{
-    HubEntry, HubEntryDetail, HubFileInfo, HubInput, HubPage, HubPreview, HubQuery,
-    HubResourceKind, HubSource, HubSourceCatalog, HubSourceKind, HubSourceReport, McpTransport,
-    Proxy, ProxyMode,
+    normalize_tags, tags_match, HubEntry, HubEntryDetail, HubFileInfo, HubInput, HubPage,
+    HubPreview, HubQuery, HubResourceKind, HubSource, HubSourceCatalog, HubSourceKind,
+    HubSourceReport, McpTransport, Proxy, ProxyMode,
 };
 use crate::error::{AppError, Result};
 use crate::platform::now_ms;
@@ -332,6 +332,19 @@ impl HubService {
     }
 
     async fn registry_page(&self, source: &HubSource, query: &HubQuery) -> Result<Page> {
+        // A registry record carries no tags of its own, only what its source declares for it, so a
+        // filter its vocabulary cannot answer is answered here — without asking the registry and
+        // making the screen wait for a page that would come back empty anyway.
+        if !tags_match(&source.tag_vocabulary(), &query.tags) {
+            return Ok(Page {
+                entries: Vec::new(),
+                next_cursor: None,
+                total: None,
+                problems: Vec::new(),
+                from_cache: false,
+            });
+        }
+
         let base = source_url(source)?;
         let limit = query.page_size();
         let key = format!(
@@ -343,7 +356,7 @@ impl HubService {
 
         if !query.refresh {
             if let Some(cached) = self.cached_page(&key) {
-                return Ok(cached);
+                return Ok(tagged(cached, &query.tags));
             }
         }
 
@@ -366,8 +379,10 @@ impl HubService {
                 .records
                 .insert(item.entry.id.clone(), Cached::new(item));
         }
+        // The page is cached *as the registry answered it*: a tag filter is applied to a copy, so
+        // two queries with different tags share one request.
         cache.pages.insert(key, Cached::new(page.clone()));
-        Ok(page)
+        Ok(tagged(page, &query.tags))
     }
 
     async fn github_page(&self, source: &HubSource, query: &HubQuery) -> Result<Page> {
@@ -378,7 +393,7 @@ impl HubService {
         let mut matching: Vec<&RepoSkill> = snapshot
             .skills
             .iter()
-            .filter(|skill| matches_query(skill, &query.query))
+            .filter(|skill| skill_matches(skill, source, query))
             .collect();
         matching.sort_by(|a, b| compare_skills(a, b));
         let mut page = page_of(
@@ -406,6 +421,7 @@ impl HubService {
             .iter()
             .filter(|item| {
                 query.kind.is_none_or(|kind| item.entry.kind == kind)
+                    && tags_match(&item.entry.tags, &query.tags)
                     && matches_entry(&item.entry, &query.query)
             })
             .collect();
@@ -879,6 +895,20 @@ fn is_inside(path: &str, directory: &str) -> bool {
     path == directory || path.starts_with(&format!("{directory}/"))
 }
 
+/// Every tag a skill entry carries: what the skill declares about itself, what its source declares
+/// for it, and the plugin/collection the layout puts it in. Normalized, so the card, the filter
+/// and the search all read one list.
+fn skill_tags(source: &HubSource, skill: &RepoSkill) -> Vec<String> {
+    normalize_tags(
+        skill
+            .tags
+            .iter()
+            .cloned()
+            .chain(source.declared_tags(&skill.dir))
+            .chain(skill.group.iter().cloned()),
+    )
+}
+
 /// A repository skill as the hub offers it.
 ///
 /// `location` is where in GitHub the skill actually lives (`owner/repo`, ref). It is what makes the
@@ -903,7 +933,7 @@ fn skill_entry(
         homepage: None,
         repository: location.map(|(repository, _)| format!("https://github.com/{repository}")),
         license: source.license.clone(),
-        tags: skill.group.clone().into_iter().collect(),
+        tags: skill_tags(source, skill),
         file_count: Some(infos.len() as u32),
         size_bytes: Some(skill.size_bytes),
         installable: true,
@@ -952,6 +982,23 @@ fn page_of(
     }
 }
 
+/// A page as the tags of the query ask for it.
+///
+/// Only the MCP registry needs this: it searches and pages server side and gives its entries no
+/// tags of their own, so a tag filter can only drop entries *from the page it answered*. Every
+/// other kind is filtered where it is read, before the page is cut.
+fn tagged(page: Page, tags: &[String]) -> Page {
+    if tags.is_empty() {
+        return page;
+    }
+    let entries = page
+        .entries
+        .into_iter()
+        .filter(|entry| tags_match(&entry.tags, tags))
+        .collect();
+    Page { entries, ..page }
+}
+
 fn cursor_offset(cursor: Option<&str>, total: usize) -> usize {
     cursor
         .and_then(|cursor| cursor.parse::<usize>().ok())
@@ -966,9 +1013,15 @@ fn compare_skills(a: &RepoSkill, b: &RepoSkill) -> std::cmp::Ordering {
         .then_with(|| a.dir.cmp(&b.dir))
 }
 
+/// `true` when a repository skill answers one page's query: its text, and the tags it carries.
+fn skill_matches(skill: &RepoSkill, source: &HubSource, query: &HubQuery) -> bool {
+    let tags = skill_tags(source, skill);
+    tags_match(&tags, &query.tags) && matches_query(skill, &tags, &query.query)
+}
+
 /// What a search term matches in a repository skill: its name, its description, its directory
-/// (`skills/pdf`) and the collection it belongs to.
-fn matches_query(skill: &RepoSkill, query: &str) -> bool {
+/// (`skills/pdf`), the collection it belongs to and any of its tags.
+fn matches_query(skill: &RepoSkill, tags: &[String], query: &str) -> bool {
     let needle = query.trim().to_lowercase();
     if needle.is_empty() {
         return true;
@@ -981,6 +1034,8 @@ fn matches_query(skill: &RepoSkill, query: &str) -> bool {
     ];
     haystack
         .iter()
+        .copied()
+        .chain(tags.iter().map(String::as_str))
         .any(|text| text.to_lowercase().contains(&needle))
 }
 
@@ -999,4 +1054,165 @@ fn matches_entry(entry: &HubEntry, query: &str) -> bool {
         .into_iter()
         .chain(entry.tags.iter().map(String::as_str))
         .any(|text| text.to_lowercase().contains(&needle))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source() -> HubSource {
+        catalog_hub::parse_source(
+            r#"
+id = "unit"
+name = "Unit"
+kind = "githubSkills"
+repository = "owner/repo"
+provides = ["skill"]
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "skills/design"
+tags = ["design"]
+"#,
+            "test",
+        )
+        .expect("a valid source")
+    }
+
+    fn skill(dir: &str, tags: &[&str], group: Option<&str>) -> RepoSkill {
+        RepoSkill {
+            dir: dir.to_string(),
+            name: dir.rsplit('/').next().unwrap_or(dir).to_string(),
+            description: None,
+            file_indexes: Vec::new(),
+            size_bytes: 0,
+            has_scripts: false,
+            group: group.map(str::to_string),
+            tags: tags.iter().map(|tag| tag.to_string()).collect(),
+        }
+    }
+
+    fn query(tags: &[&str]) -> HubQuery {
+        HubQuery {
+            tags: tags.iter().map(|tag| tag.to_string()).collect(),
+            ..HubQuery::default()
+        }
+    }
+
+    fn entry(id: &str, tags: &[&str]) -> HubEntry {
+        HubEntry {
+            id: id.to_string(),
+            source_id: "unit".to_string(),
+            source_name: "Unit".to_string(),
+            kind: HubResourceKind::Mcp,
+            name: id.to_string(),
+            title: None,
+            description: None,
+            version: None,
+            vendor: None,
+            homepage: None,
+            repository: None,
+            license: None,
+            tags: tags.iter().map(|tag| tag.to_string()).collect(),
+            file_count: None,
+            size_bytes: None,
+            installable: true,
+            install_problem: None,
+            input_count: 0,
+            has_scripts: false,
+        }
+    }
+
+    #[test]
+    fn a_skill_carries_its_own_tags_the_sources_and_its_group() {
+        let source = source();
+        assert_eq!(
+            skill_tags(
+                &source,
+                &skill("skills/design/ui", &["ui"], Some("plugins"))
+            ),
+            ["ui", "development", "design", "plugins"]
+        );
+        assert_eq!(
+            skill_tags(&source, &skill("skills/pdf", &[], None)),
+            ["development"]
+        );
+    }
+
+    #[test]
+    fn a_tag_filter_keeps_what_carries_any_of_the_tags() {
+        let source = source();
+        let design = skill("skills/design/ui", &[], None);
+        let pdf = skill("skills/pdf", &["documents"], None);
+
+        assert!(skill_matches(&design, &source, &query(&["design"])));
+        assert!(!skill_matches(&pdf, &source, &query(&["design"])));
+        assert!(skill_matches(
+            &pdf,
+            &source,
+            &query(&["design", "Documents"])
+        ));
+        assert!(skill_matches(&pdf, &source, &query(&[])));
+        // A tag is searchable as text as well, like everything else an entry carries.
+        assert!(matches_query(
+            &design,
+            &skill_tags(&source, &design),
+            "design"
+        ));
+        assert!(!matches_query(&pdf, &skill_tags(&source, &pdf), "design"));
+    }
+
+    #[test]
+    fn a_registry_page_loses_only_the_entries_the_tags_do_not_cover() {
+        let page = Page {
+            entries: vec![
+                entry("com.example/files", &["files"]),
+                entry("com.example/other", &["mcp"]),
+            ],
+            next_cursor: Some("2".to_string()),
+            total: None,
+            problems: Vec::new(),
+            from_cache: false,
+        };
+
+        let filtered = tagged(page.clone(), &["FILES".to_string()]);
+        assert_eq!(filtered.entries.len(), 1);
+        assert_eq!(filtered.entries[0].name, "com.example/files");
+        // The cursor is the registry's own, so paging carries on where it left off.
+        assert_eq!(filtered.next_cursor.as_deref(), Some("2"));
+
+        let untagged = tagged(page.clone(), &[]);
+        assert_eq!(untagged.entries.len(), 2);
+        let missing = tagged(page, &["testing".to_string()]);
+        assert!(missing.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_registry_source_that_cannot_produce_a_tag_is_never_asked() {
+        // The URL is a closed port: had the filter not been answered from the source's own
+        // vocabulary, this would be a `Network` error instead of an empty page.
+        let source = catalog_hub::parse_source(
+            r#"
+id = "unit-registry"
+name = "Unit Registry"
+kind = "mcpRegistry"
+url = "http://127.0.0.1:9"
+provides = ["mcp"]
+tags = ["mcp"]
+"#,
+            "test",
+        )
+        .expect("a valid source");
+        let service = HubService::new(&Proxy::none());
+
+        let page = service
+            .registry_page(&source, &query(&["design"]))
+            .await
+            .expect("an empty page, answered without a request");
+        assert!(page.entries.is_empty());
+        assert!(page.next_cursor.is_none());
+
+        // A tag the source does declare goes on to the registry as usual.
+        assert!(tags_match(&source.tag_vocabulary(), &["mcp".to_string()]));
+    }
 }

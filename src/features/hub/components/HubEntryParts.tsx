@@ -51,6 +51,26 @@ export function HubEntryLinks({ entry, docs }: { entry: HubEntry; docs?: string 
   )
 }
 
+/**
+ * What an entry is *for* — `documents`, `design`, `review` — so a collection of hundreds can be
+ * browsed by subject.
+ *
+ * The tags are the publisher's and the source file's own words, shown verbatim: they are the same
+ * strings the toolbar filters by, so translating them would break the one link between the two.
+ */
+export function HubTagList({ entry }: { entry: HubEntry }) {
+  if (entry.tags.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {entry.tags.map((tag) => (
+        <Badge key={tag} tone="outline">
+          {tag}
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
 /** Who publishes an entry, under which licence, how big it is, and which collection it came from. */
 export function HubEntryMeta({ entry }: { entry: HubEntry }) {
   const { t } = useTranslation()
@@ -71,6 +91,13 @@ export function HubEntryMeta({ entry }: { entry: HubEntry }) {
           <KeyValue label={t('hub.inputs')}>{entry.inputCount}</KeyValue>
         ) : null}
       </dl>
+
+      {entry.tags.length > 0 ? (
+        <div className="border-border mt-2 flex flex-wrap items-center gap-2 border-t pt-2">
+          <span className="text-faint text-[0.75rem]">{t('hub.tags')}</span>
+          <HubTagList entry={entry} />
+        </div>
+      ) : null}
     </Card>
   )
 }

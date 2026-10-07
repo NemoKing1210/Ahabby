@@ -436,6 +436,8 @@
       "skill": "Skills",
       "mcp": "MCP servers"
     },
+    "tags": "Tags",
+    "tagFilter": "Filter by tag",
     "source": "Source",
     "sourceAll": "All sources",
     "refresh": "Refresh",

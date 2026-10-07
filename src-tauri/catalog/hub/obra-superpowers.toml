@@ -13,3 +13,68 @@ homepage = "https://github.com/obra/superpowers"
 license = "MIT"
 description = """Brainstorming, planning, TDD, code review and debugging skills that compose into
 a working method: each one is a `SKILL.md` the agent loads when its trigger matches."""
+
+# What each skill is *for*, so the Hub can be browsed and filtered by subject instead of by
+# directory layout. The prefixes are the repository's own directories (see `catalog/HUB.md`).
+# The whole collection is one working method, so that much is declared for every entry.
+tags = ["development", "workflow"]
+
+[[tag_rules]]
+prefix = "skills/brainstorming"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/writing-plans"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/executing-plans"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/test-driven-development"
+tags = ["testing"]
+
+[[tag_rules]]
+prefix = "skills/systematic-debugging"
+tags = ["debugging"]
+
+[[tag_rules]]
+prefix = "skills/diagnosing-superpowers"
+tags = ["debugging", "docs"]
+
+[[tag_rules]]
+prefix = "skills/verification-before-completion"
+tags = ["testing", "review"]
+
+[[tag_rules]]
+prefix = "skills/requesting-code-review"
+tags = ["review"]
+
+[[tag_rules]]
+prefix = "skills/receiving-code-review"
+tags = ["review"]
+
+[[tag_rules]]
+prefix = "skills/using-git-worktrees"
+tags = ["git"]
+
+[[tag_rules]]
+prefix = "skills/finishing-a-development-branch"
+tags = ["git"]
+
+[[tag_rules]]
+prefix = "skills/dispatching-parallel-agents"
+tags = ["agents"]
+
+[[tag_rules]]
+prefix = "skills/subagent-driven-development"
+tags = ["agents"]
+
+[[tag_rules]]
+prefix = "skills/writing-skills"
+tags = ["agents", "docs"]
+
+[[tag_rules]]
+prefix = "skills/using-superpowers"
+tags = ["docs"]

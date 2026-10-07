@@ -30,9 +30,10 @@ pub use catalog::CatalogProblem;
 pub use config::{BackupEntry, ConfigFile, ConfigFormat, ConfigSnapshot, DiffPreview, SaveResult};
 pub use fact::{ConfigFact, FactKind};
 pub use hub::{
-    plain_git_ref, plain_relative_path, plain_repository, HubEntry, HubEntryDetail, HubFileInfo,
-    HubFileKind, HubInput, HubInstall, HubInstallRequest, HubPage, HubPreview, HubQuery,
-    HubResourceKind, HubSource, HubSourceCatalog, HubSourceKind, HubSourceReport,
+    normalize_tags, plain_git_ref, plain_relative_path, plain_repository, tag_rule_matches,
+    tags_match, HubEntry, HubEntryDetail, HubFileInfo, HubFileKind, HubInput, HubInstall,
+    HubInstallRequest, HubPage, HubPreview, HubQuery, HubResourceKind, HubSource, HubSourceCatalog,
+    HubSourceKind, HubSourceReport, HubTagRule, MAX_TAGS, MAX_TAG_LEN,
 };
 pub use library::{Library, LibraryStats};
 pub use manifest::{

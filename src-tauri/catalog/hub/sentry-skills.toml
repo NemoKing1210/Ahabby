@@ -14,3 +14,117 @@ license = "Apache-2.0"
 description = """The skills the Sentry team uses on its own repository: code review, code
 simplification, commit and PR conventions, and the AGENTS.md bootstrap they run in every
 checkout."""
+
+# What each skill is *for*, so the Hub can be browsed and filtered by subject instead of by
+# directory layout. The prefixes are the repository's own directories (see `catalog/HUB.md`).
+[[tag_rules]]
+prefix = "skills/agents-md"
+tags = ["agents", "docs"]
+
+[[tag_rules]]
+prefix = "skills/blog-writing-guide"
+tags = ["writing"]
+
+[[tag_rules]]
+prefix = "skills/brand-guidelines"
+tags = ["design"]
+
+[[tag_rules]]
+prefix = "skills/claude-settings-audit"
+tags = ["agents", "security"]
+
+[[tag_rules]]
+prefix = "skills/code-review"
+tags = ["review"]
+
+[[tag_rules]]
+prefix = "skills/code-simplifier"
+tags = ["refactoring"]
+
+[[tag_rules]]
+prefix = "skills/commit"
+tags = ["git"]
+
+[[tag_rules]]
+prefix = "skills/create-branch"
+tags = ["git"]
+
+[[tag_rules]]
+prefix = "skills/django-access-review"
+tags = ["security", "review"]
+
+[[tag_rules]]
+prefix = "skills/django-perf-review"
+tags = ["performance", "review"]
+
+[[tag_rules]]
+prefix = "skills/doc-coauthoring"
+tags = ["documents", "writing"]
+
+[[tag_rules]]
+prefix = "skills/document-api-endpoint"
+tags = ["docs", "api"]
+
+[[tag_rules]]
+prefix = "skills/find-bugs"
+tags = ["debugging", "review"]
+
+[[tag_rules]]
+prefix = "skills/gh-review-requests"
+tags = ["review", "git"]
+
+[[tag_rules]]
+prefix = "skills/gha-security-review"
+tags = ["security", "ci"]
+
+[[tag_rules]]
+prefix = "skills/iterate-pr"
+tags = ["git", "review"]
+
+[[tag_rules]]
+prefix = "skills/pr-link-issue"
+tags = ["git"]
+
+[[tag_rules]]
+prefix = "skills/pr-writer"
+tags = ["writing", "git"]
+
+[[tag_rules]]
+prefix = "skills/presentation-creator"
+tags = ["documents", "design"]
+
+[[tag_rules]]
+prefix = "skills/prompt-optimizer"
+tags = ["ai", "writing"]
+
+[[tag_rules]]
+prefix = "skills/secret-serialization"
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "skills/security-review"
+tags = ["security", "review"]
+
+[[tag_rules]]
+prefix = "skills/skill-scanner"
+tags = ["agents", "security"]
+
+[[tag_rules]]
+prefix = "skills/skill-writer"
+tags = ["agents", "docs"]
+
+[[tag_rules]]
+prefix = "skills/sred-project-organizer"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/sred-work-summary"
+tags = ["writing"]
+
+[[tag_rules]]
+prefix = "skills/triage-frontend-issues"
+tags = ["frontend", "review"]
+
+[[tag_rules]]
+prefix = "skills/typing-exclusion-worker"
+tags = ["development"]

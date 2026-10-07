@@ -11,7 +11,10 @@
 
 use std::path::Path;
 
-use crate::domain::{CatalogProblem, HubResourceKind, HubSource, HubSourceCatalog, HubSourceKind};
+use crate::domain::{
+    CatalogProblem, HubResourceKind, HubSource, HubSourceCatalog, HubSourceKind, MAX_TAGS,
+    MAX_TAG_LEN,
+};
 
 mod builtin {
     include!(concat!(env!("OUT_DIR"), "/builtin_hub_sources.rs"));
@@ -242,7 +245,60 @@ fn validate(source: &HubSource) -> Vec<(bool, String)> {
         warn(&mut problems, "only http(s) URLs can be fetched");
     }
 
+    // Tags never become a request, so nothing here is fatal: the source stays usable and the
+    // problem is what its author reads.
+    check_tags(&mut problems, "tags", &source.tags);
+    for rule in &source.tag_rules {
+        if rule.prefix.trim().is_empty() {
+            fatal(
+                &mut problems,
+                "a tag rule needs 'prefix' — the name this source calls the entries it tags",
+            );
+            continue;
+        }
+        check_tags(
+            &mut problems,
+            &format!("the rule for '{}'", rule.prefix.trim()),
+            &rule.tags,
+        );
+        if rule.tags.is_empty() {
+            warn(
+                &mut problems,
+                format!("the tag rule for '{}' declares no tags", rule.prefix.trim()),
+            );
+        }
+    }
+
     problems
+}
+
+/// Tags are shown on a card and offered as filters, so a source is told about the ones that
+/// cannot be used instead of having them quietly dropped.
+fn check_tags(problems: &mut Vec<(bool, String)>, field: &str, tags: &[String]) {
+    for tag in tags {
+        let tag = tag.trim();
+        if tag.is_empty() {
+            warn(
+                problems,
+                format!("{field} holds an empty tag, which is ignored"),
+            );
+        } else if tag.chars().count() > MAX_TAG_LEN {
+            warn(
+                problems,
+                format!(
+                    "{field} holds '{tag}', longer than {MAX_TAG_LEN} characters, which is ignored"
+                ),
+            );
+        }
+    }
+    if tags.len() > MAX_TAGS {
+        warn(
+            problems,
+            format!(
+                "{field} declares more than {MAX_TAGS} tags; only the first {MAX_TAGS} are kept"
+            ),
+        );
+    }
 }
 
 fn fatal(problems: &mut Vec<(bool, String)>, message: impl Into<String>) {
@@ -461,5 +517,53 @@ provides = ["skill"]
             .iter()
             .any(|problem| problem.source.ends_with("broken.toml")));
         assert_eq!(catalog.user_dir, dir.path().to_string_lossy());
+    }
+
+    #[test]
+    fn tag_rules_are_checked_and_an_unusable_one_is_reported() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // A rule says what it is about: without a prefix there is nothing to match.
+        let missing = format!("{SKILLS}\n[[tag_rules]]\ntags = [\"design\"]\n");
+        assert!(parse_source(&missing, "test").is_err());
+        let blank = format!("{SKILLS}\n[[tag_rules]]\nprefix = \"  \"\ntags = [\"design\"]\n");
+        let problem = parse_source(&blank, "test").unwrap_err();
+        assert!(problem.message.contains("prefix"), "{}", problem.message);
+
+        // Tags that cannot be used are reported, and the source still loads.
+        std::fs::write(
+            dir.path().join("tagged.toml"),
+            format!(
+                "{SKILLS}\ntags = [\"design\", \"\"]\n\n[[tag_rules]]\nprefix = \"skills/pdf\"\ntags = [\"documents\"]\n"
+            ),
+        )
+        .unwrap();
+        let catalog = load(Some(dir.path()));
+        let source = catalog
+            .sources
+            .iter()
+            .find(|source| source.id == "example-skills")
+            .expect("the tagged source loaded");
+        assert_eq!(source.declared_tags("skills/pdf"), ["design", "documents"]);
+        assert!(
+            catalog
+                .problems
+                .iter()
+                .any(|problem| problem.message.contains("empty tag")),
+            "{:#?}",
+            catalog.problems
+        );
+
+        // A rule with no tags is a warning too, never a refusal.
+        std::fs::write(
+            dir.path().join("toothless.toml"),
+            format!("{SKILLS}\n[[tag_rules]]\nprefix = \"skills/pdf\"\n"),
+        )
+        .unwrap();
+        let catalog = load(Some(dir.path()));
+        assert!(catalog
+            .problems
+            .iter()
+            .any(|problem| problem.message.contains("declares no tags")));
     }
 }

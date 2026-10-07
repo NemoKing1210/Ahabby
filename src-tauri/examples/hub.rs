@@ -3,13 +3,15 @@
 //! ```bash
 //! cargo run --manifest-path src-tauri/Cargo.toml --example hub
 //! cargo run --manifest-path src-tauri/Cargo.toml --example hub -- --query pdf --limit 3
+//! cargo run --manifest-path src-tauri/Cargo.toml --example hub -- --tag design --tag frontend
 //! cargo run --manifest-path src-tauri/Cargo.toml --example hub -- --payload
 //! ```
 //!
 //! Maintainers use it to check a source against the real API without launching the desktop app:
 //! every source is searched for one page, its first entry of each kind is opened, and (with
 //! `--payload`) the files of the first skill entry are fetched exactly as an install would fetch
-//! them — without writing anything anywhere.
+//! them — without writing anything anywhere. `--tag` narrows the search the way the Hub screen's
+//! tag filter does, which is how a source's rules are checked against the real collection.
 
 use std::path::PathBuf;
 
@@ -29,10 +31,16 @@ async fn main() {
     let mut query = String::new();
     let mut limit = 5u32;
     let mut payload = false;
+    let mut tags: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--query" => query = args.next().unwrap_or_default(),
+            "--tag" => {
+                if let Some(tag) = args.next() {
+                    tags.push(tag);
+                }
+            }
             "--limit" => {
                 limit = args
                     .next()
@@ -71,10 +79,25 @@ async fn main() {
                 .join("+"),
             source.builtin
         );
+        let vocabulary = source.tag_vocabulary();
+        println!(
+            "   tags declared: {}{}",
+            if vocabulary.is_empty() {
+                "(none)".to_string()
+            } else {
+                vocabulary.join(", ")
+            },
+            if source.tag_rules.is_empty() {
+                String::new()
+            } else {
+                format!(" ({} rules)", source.tag_rules.len())
+            }
+        );
         let request = HubQuery {
             query: query.clone(),
             limit: Some(limit),
             refresh: true,
+            tags: tags.clone(),
             ..HubQuery::default()
         };
         match service.search(&catalog, &source.id, &request).await {
@@ -103,7 +126,7 @@ async fn main() {
                 }
                 for entry in page.entries.iter().take(limit as usize) {
                     println!(
-                        "   - [{}] {} — {}{}{}",
+                        "   - [{}] {} — {}{}{}{}",
                         entry.kind.label(),
                         entry.name,
                         entry.description.as_deref().unwrap_or("(no description)"),
@@ -112,6 +135,11 @@ async fn main() {
                             .as_deref()
                             .map(|version| format!(" v{version}"))
                             .unwrap_or_default(),
+                        if entry.tags.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" [{}]", entry.tags.join(", "))
+                        },
                         if entry.installable {
                             String::new()
                         } else {

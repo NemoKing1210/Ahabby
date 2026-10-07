@@ -29,7 +29,7 @@ const SEARCH_DEBOUNCE_MS = 350
  *
  * One section per source, each with its own request, its own paging and its own failure — a
  * collection that is slow or down is a note under its own heading, never an empty screen. The
- * page owns only the three filters (search, kind, source) and the install dialog, because
+ * page owns only the four filters (search, kind, source, tags) and the install dialog, because
  * everything a source *is* belongs to the manifest that declared it (`catalog/HUB.md`).
  */
 export function HubPage() {
@@ -42,6 +42,9 @@ export function HubPage() {
   const [settled, setSettled] = useState('')
   const [kind, setKind] = useState<HubResourceKind | null>(null)
   const [sourceId, setSourceId] = useState('all')
+  // Tags the user filters by. The chips themselves come from the source files: what a collection
+  // declares is a subject a user can pick, while a plugin's own name would only be an identity.
+  const [tags, setTags] = useState<string[]>([])
   // One entry being read, one being installed: the preview is a place to look, the install dialog a
   // place to decide, and the second follows the first.
   const [viewEntry, setViewEntry] = useState<HubEntry | null>(null)
@@ -49,6 +52,11 @@ export function HubPage() {
   // Bumped by Refresh: a new generation makes every section ask its first page again, this time
   // telling the backend to ignore the answers it has already cached.
   const [generation, setGeneration] = useState(0)
+
+  const toggleTag = (tag: string) =>
+    setTags((current) =>
+      current.includes(tag) ? current.filter((kept) => kept !== tag) : [...current, tag],
+    )
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSettled(query.trim()), SEARCH_DEBOUNCE_MS)
@@ -90,6 +98,13 @@ export function HubPage() {
   const visible =
     sourceId === 'all' ? matching : matching.filter((source) => source.id === sourceId)
 
+  // The chips the toolbar offers: the tags the sources in view declare in their own files.
+  const declaredTags = visible.flatMap((source) => [
+    ...(source.tags ?? []),
+    ...(source.tagRules ?? []).flatMap((rule) => rule.tags),
+  ])
+  const vocabulary = uniqueTags(declaredTags)
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader>
@@ -112,6 +127,9 @@ export function HubPage() {
         sourceId={sourceId}
         onSourceChange={setSourceId}
         sources={matching}
+        tags={vocabulary}
+        selectedTags={tags}
+        onToggleTag={toggleTag}
         onRefresh={refresh}
         refreshing={busy}
       />
@@ -135,6 +153,7 @@ export function HubPage() {
               source={source}
               kind={kind}
               query={settled}
+              tags={tags}
               generation={generation}
               onView={setViewEntry}
               onInstall={openInstall}
@@ -171,4 +190,24 @@ export function HubPage() {
       ) : null}
     </div>
   )
+}
+
+/**
+ * A tag list with each tag once, keeping the first spelling and the order the sources declared in.
+ *
+ * Several sources declare the same subject (`development`, `documents`), so the chips are the union
+ * of what is in view — and the backend compares tags case-insensitively, which is why the same
+ * spelling is the one that survives here too.
+ */
+function uniqueTags(tags: string[]): string[] {
+  const unique: string[] = []
+  const known = new Set<string>()
+  for (const tag of tags) {
+    const trimmed = tag.trim()
+    const key = trimmed.toLowerCase()
+    if (key === '' || known.has(key)) continue
+    known.add(key)
+    unique.push(trimmed)
+  }
+  return unique
 }

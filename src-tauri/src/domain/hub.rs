@@ -54,6 +54,75 @@ pub enum HubSourceKind {
     Index,
 }
 
+/// Tags a source declares for some of its entries, by prefix.
+///
+/// What is compared is the source's *own* name for an entry — a skill's repository directory
+/// (`skills/pdf`), an index entry's id, a registry server's name. The rule applies to that name
+/// and to everything under it, so one rule tags a whole directory of skills.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct HubTagRule {
+    /// The entry name, or the beginning of one, this rule is about.
+    pub prefix: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Longest tag list one entry carries, and the longest single tag.
+///
+/// Tags are browsing metadata shown on a card and offered as filters, so a source — third-party
+/// input — cannot make one entry wear a paragraph.
+pub const MAX_TAGS: usize = 12;
+pub const MAX_TAG_LEN: usize = 40;
+
+/// Tags as the Hub keeps them: trimmed, non-empty, unique (case-insensitively) and bounded.
+///
+/// The first spelling of a tag wins, so a publisher's own casing survives while `Design` and
+/// `design` never both appear — every comparison the Hub makes is case-insensitive anyway.
+pub fn normalize_tags(tags: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for tag in tags {
+        let tag = tag.trim();
+        if tag.is_empty() || tag.chars().count() > MAX_TAG_LEN {
+            continue;
+        }
+        if tag.chars().any(char::is_control) {
+            continue;
+        }
+        if kept
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(tag))
+        {
+            continue;
+        }
+        kept.push(tag.to_string());
+        if kept.len() == MAX_TAGS {
+            break;
+        }
+    }
+    kept
+}
+
+/// `true` when a rule written for `prefix` is about an entry called `local`: the name itself, or
+/// something under it. A `prefix` of `skills` covers `skills/pdf`, but not `skills-extra/pdf`.
+pub fn tag_rule_matches(local: &str, prefix: &str) -> bool {
+    let prefix = prefix.trim().trim_end_matches('/');
+    local == prefix || local.starts_with(&format!("{prefix}/"))
+}
+
+/// `true` when tags answer a query's: a query that asks for nothing (or only blank tags) keeps
+/// everything, and one that asks for several keeps an entry carrying *any* of them.
+pub fn tags_match(tags: &[String], wanted: &[String]) -> bool {
+    if !wanted.iter().any(|wanted| !wanted.trim().is_empty()) {
+        return true;
+    }
+    wanted.iter().any(|wanted| {
+        let wanted = wanted.trim();
+        !wanted.is_empty() && tags.iter().any(|tag| tag.eq_ignore_ascii_case(wanted))
+    })
+}
+
 /// One place a library comes from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -93,6 +162,12 @@ pub struct HubSource {
     /// skeleton, a vendored copy, an example.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exclude: Vec<String>,
+    /// Tags every entry of this source carries, on top of whatever the entry declares itself.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Tags for the entries this source addresses by a prefix of its own name for them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", alias = "tag_rules")]
+    pub tag_rules: Vec<HubTagRule>,
     /// `true` for a source embedded in the binary. A user source with the same id replaces it.
     #[serde(default)]
     pub builtin: bool,
@@ -120,6 +195,29 @@ impl HubSource {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .unwrap_or("main")
+    }
+
+    /// The tags this source declares for an entry it calls `local`: the source-wide ones, then
+    /// every rule that names it — normalized, in the order they were declared.
+    pub fn declared_tags(&self, local: &str) -> Vec<String> {
+        let rules = self
+            .tag_rules
+            .iter()
+            .filter(|rule| tag_rule_matches(local, &rule.prefix))
+            .flat_map(|rule| rule.tags.iter().cloned());
+        normalize_tags(self.tags.iter().cloned().chain(rules))
+    }
+
+    /// Every tag this source can put on an entry, normalized: what the Hub screen offers as
+    /// filters, and what a filter can be answered from without reading the collection.
+    pub fn tag_vocabulary(&self) -> Vec<String> {
+        normalize_tags(
+            self.tags.iter().cloned().chain(
+                self.tag_rules
+                    .iter()
+                    .flat_map(|rule| rule.tags.iter().cloned()),
+            ),
+        )
     }
 
     /// Whether this source offers entries of `kind`.
@@ -351,6 +449,9 @@ pub struct HubQuery {
     /// Restrict to one kind of resource.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<HubResourceKind>,
+    /// Restrict to the entries carrying any of these tags (case-insensitive).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     /// Cursor returned by the previous page of the same source.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -471,6 +572,31 @@ pub fn plain_relative_path(path: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// A GitHub source with nothing but what is passed in, for the tests that only care about one
+    /// field of it.
+    fn source_of(repository: &str) -> HubSource {
+        HubSource {
+            id: "demo".into(),
+            name: "Demo".into(),
+            kind: HubSourceKind::GithubSkills,
+            description: None,
+            provides: vec![HubResourceKind::Skill],
+            homepage: None,
+            docs: None,
+            license: None,
+            vendor: None,
+            url: None,
+            repository: Some(repository.to_string()),
+            git_ref: None,
+            path: None,
+            exclude: Vec::new(),
+            tags: Vec::new(),
+            tag_rules: Vec::new(),
+            builtin: false,
+            source_file: None,
+        }
+    }
+
     #[test]
     fn a_page_size_is_always_within_bounds() {
         let query = |limit| HubQuery {
@@ -526,24 +652,7 @@ mod tests {
 
     #[test]
     fn a_github_ref_defaults_to_main() {
-        let mut source = HubSource {
-            id: "demo".into(),
-            name: "Demo".into(),
-            kind: HubSourceKind::GithubSkills,
-            description: None,
-            provides: vec![HubResourceKind::Skill],
-            homepage: None,
-            docs: None,
-            license: None,
-            vendor: None,
-            url: None,
-            repository: Some("owner/repo".into()),
-            git_ref: None,
-            path: None,
-            exclude: Vec::new(),
-            builtin: false,
-            source_file: None,
-        };
+        let mut source = source_of("owner/repo");
         assert_eq!(source.git_ref(), "main");
         assert!(source.offers(HubResourceKind::Skill));
         assert!(!source.offers(HubResourceKind::Mcp));
@@ -552,5 +661,76 @@ mod tests {
         assert_eq!(source.git_ref(), "main");
         source.git_ref = Some("v2".into());
         assert_eq!(source.git_ref(), "v2");
+    }
+
+    #[test]
+    fn tags_are_trimmed_deduplicated_and_bounded() {
+        let tags = normalize_tags([
+            " design ".to_string(),
+            "DESIGN".to_string(),
+            String::new(),
+            "   ".to_string(),
+            "testing".to_string(),
+            "x".repeat(MAX_TAG_LEN + 1),
+            "with\u{7}control".to_string(),
+        ]);
+        assert_eq!(tags, ["design", "testing"]);
+
+        let many: Vec<String> = (0..MAX_TAGS + 5)
+            .map(|index| format!("tag{index}"))
+            .collect();
+        assert_eq!(normalize_tags(many).len(), MAX_TAGS);
+    }
+
+    #[test]
+    fn a_rule_covers_its_prefix_and_what_is_under_it() {
+        assert!(tag_rule_matches("skills/pdf", "skills/pdf"));
+        assert!(tag_rule_matches("skills/pdf/extra", "skills/pdf"));
+        assert!(tag_rule_matches("skills/pdf", "skills/pdf/"));
+        assert!(!tag_rule_matches("skills/pdf-tools", "skills/pdf"));
+        assert!(!tag_rule_matches("skills", "skills/pdf"));
+    }
+
+    #[test]
+    fn a_source_declares_the_tags_of_the_entries_it_names() {
+        let mut source = HubSource {
+            tags: vec!["development".into()],
+            tag_rules: vec![
+                HubTagRule {
+                    prefix: "skills/pdf".into(),
+                    tags: vec!["documents".into()],
+                },
+                HubTagRule {
+                    prefix: "skills".into(),
+                    tags: vec!["skill-hub".into()],
+                },
+            ],
+            ..source_of("owner/repo")
+        };
+
+        assert_eq!(
+            source.declared_tags("skills/pdf"),
+            ["development", "documents", "skill-hub"]
+        );
+        assert_eq!(source.declared_tags("other/thing"), ["development"]);
+
+        source.tag_rules.clear();
+        assert_eq!(source.declared_tags("skills/pdf"), ["development"]);
+        source.tags.clear();
+        assert!(source.declared_tags("skills/pdf").is_empty());
+    }
+
+    #[test]
+    fn a_query_asking_for_several_tags_takes_any_of_them() {
+        let tags = vec!["design".to_string(), "documents".to_string()];
+        assert!(tags_match(&tags, &[]));
+        assert!(tags_match(&tags, &["Design".to_string()]));
+        assert!(tags_match(
+            &tags,
+            &["pdf".to_string(), "documents".to_string()]
+        ));
+        assert!(!tags_match(&tags, &["testing".to_string()]));
+        assert!(!tags_match(&[], &["design".to_string()]));
+        assert!(tags_match(&[], &[String::new()]));
     }
 }
