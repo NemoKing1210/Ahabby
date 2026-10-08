@@ -76,6 +76,26 @@ export const ipc = {
     invoke<DiffPreview>('preview_config_save', { agentId, path, content, baseSha256 }),
   saveConfig: (agentId: string, path: string, content: string, baseSha256: string) =>
     invoke<MutationResult<SaveResult>>('save_config', { agentId, path, content, baseSha256 }),
+  /**
+   * One value edited where it stands: the frontend sends a dotted key and the new text, never a
+   * document, and the backend patches the file on disk. `baseSha256` is the hash the row was
+   * read at, so a file that changed under the user is refused instead of overwritten.
+   */
+  previewConfigFact: (
+    agentId: string,
+    path: string,
+    key: string,
+    value: string,
+    baseSha256: string,
+  ) => invoke<DiffPreview>('preview_config_fact', { agentId, path, key, value, baseSha256 }),
+  saveConfigFact: (agentId: string, path: string, key: string, value: string, baseSha256: string) =>
+    invoke<MutationResult<SaveResult>>('save_config_fact', {
+      agentId,
+      path,
+      key,
+      value,
+      baseSha256,
+    }),
   listBackups: (agentId: string, path: string) =>
     invoke<BackupEntry[]>('list_backups', { agentId, path }),
   /** The masked value of a quick-info credential is all the scan exposes; this reads the real one. */

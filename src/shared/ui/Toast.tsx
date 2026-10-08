@@ -10,11 +10,19 @@ import { Button } from './Button'
 
 type ToastKind = 'info' | 'success' | 'error'
 
+/** One follow-up a toast offers, e.g. "Show diff" after a write. */
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 interface ToastItem {
   id: number
   kind: ToastKind
   title: string
   description?: string
+  /** Optional follow-up rendered as a button before the close control. */
+  action?: ToastAction
   /** Set while the exit animation plays; the entry is dropped shortly after. */
   closing?: boolean
 }
@@ -51,12 +59,12 @@ const useToastStore = create<ToastState>((set) => ({
 
 /** Imperative toast API, usable from callbacks that are not React components. */
 export const toast = {
-  info: (title: string, description?: string) =>
-    useToastStore.getState().push({ kind: 'info', title, description }),
-  success: (title: string, description?: string) =>
-    useToastStore.getState().push({ kind: 'success', title, description }),
-  error: (title: string, description?: string) =>
-    useToastStore.getState().push({ kind: 'error', title, description }),
+  info: (title: string, description?: string, action?: ToastAction) =>
+    useToastStore.getState().push({ kind: 'info', title, description, action }),
+  success: (title: string, description?: string, action?: ToastAction) =>
+    useToastStore.getState().push({ kind: 'success', title, description, action }),
+  error: (title: string, description?: string, action?: ToastAction) =>
+    useToastStore.getState().push({ kind: 'error', title, description, action }),
 }
 
 /**
@@ -112,6 +120,18 @@ export function Toaster() {
                 </ToastPrimitive.Description>
               ) : null}
             </div>
+            {item.action ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  item.action?.onClick()
+                  dismiss(item.id)
+                }}
+              >
+                {item.action.label}
+              </Button>
+            ) : null}
             <ToastPrimitive.Close asChild>
               <Button variant="ghost" size="icon-sm" aria-label={i18n.t('common.close')}>
                 <X className="size-3.5" />

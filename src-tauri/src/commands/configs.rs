@@ -13,9 +13,22 @@ use crate::domain::secrets as domain_secrets;
 use crate::domain::{BackupEntry, ConfigSnapshot, DiffPreview, SaveResult};
 use crate::error::{AppError, Result};
 use crate::services;
-use crate::state::AppState;
+use crate::state::{AppState, DocumentTarget};
 
 use super::MutationResult;
+
+/// Refuse a document the manifest marks read-only, for every write path alike.
+///
+/// The frontend lowers its own affordance from the same `editable` flag, but the check has to
+/// live here: a call that skips the UI must be refused, not write a file Ahabby was told not to
+/// touch. One code for all four writers — an editor save, a restore, and the two single-value
+/// writes of the quick-settings panel — so the frontend never has to know which one answered.
+pub(crate) fn require_editable(target: &DocumentTarget, path: &str) -> Result<()> {
+    if !target.editable {
+        return Err(AppError::CommandNotAllowed(format!("{path} is read-only")));
+    }
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn read_config(
@@ -36,9 +49,7 @@ pub async fn preview_config_save(
     base_sha256: String,
 ) -> Result<DiffPreview> {
     let target = state.document_target(&agent_id, &path)?;
-    if !target.editable {
-        return Err(AppError::NotSupported(format!("{path} is read-only")));
-    }
+    require_editable(&target, &path)?;
     services::preview(&target.path, target.format, &content, &base_sha256)
 }
 
@@ -52,14 +63,56 @@ pub async fn save_config(
     base_sha256: String,
 ) -> Result<MutationResult<SaveResult>> {
     let target = state.document_target(&agent_id, &path)?;
-    if !target.editable {
-        return Err(AppError::NotSupported(format!("{path} is read-only")));
-    }
+    require_editable(&target, &path)?;
     let backup_root = state.backup_root();
     let result = services::save(
         &target.path,
         target.format,
         &content,
+        &base_sha256,
+        &backup_root,
+    )?;
+    let report = state.scan().await;
+    Ok(MutationResult::new(result, report))
+}
+
+/// Validate one in-place edit of a single value and show what would change.
+///
+/// The frontend sends a dotted key and a new value, never a document: the backend reads the
+/// file, changes that one value and diffs the result, so the quick-settings row is a write
+/// through the same checks as the editor, not a second write path.
+#[tauri::command]
+pub async fn preview_config_fact(
+    state: State<'_, AppState>,
+    agent_id: String,
+    path: String,
+    key: String,
+    value: String,
+    base_sha256: String,
+) -> Result<DiffPreview> {
+    let target = state.document_target(&agent_id, &path)?;
+    require_editable(&target, &path)?;
+    services::preview_fact(&target.path, target.format, &key, &value, &base_sha256)
+}
+
+/// Write one value in place: validation, backup and atomic replacement included.
+#[tauri::command]
+pub async fn save_config_fact(
+    state: State<'_, AppState>,
+    agent_id: String,
+    path: String,
+    key: String,
+    value: String,
+    base_sha256: String,
+) -> Result<MutationResult<SaveResult>> {
+    let target = state.document_target(&agent_id, &path)?;
+    require_editable(&target, &path)?;
+    let backup_root = state.backup_root();
+    let result = services::save_fact(
+        &target.path,
+        target.format,
+        &key,
+        &value,
         &base_sha256,
         &backup_root,
     )?;
@@ -86,9 +139,7 @@ pub async fn restore_backup(
     backup_path: String,
 ) -> Result<MutationResult<SaveResult>> {
     let target = state.document_target(&agent_id, &path)?;
-    if !target.editable {
-        return Err(AppError::NotSupported(format!("{path} is read-only")));
-    }
+    require_editable(&target, &path)?;
 
     // The backup must belong to this exact file: the frontend only ever gets paths that
     // came out of `list_backups`, but the check is cheap insurance.
@@ -156,4 +207,28 @@ pub async fn reveal_config_fact(
         )));
     }
     Ok(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::ConfigFormat;
+    use std::path::PathBuf;
+
+    fn target(editable: bool) -> DocumentTarget {
+        DocumentTarget {
+            path: PathBuf::from("/home/u/.codex/config.toml"),
+            format: ConfigFormat::Toml,
+            editable,
+        }
+    }
+
+    #[test]
+    fn a_read_only_document_is_refused_by_every_write_path() {
+        // The same guard serves `preview_config_save` / `save_config` / `restore_backup` and the
+        // quick-settings pair, so a call that skips the UI is refused whatever it tried to write.
+        let error = require_editable(&target(false), "/home/u/.codex/config.toml").unwrap_err();
+        assert_eq!(error.code(), "command_not_allowed");
+        assert!(require_editable(&target(true), "/home/u/.codex/config.toml").is_ok());
+    }
 }

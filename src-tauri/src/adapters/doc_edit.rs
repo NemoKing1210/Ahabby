@@ -446,6 +446,457 @@ fn insert_yaml(content: &str, key_path: &[String], value: &Value) -> Result<Stri
         .map_err(|error| AppError::other(format!("cannot serialize YAML: {error}")))
 }
 
+/// Replace the value of an existing member, preserving every other byte of the document.
+///
+/// This is the write behind editing one row of the quick-settings panel: the frontend only ever
+/// names a dotted key and a new value, and this function finds the member in the file on disk
+/// and rewrites *its value alone*. That is what keeps a JSONC comment above the key, a TOML
+/// trailing comment, the key order and a dotenv file's other lines exactly where they were.
+///
+/// The member's type survives the edit, because the input is always text: a string stays a
+/// string (`"gpt-5"` does not become an unquoted token a parser rejects), an integer an integer,
+/// a boolean a boolean. And the member must already be there — a fact that came from a scan
+/// whose key the file no longer holds is an error, never an insert behind the user's back.
+///
+/// * `Err(AppError::NotFound)` — no member at `dotted_key`.
+/// * `Err(AppError::InvalidInput)` — the new text does not fit the member's type.
+/// * `Err(AppError::NotSupported)` — Markdown, or a value that is not a scalar.
+pub fn set_value(
+    format: ConfigFormat,
+    content: &str,
+    dotted_key: &str,
+    value: &str,
+) -> Result<String> {
+    let key_path: Vec<String> = dotted_key.split('.').map(str::to_string).collect();
+    if key_path.iter().any(String::is_empty) {
+        return Err(AppError::InvalidInput(
+            "a value needs a non-empty dotted key".to_string(),
+        ));
+    }
+    match format {
+        ConfigFormat::Json | ConfigFormat::Jsonc => set_json(format, content, &key_path, value),
+        ConfigFormat::Toml => set_toml(content, &key_path, value),
+        ConfigFormat::Yaml => set_yaml(content, &key_path, value),
+        ConfigFormat::Text => set_dotenv_line(content, dotted_key, value),
+        ConfigFormat::Markdown => Err(AppError::NotSupported(
+            "this format does not hold structured data".to_string(),
+        )),
+    }
+}
+
+/// The error `set_value` reports for a key the document does not hold.
+fn not_found(key_path: &[String]) -> AppError {
+    AppError::NotFound(format!(
+        "{} is not in the document",
+        describe_path(key_path)
+    ))
+}
+
+/// The error `set_value` reports when the new text cannot be read as the member's type.
+fn type_mismatch(key_path: &[String], expected: &str) -> AppError {
+    AppError::InvalidInput(format!("{} must be {expected}", describe_path(key_path)))
+}
+
+/// JSON / JSONC: the new token is rendered in the type the old node had, then spliced in by
+/// byte range so the rest of the document (comments, order, trailing commas) is untouched.
+fn set_json(
+    format: ConfigFormat,
+    content: &str,
+    key_path: &[String],
+    value: &str,
+) -> Result<String> {
+    let document = super::mcp_parse::document_to_value(format, content)?;
+    let existing =
+        super::mcp_parse::value_at(&document, key_path).ok_or_else(|| not_found(key_path))?;
+    let token = json_token(existing, value, key_path)?;
+    super::jsonc::replace_member_value(content, key_path, &token)
+        .map_err(|message| AppError::invalid_format(format.name(), "<memory>", message))?
+        .ok_or_else(|| not_found(key_path))
+}
+
+/// Render `value` as the JSON token that keeps `existing`'s type.
+fn json_token(existing: &Value, value: &str, key_path: &[String]) -> Result<String> {
+    match existing {
+        Value::String(_) => serde_json::to_string(value)
+            .map_err(|error| AppError::other(format!("cannot encode the value: {error}"))),
+        Value::Number(_) => value
+            .trim()
+            .parse::<serde_json::Number>()
+            .map(|number| number.to_string())
+            .map_err(|_| type_mismatch(key_path, "a number")),
+        Value::Bool(_) => match value.trim() {
+            "true" => Ok("true".to_string()),
+            "false" => Ok("false".to_string()),
+            _ => Err(type_mismatch(key_path, "true or false")),
+        },
+        other => Err(AppError::NotSupported(format!(
+            "{} is {}, not a value that can be typed here",
+            describe_path(key_path),
+            json_type_name(other)
+        ))),
+    }
+}
+
+fn json_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "a boolean",
+        Value::Number(_) => "a number",
+        Value::String(_) => "a string",
+        Value::Array(_) => "a list",
+        Value::Object(_) => "an object",
+    }
+}
+
+/// TOML: `toml_edit` mutates the item in place, so the document keeps its own formatting; the
+/// value's own decor (the trailing comment on the line, the space before it) is carried over to
+/// the replacement by hand, because a fresh `Value` would not have it.
+fn set_toml(content: &str, key_path: &[String], value: &str) -> Result<String> {
+    let mut document: toml_edit::DocumentMut =
+        content.parse().map_err(|error: toml_edit::TomlError| {
+            AppError::invalid_format("toml", "<memory>", error.to_string())
+        })?;
+
+    let (parents, last) = key_path.split_at(key_path.len() - 1);
+    let mut cursor: &mut toml_edit::Item = document.as_item_mut();
+    for segment in parents {
+        let Some(next) = cursor
+            .as_table_like_mut()
+            .and_then(|table| table.get_mut(segment.as_str()))
+        else {
+            return Err(not_found(key_path));
+        };
+        cursor = next;
+    }
+    let table = cursor
+        .as_table_like_mut()
+        .ok_or_else(|| not_found(key_path))?;
+    let Some(item) = table.get_mut(&last[0]) else {
+        return Err(not_found(key_path));
+    };
+    let Some(current) = item.as_value() else {
+        return Err(AppError::NotSupported(format!(
+            "{} is not a scalar value",
+            describe_path(key_path)
+        )));
+    };
+    let decor = current.decor().clone();
+    let mut replacement = toml_token(current, value, key_path)?;
+    *replacement.decor_mut() = decor;
+    *item = toml_edit::Item::Value(replacement);
+    Ok(document.to_string())
+}
+
+/// Build the TOML value that keeps `current`'s type.
+fn toml_token(
+    current: &toml_edit::Value,
+    value: &str,
+    key_path: &[String],
+) -> Result<toml_edit::Value> {
+    match current {
+        toml_edit::Value::String(_) => Ok(toml_edit::Value::from(value.to_string())),
+        toml_edit::Value::Integer(_) => value
+            .trim()
+            .parse::<i64>()
+            .map(toml_edit::Value::from)
+            .map_err(|_| type_mismatch(key_path, "a whole number")),
+        toml_edit::Value::Float(_) => value
+            .trim()
+            .parse::<f64>()
+            .map(toml_edit::Value::from)
+            .map_err(|_| type_mismatch(key_path, "a number")),
+        toml_edit::Value::Boolean(_) => match value.trim() {
+            "true" => Ok(toml_edit::Value::from(true)),
+            "false" => Ok(toml_edit::Value::from(false)),
+            _ => Err(type_mismatch(key_path, "true or false")),
+        },
+        other => Err(AppError::NotSupported(format!(
+            "{} is {}, not a scalar value",
+            describe_path(key_path),
+            other.type_name()
+        ))),
+    }
+}
+
+/// YAML: the scalar's own line is edited, so the rest of the file — comments, quoting, and the
+/// indentation of every other block — is byte-for-byte what it was. A nested key is found by
+/// walking the block structure the indentation describes.
+fn set_yaml(content: &str, key_path: &[String], value: &str) -> Result<String> {
+    let lines = yaml_lines(content);
+    let mut scope: Option<usize> = None;
+    let mut from = 0usize;
+    let mut target = None;
+    for segment in key_path {
+        let mut hit = None;
+        let mut index = from;
+        while index < lines.len() {
+            let line = &lines[index];
+            let trimmed = line.text.trim_start();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                index += 1;
+                continue;
+            }
+            // A line at or above the enclosing mapping's indentation is not its child.
+            if scope.is_some_and(|limit| line.indent <= limit) {
+                break;
+            }
+            if yaml_key(trimmed).map(|(key, _)| key) == Some(segment.as_str()) {
+                hit = Some(index);
+                break;
+            }
+            // Not the key we are after: skip that sibling's whole block, so a deeper mapping
+            // that happens to share the name cannot be mistaken for it.
+            index = skip_block(&lines, index);
+        }
+        let Some(index) = hit else {
+            return Err(not_found(key_path));
+        };
+        scope = Some(lines[index].indent);
+        from = index + 1;
+        target = Some(index);
+    }
+
+    let line = &lines[target.expect("a non-empty key path always finds a line")];
+    let trimmed = line.text.trim_start();
+    let (_, colon) = yaml_key(trimmed).ok_or_else(|| not_found(key_path))?;
+    let after_colon = &trimmed[colon + 1..];
+    let leading = after_colon.len() - after_colon.trim_start().len();
+    let value_rel = colon + 1 + leading;
+    let remainder = &trimmed[value_rel..];
+    if remainder.is_empty() {
+        return Err(AppError::NotSupported(format!(
+            "{} does not hold a scalar on one line",
+            describe_path(key_path)
+        )));
+    }
+
+    let (token_len, style) = yaml_scalar(remainder, key_path)?;
+    let rendered = match style {
+        YamlScalarStyle::Double => serde_json::to_string(value)
+            .map_err(|error| AppError::other(format!("cannot encode the value: {error}")))?,
+        YamlScalarStyle::Single => format!("'{}'", value.replace('\'', "''")),
+        YamlScalarStyle::Plain if yaml_plain_fits(value) => value.to_string(),
+        YamlScalarStyle::Plain => serde_json::to_string(value)
+            .map_err(|error| AppError::other(format!("cannot encode the value: {error}")))?,
+    };
+
+    let start = line.start + (line.text.len() - trimmed.len()) + value_rel;
+    let mut out = String::with_capacity(content.len() + rendered.len());
+    out.push_str(&content[..start]);
+    out.push_str(&rendered);
+    out.push_str(&content[start + token_len..]);
+    validate(ConfigFormat::Yaml, &out, "<memory>")?;
+    Ok(out)
+}
+
+/// One line of a YAML document: where it starts, its indentation, and its text without the
+/// line terminator.
+struct YamlLine<'a> {
+    start: usize,
+    indent: usize,
+    text: &'a str,
+}
+
+fn yaml_lines(content: &str) -> Vec<YamlLine<'_>> {
+    let mut lines = Vec::new();
+    let mut offset = 0usize;
+    for raw in content.split_inclusive('\n') {
+        let body = raw.strip_suffix('\n').unwrap_or(raw);
+        let body = body.strip_suffix('\r').unwrap_or(body);
+        let indent = body.len() - body.trim_start_matches([' ', '\t']).len();
+        lines.push(YamlLine {
+            start: offset,
+            indent,
+            text: body,
+        });
+        offset += raw.len();
+    }
+    lines
+}
+
+/// The first line after the block rooted at `index`: every following line indented deeper than
+/// that line belongs to it.
+fn skip_block(lines: &[YamlLine<'_>], index: usize) -> usize {
+    let indent = lines[index].indent;
+    let mut next = index + 1;
+    while next < lines.len() {
+        let line = &lines[next];
+        let trimmed = line.text.trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            next += 1;
+            continue;
+        }
+        if line.indent <= indent {
+            break;
+        }
+        next += 1;
+    }
+    next
+}
+
+/// The key of a mapping line and the byte offset of its `:`, or `None` when the line is not a
+/// `key: value` line. A quoted key may contain a colon; a plain one never does.
+fn yaml_key(text: &str) -> Option<(&str, usize)> {
+    let bytes = text.as_bytes();
+    let (key, after) = match bytes.first()? {
+        b'"' | b'\'' => {
+            let quote = bytes[0];
+            let mut index = 1;
+            loop {
+                match bytes.get(index)? {
+                    byte if *byte == quote => {
+                        if quote == b'\'' && bytes.get(index + 1) == Some(&b'\'') {
+                            index += 2;
+                            continue;
+                        }
+                        break;
+                    }
+                    b'\\' if quote == b'"' => index += 2,
+                    _ => index += 1,
+                }
+            }
+            (text.get(1..index)?, index + 1)
+        }
+        _ => {
+            let colon = text.find(':')?;
+            (text[..colon].trim_end(), colon)
+        }
+    };
+    let colon = after + text.get(after..)?.find(':')?;
+    (!key.is_empty()).then_some((key, colon))
+}
+
+/// How the old scalar was written, so the replacement can keep its quoting.
+#[derive(Clone, Copy)]
+enum YamlScalarStyle {
+    Double,
+    Single,
+    Plain,
+}
+
+/// The length of the scalar at the start of `text` and the style it was written in.
+fn yaml_scalar(text: &str, key_path: &[String]) -> Result<(usize, YamlScalarStyle)> {
+    let bytes = text.as_bytes();
+    match bytes.first().copied() {
+        Some(b'"') => {
+            let mut index = 1;
+            while index < bytes.len() {
+                match bytes[index] {
+                    b'\\' => index += 2,
+                    b'"' => return Ok((index + 1, YamlScalarStyle::Double)),
+                    _ => index += 1,
+                }
+            }
+            Err(AppError::invalid_format(
+                "yaml",
+                "<memory>",
+                "an unterminated string",
+            ))
+        }
+        Some(b'\'') => {
+            let mut index = 1;
+            while index < bytes.len() {
+                if bytes[index] == b'\'' {
+                    if bytes.get(index + 1) == Some(&b'\'') {
+                        index += 2;
+                        continue;
+                    }
+                    return Ok((index + 1, YamlScalarStyle::Single));
+                }
+                index += 1;
+            }
+            Err(AppError::invalid_format(
+                "yaml",
+                "<memory>",
+                "an unterminated string",
+            ))
+        }
+        Some(b'{' | b'[') => Err(AppError::NotSupported(format!(
+            "{} holds a collection, not a value that can be typed here",
+            describe_path(key_path)
+        ))),
+        _ => {
+            let end = text.find(" #").unwrap_or(text.len());
+            Ok((text[..end].trim_end().len(), YamlScalarStyle::Plain))
+        }
+    }
+}
+
+/// `true` when the YAML emitter would write this text as a plain scalar; otherwise it has to
+/// be quoted, and the replacement says so.
+fn yaml_plain_fits(value: &str) -> bool {
+    if value.is_empty() || value.trim() != value || value.contains('\n') {
+        return false;
+    }
+    if value.contains(": ") || value.contains(" #") {
+        return false;
+    }
+    !value.starts_with(|ch: char| {
+        matches!(
+            ch,
+            '-' | '?'
+                | ':'
+                | ','
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | '#'
+                | '&'
+                | '*'
+                | '!'
+                | '|'
+                | '>'
+                | '\''
+                | '"'
+                | '%'
+                | '@'
+                | '`'
+        )
+    })
+}
+
+/// A dotenv (`text`) config: the line whose key matches is rewritten, and nothing else — the
+/// other lines, the `export ` prefix and the line endings are all left as they were.
+fn set_dotenv_line(content: &str, key: &str, value: &str) -> Result<String> {
+    let mut out = String::with_capacity(content.len() + value.len());
+    let mut replaced = false;
+    for raw in content.split_inclusive('\n') {
+        let (body, ending) = match raw.strip_suffix('\n') {
+            Some(body) => match body.strip_suffix('\r') {
+                Some(body) => (body, "\r\n"),
+                None => (body, "\n"),
+            },
+            None => (raw, ""),
+        };
+        if replaced {
+            out.push_str(raw);
+            continue;
+        }
+        let trimmed = body.trim_start();
+        let rest = trimmed
+            .strip_prefix("export ")
+            .map(str::trim_start)
+            .unwrap_or(trimmed);
+        let Some(equal) = rest.find('=') else {
+            out.push_str(raw);
+            continue;
+        };
+        if rest[..equal].trim() != key {
+            out.push_str(raw);
+            continue;
+        }
+        out.push_str(&body[..body.len() - rest.len() + equal + 1]);
+        out.push_str(value);
+        out.push_str(ending);
+        replaced = true;
+    }
+    if !replaced {
+        return Err(AppError::NotFound(format!("{key} is not in the document")));
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -969,6 +1420,207 @@ command = "npx"
             .unwrap_err()
             .code(),
             "not_supported",
+        );
+    }
+
+    #[test]
+    fn set_value_changes_one_scalar_in_jsonc_and_keeps_everything_else() {
+        let content = r#"{
+  // keep this note
+  "model": "gpt-5", // the model
+  "count": 1,
+  "verbose": false,
+  "nested": { "name": "x", },
+  "mcpServers": { "github": { "command": "npx" } }
+}
+"#;
+        let updated = set_value(ConfigFormat::Jsonc, content, "model", "gpt-5.1").unwrap();
+        assert_eq!(
+            updated,
+            r#"{
+  // keep this note
+  "model": "gpt-5.1", // the model
+  "count": 1,
+  "verbose": false,
+  "nested": { "name": "x", },
+  "mcpServers": { "github": { "command": "npx" } }
+}
+"#
+        );
+        validate(ConfigFormat::Jsonc, &updated, "x").unwrap();
+        assert!(
+            updated.contains("// keep this note"),
+            "the comment survives"
+        );
+        assert!(
+            updated.contains("\"name\": \"x\", }"),
+            "the trailing comma survives"
+        );
+
+        let nested = set_value(ConfigFormat::Jsonc, content, "nested.name", "y").unwrap();
+        assert!(nested.contains(r#""nested": { "name": "y", }"#));
+        let deep = set_value(
+            ConfigFormat::Jsonc,
+            content,
+            "mcpServers.github.command",
+            "uvx",
+        )
+        .unwrap();
+        assert!(deep.contains(r#""command": "uvx""#));
+    }
+
+    #[test]
+    fn set_value_keeps_the_type_of_a_json_node() {
+        let content = r#"{
+  "model": "gpt-5",
+  "count": 1,
+  "verbose": false
+}
+"#;
+        // The input is always text, so a string must stay a string even when it looks numeric.
+        let stringy = set_value(ConfigFormat::Jsonc, content, "model", "7").unwrap();
+        assert!(stringy.contains(r#""model": "7","#));
+
+        let number = set_value(ConfigFormat::Jsonc, content, "count", "12").unwrap();
+        assert!(number.contains(r#""count": 12,"#));
+
+        let boolean = set_value(ConfigFormat::Jsonc, content, "verbose", "true").unwrap();
+        assert!(boolean.contains(r#""verbose": true"#));
+
+        // A value that does not fit the node's type is refused, and nothing is written.
+        assert_eq!(
+            set_value(ConfigFormat::Jsonc, content, "count", "many")
+                .unwrap_err()
+                .code(),
+            "invalid_input"
+        );
+        assert_eq!(
+            set_value(ConfigFormat::Jsonc, content, "verbose", "yes")
+                .unwrap_err()
+                .code(),
+            "invalid_input"
+        );
+    }
+
+    #[test]
+    fn set_value_refuses_a_key_that_is_not_there() {
+        let cases: [(ConfigFormat, &str); 4] = [
+            (ConfigFormat::Json, r#"{"a":{"x":1}}"#),
+            (ConfigFormat::Jsonc, r#"{"a":{"x":1}}"#),
+            (ConfigFormat::Toml, "[a]\nx = 1\n"),
+            (ConfigFormat::Yaml, "a:\n  x: 1\n"),
+        ];
+        for (format, content) in cases {
+            let error = set_value(format, content, "a.nope", "2").unwrap_err();
+            assert_eq!(error.code(), "not_found", "{format:?}");
+        }
+        let error = set_value(ConfigFormat::Text, "A=1\n", "B", "2").unwrap_err();
+        assert_eq!(error.code(), "not_found");
+
+        assert!(set_value(ConfigFormat::Json, "{}", "", "1").is_err());
+        assert!(set_value(ConfigFormat::Json, "{}", "a..b", "1").is_err());
+        assert_eq!(
+            set_value(ConfigFormat::Markdown, "# hi", "a", "1")
+                .unwrap_err()
+                .code(),
+            "not_supported"
+        );
+    }
+
+    #[test]
+    fn set_value_changes_one_scalar_in_toml_and_keeps_its_comments() {
+        let content = r#"# Ahabby test config
+model = "gpt-5"   # the important one
+temperature = 0.7
+retries = 3
+enabled = true
+
+[mcp_servers.github]
+command = "npx"
+"#;
+        let updated = set_value(ConfigFormat::Toml, content, "model", "gpt-5.1").unwrap();
+        assert_eq!(
+            updated,
+            r#"# Ahabby test config
+model = "gpt-5.1"   # the important one
+temperature = 0.7
+retries = 3
+enabled = true
+
+[mcp_servers.github]
+command = "npx"
+"#
+        );
+
+        // Types survive: a float stays a float, an integer an integer, a boolean a boolean.
+        assert!(set_value(ConfigFormat::Toml, content, "temperature", "0.8")
+            .unwrap()
+            .contains("temperature = 0.8"));
+        assert!(set_value(ConfigFormat::Toml, content, "retries", "5")
+            .unwrap()
+            .contains("retries = 5"));
+        assert!(set_value(ConfigFormat::Toml, content, "enabled", "false")
+            .unwrap()
+            .contains("enabled = false"));
+
+        let nested = set_value(
+            ConfigFormat::Toml,
+            content,
+            "mcp_servers.github.command",
+            "uvx",
+        )
+        .unwrap();
+        assert!(nested.contains("command = \"uvx\""));
+        assert!(nested.contains("model = \"gpt-5\"   # the important one"));
+    }
+
+    #[test]
+    fn set_value_changes_one_scalar_in_yaml_and_keeps_the_rest() {
+        let content = "# keep me\nmodel: gpt-4\nprovider:\n  name: \"openai\"  # quoted\n  baseUrl: https://api.openai.com\n";
+        let updated = set_value(ConfigFormat::Yaml, content, "provider.name", "anthropic").unwrap();
+        assert_eq!(
+            updated,
+            "# keep me\nmodel: gpt-4\nprovider:\n  name: \"anthropic\"  # quoted\n  baseUrl: https://api.openai.com\n"
+        );
+        validate(ConfigFormat::Yaml, &updated, "x").unwrap();
+
+        let plain = set_value(ConfigFormat::Yaml, content, "model", "gpt-4.1").unwrap();
+        assert!(plain.contains("\nmodel: gpt-4.1\n"));
+
+        // Text that a plain scalar cannot hold is quoted rather than written broken.
+        let quoted = set_value(ConfigFormat::Yaml, content, "model", "a: b").unwrap();
+        assert!(quoted.contains("model: \"a: b\""));
+        validate(ConfigFormat::Yaml, &quoted, "x").unwrap();
+
+        assert_eq!(
+            set_value(ConfigFormat::Yaml, content, "provider.missing", "x")
+                .unwrap_err()
+                .code(),
+            "not_found"
+        );
+    }
+
+    #[test]
+    fn set_value_finds_a_yaml_key_within_its_own_block() {
+        // A deeper mapping that shares the name must not be mistaken for the key itself.
+        let content = "other:\n  model: sibling\nmodel: mine\n";
+        let updated = set_value(ConfigFormat::Yaml, content, "model", "changed").unwrap();
+        assert_eq!(updated, "other:\n  model: sibling\nmodel: changed\n");
+
+        let nested = "a:\n  b:\n    name: wrong\n  name: right\n";
+        let updated = set_value(ConfigFormat::Yaml, nested, "a.name", "right2").unwrap();
+        assert_eq!(updated, "a:\n  b:\n    name: wrong\n  name: right2\n");
+    }
+
+    #[test]
+    fn set_value_replaces_one_dotenv_line() {
+        let content =
+            "# proxy\nHTTP_PROXY=http://old:1\nexport HTTPS_PROXY=http://old:2\nMODEL=gpt-4\n";
+        let updated =
+            set_value(ConfigFormat::Text, content, "HTTPS_PROXY", "http://new:2").unwrap();
+        assert_eq!(
+            updated,
+            "# proxy\nHTTP_PROXY=http://old:1\nexport HTTPS_PROXY=http://new:2\nMODEL=gpt-4\n"
         );
     }
 }

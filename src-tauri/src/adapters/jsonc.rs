@@ -208,6 +208,39 @@ pub fn insert_new_member(
     insert_member(text, key_path, &member)
 }
 
+/// Replace the value of the member at `key_path` with the verbatim `replacement` token,
+/// preserving every other byte of the document — comments, key order and trailing commas
+/// included, because only the value's own byte range is spliced out.
+///
+/// The caller owns the token's *shape* (a string, a number, a boolean), so this function never
+/// has to know a value's type; it only has to find where the old one starts and ends.
+///
+/// * `Ok(None)` — there is no member at `key_path`.
+/// * `Err` — the document cannot be walked, or the splice would break it.
+pub fn replace_member_value(
+    text: &str,
+    key_path: &[String],
+    replacement: &str,
+) -> Result<Option<String>, String> {
+    if key_path.is_empty() {
+        return Err("an empty key path cannot be replaced".to_string());
+    }
+    let mut scanner = Scanner {
+        text,
+        pos: bom_len(text),
+    };
+    let Some((start, end)) = scanner.member_value_span(key_path) else {
+        return Ok(None);
+    };
+
+    let mut out = String::with_capacity(text.len() + replacement.len());
+    out.push_str(&text[..start]);
+    out.push_str(replacement);
+    out.push_str(&text[end..]);
+    validate(&out)?;
+    Ok(Some(out))
+}
+
 /// Collapse pretty-printed JSON onto one line, the way a single-line document is written.
 ///
 /// A literal newline inside a string is escaped (`\n`) in the serialized text, so splitting on

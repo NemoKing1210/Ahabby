@@ -5,6 +5,7 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { ConfigFact } from '@/shared/bindings/ConfigFact'
+import type { ConfigFile } from '@/shared/bindings/ConfigFile'
 import { renderWithProviders } from '@/test/render'
 
 import { AgentFactsCard } from './AgentFactsCard'
@@ -19,13 +20,42 @@ vi.mock('@/shared/api/ipc', () => ({
     }),
     fetchWebImage: vi.fn().mockResolvedValue({ mime: 'image/png', base64: '' }),
     revealConfigFact: vi.fn().mockResolvedValue('sk-real-value'),
+    readConfig: vi.fn().mockResolvedValue({
+      path: '/home/u/.codex/config.toml',
+      format: 'toml',
+      content: '',
+      sha256: 'sha-1',
+      sizeBytes: 0,
+      modifiedMs: 0,
+      exists: true,
+      truncated: false,
+      editable: true,
+    }),
+    previewConfigFact: vi.fn().mockResolvedValue({
+      path: '/home/u/.codex/config.toml',
+      unified: '--- current\n+++ edited\n@@ -1 +1 @@\n-model = "gpt-5-codex"\n+model = "gpt-5.2"\n',
+      added: 1,
+      removed: 1,
+      errors: [],
+      inSync: true,
+      currentSha256: 'sha-1',
+    }),
+    saveConfigFact: vi.fn().mockResolvedValue({
+      data: {
+        path: '/home/u/.codex/config.toml',
+        sha256: 'sha-2',
+        modifiedMs: 0,
+        sizeBytes: 0,
+      },
+      report: { agents: [], projects: { folders: [], projects: [] } },
+    }),
   },
 }))
 
 afterEach(cleanup)
 
-function agent(facts: ConfigFact[]): Agent {
-  return { id: 'codex', facts } as Agent
+function agent(facts: ConfigFact[], configs: ConfigFile[] = []): Agent {
+  return { id: 'codex', facts, configs } as Agent
 }
 
 function fact(overrides: Partial<ConfigFact>): ConfigFact {
@@ -42,11 +72,25 @@ function fact(overrides: Partial<ConfigFact>): ConfigFact {
   }
 }
 
-function render(facts: ConfigFact[]) {
+function config(overrides: Partial<ConfigFile> = {}): ConfigFile {
+  return {
+    id: 'config',
+    label: 'config.toml',
+    path: '/home/u/.codex/config.toml',
+    format: 'toml',
+    scope: { kind: 'global' },
+    agent: { id: 'codex', name: 'Codex' },
+    exists: true,
+    editable: true,
+    ...overrides,
+  }
+}
+
+function render(facts: ConfigFact[], configs: ConfigFile[] = []) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return renderWithProviders(
     <QueryClientProvider client={client}>
-      <AgentFactsCard agent={agent(facts)} />
+      <AgentFactsCard agent={agent(facts, configs)} />
     </QueryClientProvider>,
   )
 }
@@ -143,6 +187,49 @@ describe('AgentFactsCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open link' }))
     await waitFor(() =>
       expect(vi.mocked(ipc.fetchWebPage)).toHaveBeenCalledWith('https://api.example.com/v1'),
+    )
+  })
+
+  it('heads the panel "Quick settings" and says the values can be edited', () => {
+    render([fact({})])
+    expect(screen.getByText('Quick settings')).toBeTruthy()
+    expect(screen.getByText(/edit one right here/i)).toBeTruthy()
+  })
+
+  it('offers no edit affordance on a read-only config', () => {
+    render([fact({})], [config({ editable: false })])
+    expect(screen.queryByRole('button', { name: 'Edit value' })).toBeNull()
+  })
+
+  it('offers no edit affordance when the config is not there', () => {
+    render([fact({})], [config({ exists: false })])
+    expect(screen.queryByRole('button', { name: 'Edit value' })).toBeNull()
+  })
+
+  it('writes a plain value in place and offers the diff', async () => {
+    render([fact({})], [config()])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit value' }))
+    const input = await screen.findByRole('textbox', { name: 'Edit value' })
+    fireEvent.change(input, { target: { value: 'gpt-5.2' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // The frontend never sends a document: one dotted key, one value, the hash it read.
+    await waitFor(() =>
+      expect(vi.mocked(ipc.saveConfigFact)).toHaveBeenCalledWith(
+        'codex',
+        '/home/u/.codex/config.toml',
+        'model',
+        'gpt-5.2',
+        'sha-1',
+      ),
+    )
+    expect(vi.mocked(ipc.previewConfigFact)).toHaveBeenCalledWith(
+      'codex',
+      '/home/u/.codex/config.toml',
+      'model',
+      'gpt-5.2',
+      'sha-1',
     )
   })
 })

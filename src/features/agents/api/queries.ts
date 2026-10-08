@@ -81,6 +81,44 @@ export function useRevealConfigFact() {
   })
 }
 
+/** One value edited where it stands; `baseSha256` is the hash the file was read at. */
+export interface ConfigFactEdit {
+  agentId: string
+  path: string
+  key: string
+  value: string
+  baseSha256: string
+}
+
+/**
+ * Validates an in-place value and returns the diff, without writing. The panel calls this right
+ * before saving, so the toast can offer exactly the change that was applied.
+ */
+export function usePreviewConfigFact() {
+  return useMutation({
+    mutationFn: (edit: ConfigFactEdit) =>
+      ipc.previewConfigFact(edit.agentId, edit.path, edit.key, edit.value, edit.baseSha256),
+  })
+}
+
+/**
+ * Writes one value in place — validation, a timestamped backup and an atomic replace all happen
+ * in Rust — and pushes the fresh report into the agents cache, so the row repaints from the scan.
+ */
+export function useSaveConfigFact() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (edit: ConfigFactEdit) =>
+      ipc.saveConfigFact(edit.agentId, edit.path, edit.key, edit.value, edit.baseSha256),
+    onSuccess: (result, edit) => {
+      queryClient.setQueryData(queryKeys.agents(), result.report)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.config(edit.agentId, edit.path) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.backups(edit.agentId, edit.path) })
+    },
+  })
+}
+
 /**
  * Ids the user pinned as favourites, in the order they were added. Favourites live in
  * settings, so the sidebar, the agents list and the Settings page share one cache entry.

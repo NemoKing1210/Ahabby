@@ -5,6 +5,19 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0] - 2026-10-08
+
+### Added
+
+- **Edit a config value right on the agent page.** Every row of "Quick settings" that comes from
+  an editable config file can now be changed in place: a pencil turns the value into an input,
+  `Enter` writes it and `Esc` cancels. The frontend only sends the dotted key and the new text —
+  the backend patches the file, so a JSONC comment above the key, the key order, a TOML trailing
+  comment and the type of the value all survive, and a dotenv line is the only thing rewritten. A
+  timestamped backup is taken first, a file changed outside Ahabby is refused instead of
+  overwritten, and a read-only config offers no affordance at all. The toast names the file and
+  the key and offers the diff; the config header still opens the full editor.
+
 ## [0.38.1] - 2026-10-08
 
 ### Changed

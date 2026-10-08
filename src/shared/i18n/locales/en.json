@@ -231,6 +231,13 @@
       "hide": "Hide value",
       "copy": "Copy value",
       "open": "Open link",
+      "edit": "Edit value",
+      "save": "Save value",
+      "newValue": "New value",
+      "empty": "Enter a value",
+      "saved": "Value saved",
+      "showDiff": "Show diff",
+      "editFailed": "Could not save that value",
       "revealFailed": "Could not read that value"
     },
     "notFound": "This agent is not in the catalog any more.",

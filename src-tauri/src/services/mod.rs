@@ -15,7 +15,10 @@ pub mod terminal;
 pub mod version_checker;
 pub mod web;
 
-pub use config_editor::{list_backups, preview, read_snapshot, restore, save, MAX_EDITABLE_BYTES};
+pub use config_editor::{
+    list_backups, preview, preview_fact, read_snapshot, restore, save, save_fact,
+    MAX_EDITABLE_BYTES,
+};
 pub use hub::{HubService, Prepared};
 pub use installer::{JobOutcome, JobOutputEvent, JobRunner, JobSink, StreamKind};
 pub use library::aggregate;

@@ -151,6 +151,48 @@ pub fn list_backups(backup_root: &Path, path: &Path) -> Result<Vec<BackupEntry>>
     file_io::list_backups(backup_root, path)
 }
 
+/// Validate a one-value edit and diff it against the file, without writing anything.
+///
+/// The frontend sends a key and a value, never a document: [`patch_fact`] reads the file and
+/// applies the change to it, and the diff is exactly what that would write.
+pub fn preview_fact(
+    path: &Path,
+    format: ConfigFormat,
+    key: &str,
+    value: &str,
+    base_sha256: &str,
+) -> Result<DiffPreview> {
+    let patched = patch_fact(path, format, key, value)?;
+    preview(path, format, &patched, base_sha256)
+}
+
+/// Write one value in place: same patch, same validation, same backup and atomic replace as a
+/// full document save.
+pub fn save_fact(
+    path: &Path,
+    format: ConfigFormat,
+    key: &str,
+    value: &str,
+    base_sha256: &str,
+    backup_root: &Path,
+) -> Result<SaveResult> {
+    let patched = patch_fact(path, format, key, value)?;
+    save(path, format, &patched, base_sha256, backup_root)
+}
+
+/// Read the file as it is on disk and apply one value to it.
+///
+/// Reading the file rather than a copy the frontend sent back is the point: `doc_edit::set_value`
+/// refuses a key the document no longer holds, so a file that moved under the app is an error,
+/// never a rewrite of something the user was not looking at.
+fn patch_fact(path: &Path, format: ConfigFormat, key: &str, value: &str) -> Result<String> {
+    if !path.is_file() {
+        return Err(AppError::NotFound(path.to_string_lossy().to_string()));
+    }
+    let content = platform::read_text(path)?;
+    doc_edit::set_value(format, &content, key, value)
+}
+
 /// Restore a backup over its original file. The current content is backed up first, so a
 /// restore is itself reversible.
 pub fn restore(
@@ -323,5 +365,87 @@ mod tests {
         assert!(snapshot.content.is_empty());
         assert!(!snapshot.editable);
         assert!(!snapshot.sha256.is_empty());
+    }
+
+    #[test]
+    fn fact_preview_and_save_change_one_value_and_keep_a_backup() {
+        let (_dir, file, backups) = setup();
+        let content = "{\n  // keep me\n  \"model\": \"gpt-5\",\n  \"other\": 1\n}\n";
+        std::fs::write(&file, content).unwrap();
+        let snapshot = read_snapshot(&file, ConfigFormat::Jsonc, true).unwrap();
+
+        let diff = preview_fact(
+            &file,
+            ConfigFormat::Jsonc,
+            "model",
+            "gpt-5.1",
+            &snapshot.sha256,
+        )
+        .unwrap();
+        assert!(diff.in_sync);
+        assert!(diff.errors.is_empty());
+        assert_eq!(diff.added, 1);
+        assert_eq!(diff.removed, 1);
+        assert!(diff.unified.contains("gpt-5.1"));
+
+        let saved = save_fact(
+            &file,
+            ConfigFormat::Jsonc,
+            "model",
+            "gpt-5.1",
+            &snapshot.sha256,
+            &backups,
+        )
+        .unwrap();
+        let after = std::fs::read_to_string(&file).unwrap();
+        assert!(after.contains("// keep me"), "the comment survives");
+        assert!(after.contains("\"model\": \"gpt-5.1\""));
+        assert!(after.contains("\"other\": 1"));
+        assert!(saved.backup_path.is_some());
+    }
+
+    #[test]
+    fn fact_save_refuses_a_stale_base_and_a_key_that_is_gone() {
+        let (_dir, file, backups) = setup();
+        std::fs::write(&file, "{\n  \"model\": \"gpt-5\"\n}\n").unwrap();
+
+        // A file that changed since the row was read is never overwritten.
+        let error = save_fact(
+            &file,
+            ConfigFormat::Json,
+            "model",
+            "x",
+            "deadbeef",
+            &backups,
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "stale_file");
+        assert!(std::fs::read_to_string(&file).unwrap().contains("gpt-5"));
+
+        // A key the document no longer holds is refused rather than inserted.
+        let snapshot = read_snapshot(&file, ConfigFormat::Json, true).unwrap();
+        let error = save_fact(
+            &file,
+            ConfigFormat::Json,
+            "missing",
+            "x",
+            &snapshot.sha256,
+            &backups,
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "not_found");
+    }
+
+    #[test]
+    fn fact_patch_refuses_a_file_that_is_not_there() {
+        let (_dir, file, backups) = setup();
+        let error = save_fact(&file, ConfigFormat::Json, "a", "1", "", &backups).unwrap_err();
+        assert_eq!(error.code(), "not_found");
+        assert_eq!(
+            preview_fact(&file, ConfigFormat::Json, "a", "1", "")
+                .unwrap_err()
+                .code(),
+            "not_found"
+        );
     }
 }
