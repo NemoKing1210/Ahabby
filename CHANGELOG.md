@@ -5,6 +5,14 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.1] - 2026-10-08
+
+### Changed
+
+- **"Quick info" is now "Quick settings".** The panel on an agent page is headed "Quick settings"
+  in English (`Быстрые настройки` in Russian), and its hint says the values can be changed there,
+  not only read.
+
 ## [0.38.0] - 2026-10-08
 
 ### Added

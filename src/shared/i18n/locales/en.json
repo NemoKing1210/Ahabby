@@ -218,8 +218,8 @@
       "warnings": "Warnings"
     },
     "facts": {
-      "title": "Quick info",
-      "hint": "Notable values read from this agent's config files.",
+      "title": "Quick settings",
+      "hint": "Notable values read from this agent's config files — edit one right here, and the change goes straight to the file with a backup.",
       "kind": {
         "model": "Default model",
         "provider": "Provider",
