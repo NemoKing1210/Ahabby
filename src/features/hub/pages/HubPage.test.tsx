@@ -47,6 +47,7 @@ const SKILLS_SOURCE: HubSource = {
   vendor: 'Owner',
   url: null,
   repository: 'owner/repo',
+  stars: 18432,
   gitRef: null,
   path: null,
   exclude: [],
@@ -63,6 +64,7 @@ const REGISTRY_SOURCE: HubSource = {
   kind: 'mcpRegistry',
   provides: ['mcp'],
   repository: null,
+  stars: null,
   url: 'https://registry.example.com',
 }
 
@@ -670,5 +672,18 @@ describe('HubPage', () => {
     fireEvent.contextMenu(within(container).getByRole('button', { name: 'pdf' }))
     await user.click(await screen.findByRole('menuitem', { name: 'View' }))
     expect(await screen.findByText('Instructions')).toBeTruthy()
+  })
+
+  it('shows the star count of a GitHub collection, and none for a source without one', async () => {
+    const { container } = renderPage()
+
+    await within(container).findByText('Example Skills')
+    // The repository's own number, formatted for the active language, with what it means in the
+    // accessibility tree — the star icon cannot say it.
+    expect(within(container).getByText('Stars on GitHub')).toBeTruthy()
+    expect(within(container).getByText('18,432')).toBeTruthy()
+
+    // The MCP registry is not a GitHub repository: it carries no count, so its row shows none.
+    expect(within(container).getAllByText('Stars on GitHub')).toHaveLength(1)
   })
 })

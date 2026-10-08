@@ -5,6 +5,17 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.41.0] - 2026-10-09
+
+### Added
+
+- **Star counts on the Hub, and collections ordered by popularity.** Each GitHub collection's
+  section heading now carries the repository's star count, and the sections are ordered by it —
+  the most starred first, then the sources that are not GitHub repositories by name. The count is
+  read when the screen loads (one request per repository, cached for ten minutes) and is
+  best-effort: a rate limit or an offline machine leaves the section without a count instead of
+  failing it, and never blocks the list.
+
 ## [0.40.0] - 2026-10-09
 
 ### Added

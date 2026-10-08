@@ -490,6 +490,7 @@
     "refresh": "Refresh",
     "cached": "cached",
     "yourSource": "Your source",
+    "starsHint": "Stars on GitHub",
     "noSources": "No collections to read",
     "noSourcesHint": "Add a source file of your own, or check that the collections Ahabby ships with loaded — the problems above say what went wrong.",
     "sourceFailed": "This collection could not be reached",

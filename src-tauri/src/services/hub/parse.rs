@@ -1030,6 +1030,14 @@ struct IndexVariable {
     default: Option<String>,
 }
 
+/// A repository's star count, from the document GitHub answers `GET /repos/{owner}/{repo}` with.
+///
+/// `None` when the body is not that document — a rate-limit notice, an error — because a star
+/// count is trivia and the Hub screen must render without it.
+pub fn stars(repository: &serde_json::Value) -> Option<u64> {
+    repository.get("stargazers_count")?.as_u64()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1057,6 +1065,23 @@ provides = ["mcp"]
 
     fn registry_source() -> HubSource {
         parse_source(REGISTRY_SOURCE, "test").expect("a valid source")
+    }
+
+    #[test]
+    fn a_star_count_comes_only_from_the_field_github_sends() {
+        let body = serde_json::json!({ "full_name": "owner/repo", "stargazers_count": 18432 });
+        assert_eq!(stars(&body), Some(18432));
+        assert_eq!(
+            stars(&serde_json::json!({ "stargazers_count": 0 })),
+            Some(0)
+        );
+
+        // A rate-limit notice or any other document is not a count — the Hub reads without it.
+        assert_eq!(
+            stars(&serde_json::json!({ "message": "API rate limit exceeded" })),
+            None
+        );
+        assert_eq!(stars(&serde_json::json!("nope")), None);
     }
 
     /// A `tar.gz` shaped like GitHub's: every path under one `repo-ref/` directory.

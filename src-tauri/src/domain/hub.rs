@@ -156,6 +156,15 @@ pub struct HubSource {
     /// Branch, tag or commit to read. Defaults to `main`.
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "git_ref")]
     pub git_ref: Option<String>,
+    /// Star count of the source's GitHub repository, as the Hub last read it.
+    ///
+    /// Runtime data, never declarative: `skip_deserializing` keeps a source file from claiming a
+    /// count of its own, and it is `None` for a source that is not on GitHub, or whose count
+    /// could not be read (an offline machine, a rate limit). The Hub screen shows it and orders
+    /// the GitHub collections by it.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub stars: Option<u64>,
     /// `githubSkills`: only skills under this repository directory are offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
@@ -629,6 +638,7 @@ mod tests {
             url: None,
             repository: Some(repository.to_string()),
             git_ref: None,
+            stars: None,
             path: None,
             exclude: Vec::new(),
             tags: Vec::new(),

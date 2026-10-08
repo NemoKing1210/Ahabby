@@ -29,6 +29,15 @@ repository?: string | null,
  */
 gitRef?: string | null, 
 /**
+ * Star count of the source's GitHub repository, as the Hub last read it.
+ *
+ * Runtime data, never declarative: `skip_deserializing` keeps a source file from claiming a
+ * count of its own, and it is `None` for a source that is not on GitHub, or whose count
+ * could not be read (an offline machine, a rate limit). The Hub screen shows it and orders
+ * the GitHub collections by it.
+ */
+stars?: number | null, 
+/**
  * `githubSkills`: only skills under this repository directory are offered.
  */
 path?: string | null, 

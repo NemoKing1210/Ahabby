@@ -19,9 +19,13 @@ use crate::state::AppState;
 use super::MutationResult;
 
 /// The sources the hub reads, and the ones that failed to load.
+///
+/// Each GitHub collection carries the star count of its repository and the screen's order is by
+/// popularity; the count is best-effort and a source that is not on GitHub simply has none.
 #[tauri::command]
 pub async fn list_hub_sources(state: State<'_, AppState>) -> Result<HubSourceCatalog> {
-    Ok(state.hub_sources())
+    let hub = state.hub();
+    Ok(hub.sources_with_stars(&state.hub_source_dir()).await)
 }
 
 /// One page of one source.

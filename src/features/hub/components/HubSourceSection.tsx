@@ -1,14 +1,14 @@
 import { useRef } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, ExternalLink, FileText } from 'lucide-react'
+import { AlertTriangle, ExternalLink, FileText, Star } from 'lucide-react'
 
 import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubResourceKind } from '@/shared/bindings/HubResourceKind'
 import type { HubSource } from '@/shared/bindings/HubSource'
-import { isKnownNumber } from '@/shared/lib/format'
+import { formatCount, isKnownNumber } from '@/shared/lib/format'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
@@ -62,7 +62,7 @@ export function HubSourceSection({
   /** The entry whose collection is being re-read right now, if any. */
   refreshingId?: string | null
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const browser = useBrowser()
   // The last generation whose first page was already asked for with `refresh`. A ref rather than
   // state: it must not re-render, and it must survive the query key changing under it.
@@ -103,6 +103,13 @@ export function HubSourceSection({
         count={report?.total ?? (entries.length > 0 ? entries.length : undefined)}
       >
         {source.builtin ? null : <Badge tone="accent">{t('hub.yourSource')}</Badge>}
+        {isKnownNumber(source.stars) ? (
+          <span className="text-muted inline-flex items-center gap-1 text-[0.75rem] tabular-nums">
+            <Star className="size-3.5" aria-hidden />
+            <span className="sr-only">{t('hub.starsHint')}</span>
+            {formatCount(source.stars, i18n.language)}
+          </span>
+        ) : null}
         {report ? (
           <span className="text-faint text-[0.75rem]">
             {report.fromCache ? t('hub.cached') : `${report.durationMs} ms`}

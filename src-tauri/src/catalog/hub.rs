@@ -520,6 +520,16 @@ provides = ["skill"]
     }
 
     #[test]
+    fn a_source_file_cannot_declare_a_star_count() {
+        // `stars` is read from GitHub, never from the file: a source that claims one is a typo,
+        // and `deny_unknown_fields` is what says so instead of quietly accepting a number the
+        // service then overwrites.
+        let raw = format!("{SKILLS}\nstars = 9999\n");
+        let problem = parse_source(&raw, "test").unwrap_err();
+        assert!(problem.message.contains("stars"), "{}", problem.message);
+    }
+
+    #[test]
     fn tag_rules_are_checked_and_an_unusable_one_is_reported() {
         let dir = tempfile::tempdir().unwrap();
 

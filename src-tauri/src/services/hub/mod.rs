@@ -52,6 +52,9 @@ const MAX_DOWNLOAD_BYTES: u64 = parse::MAX_ARCHIVE_BYTES;
 /// Where GitHub serves the tarball of a repository at a ref.
 const CODELOAD: &str = "https://codeload.github.com";
 
+/// Where GitHub answers about a repository — the star count the Hub shows next to a collection.
+const GITHUB_API: &str = "https://api.github.com";
+
 /// The Hub: where its sources are, and what they answered.
 pub struct HubService {
     client: RwLock<reqwest::Client>,
@@ -78,6 +81,81 @@ impl HubService {
     /// The hub's sources: the builtin ones plus the user's own from `user_dir`.
     pub fn sources(&self, user_dir: &Path) -> HubSourceCatalog {
         catalog_hub::load(Some(user_dir))
+    }
+
+    /// The hub's sources for the screen: every source with the star count of its GitHub
+    /// repository, ordered by popularity.
+    ///
+    /// The count is third-party trivia read over the network, so it is best-effort: a source that
+    /// is not on GitHub, or whose count cannot be read, simply carries none. The order follows the
+    /// same rule — the GitHub collections by stars, most first, then everything else by name — so
+    /// an offline machine only loses the ordering, never the screen. Any other command keeps
+    /// using [`HubService::sources`]: resolving an entry needs no count, and no request.
+    pub async fn sources_with_stars(&self, user_dir: &Path) -> HubSourceCatalog {
+        let mut catalog = catalog_hub::load(Some(user_dir));
+        self.annotate_stars(&mut catalog.sources).await;
+        sort_by_popularity(&mut catalog.sources);
+        catalog
+    }
+
+    /// Fill in the star count of every GitHub source, one request per distinct repository.
+    ///
+    /// The requests go out together: the Hub screen waits for them, and five collections, one
+    /// after another, would be five round trips of latency on a cold cache.
+    async fn annotate_stars(&self, sources: &mut [HubSource]) {
+        let mut repositories: Vec<String> = Vec::new();
+        for source in sources.iter() {
+            if source.kind != HubSourceKind::GithubSkills {
+                continue;
+            }
+            if let Some(repository) = source.repository() {
+                if !repositories.iter().any(|kept| kept == repository) {
+                    repositories.push(repository.to_string());
+                }
+            }
+        }
+        if repositories.is_empty() {
+            return;
+        }
+
+        let counts = futures::future::join_all(
+            repositories
+                .iter()
+                .map(|repository| self.star_count(repository)),
+        )
+        .await;
+        let stars: HashMap<&str, u64> = repositories
+            .iter()
+            .map(String::as_str)
+            .zip(counts)
+            .filter_map(|(repository, count)| count.map(|count| (repository, count)))
+            .collect();
+
+        for source in sources.iter_mut() {
+            if source.kind != HubSourceKind::GithubSkills {
+                continue;
+            }
+            if let Some(repository) = source.repository() {
+                source.stars = stars.get(repository).copied();
+            }
+        }
+    }
+
+    /// A repository's star count: the cached answer while it is fresh, else GitHub's own number.
+    ///
+    /// `None` is the ordinary answer to a rate limit or an offline machine, never an error — a
+    /// star count is trivia, and the Hub screen must render without it.
+    async fn star_count(&self, repository: &str) -> Option<u64> {
+        if let Some(cached) = self.cached_stars(repository) {
+            return Some(cached);
+        }
+        let url = format!("{GITHUB_API}/repos/{repository}");
+        let body = self.get_json(&url).await.ok()?;
+        let stars = parse::stars(&body)?;
+        self.cache()
+            .stars
+            .insert(repository.to_string(), Cached::new(stars));
+        Some(stars)
     }
 
     /// One page of one source.
@@ -625,6 +703,12 @@ impl HubService {
         fresh(cached.at_ms).then(|| Arc::clone(&cached.value))
     }
 
+    fn cached_stars(&self, repository: &str) -> Option<u64> {
+        let cache = self.cache();
+        let cached = cache.stars.get(repository)?;
+        fresh(cached.at_ms).then_some(cached.value)
+    }
+
     fn cache(&self) -> MutexGuard<'_, Cache> {
         self.cache.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -761,6 +845,8 @@ struct Cache {
     snapshots: HashMap<String, Cached<Arc<Snapshot>>>,
     /// Index documents by source id.
     indexes: HashMap<String, Cached<Arc<IndexDocument>>>,
+    /// Star counts of GitHub repositories, keyed `owner/repo`.
+    stars: HashMap<String, Cached<u64>>,
 }
 
 impl Cache {
@@ -788,6 +874,24 @@ impl Cache {
 
 fn fresh(at_ms: i64) -> bool {
     now_ms() - at_ms < CACHE_TTL_MS
+}
+
+/// Order sources for the screen: the GitHub collections by stars (most first), then the rest by
+/// name.
+///
+/// A GitHub source whose count could not be read carries none and so keeps the name-ordered place
+/// of the second group: an offline machine degrades the ordering, not the list.
+fn sort_by_popularity(sources: &mut [HubSource]) {
+    sources.sort_by(|a, b| match (a.stars, b.stars) {
+        (Some(a_stars), Some(b_stars)) => b_stars.cmp(&a_stars).then_with(|| by_name(a, b)),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => by_name(a, b),
+    });
+}
+
+fn by_name(a: &HubSource, b: &HubSource) -> std::cmp::Ordering {
+    a.name.to_lowercase().cmp(&b.name.to_lowercase())
 }
 
 /// `entry id` → `(source, what the source calls it)`.
@@ -1072,6 +1176,43 @@ tags = ["design"]
             "test",
         )
         .expect("a valid source")
+    }
+
+    /// The fixture source with one field swapped, for the ordering tests.
+    fn source_with(name: &str, kind: HubSourceKind, stars: Option<u64>) -> HubSource {
+        HubSource {
+            name: name.to_string(),
+            kind,
+            stars,
+            ..source()
+        }
+    }
+
+    #[test]
+    fn sources_are_ordered_by_stars_then_by_name() {
+        let mut sources = vec![
+            source_with("Registry", HubSourceKind::McpRegistry, None),
+            source_with("Zeta", HubSourceKind::GithubSkills, Some(10)),
+            source_with("Beta", HubSourceKind::GithubSkills, Some(900)),
+            source_with("Anthropic Reg", HubSourceKind::Index, None),
+            source_with("Alpha", HubSourceKind::GithubSkills, Some(900)),
+            source_with("Gamma", HubSourceKind::GithubSkills, None),
+        ];
+        sort_by_popularity(&mut sources);
+
+        // GitHub collections first, most starred first, ties and the rest by name.
+        let order: Vec<&str> = sources.iter().map(|source| source.name.as_str()).collect();
+        assert_eq!(
+            order,
+            [
+                "Alpha",
+                "Beta",
+                "Zeta",
+                "Anthropic Reg",
+                "Gamma",
+                "Registry"
+            ]
+        );
     }
 
     fn skill(dir: &str, tags: &[&str], group: Option<&str>) -> RepoSkill {
