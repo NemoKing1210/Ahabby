@@ -1,0 +1,49 @@
+# The `anti-slop` ruleset — a filter that keeps an AI coding agent from shipping generic,
+# machine-made UI, copy and code.
+#
+# SOURCE: https://github.com/miqdadbadjuber/anti-slop (checked 2026-10-08) — `skills/<name>/SKILL.md`;
+#   the repository declares the MIT license. Each `SKILL.md` points at the core `antislop.md` in the
+#   repository root, which a `githubSkills` entry cannot carry (it owns only the directory holding
+#   the `SKILL.md`); the core stays in the repository and is opened there.
+id = "anti-slop"
+name = "Anti-Slop"
+kind = "githubSkills"
+repository = "miqdadbadjuber/anti-slop"
+path = "skills"
+provides = ["skill"]
+vendor = "Miqdad Badjuber"
+homepage = "https://github.com/miqdadbadjuber/anti-slop"
+license = "MIT"
+description = """Rules for an AI coding agent to filter out generic AI-generated UI designs,
+text and code — one always-loaded core filter plus a skill per concern (UI and visual, copy and
+text, human and accessibility, mobile layout, code comments). The core `antislop.md` stays in the
+repository; open it there."""
+
+# What each skill is *for*, so the Hub can be browsed and filtered by subject instead of by
+# directory layout. The prefixes are the repository's own directories (see `catalog/HUB.md`); the
+# whole collection is about machine-made output, so that much is declared for every entry.
+tags = ["ai"]
+
+[[tag_rules]]
+prefix = "skills/antislop"
+tags = ["agents"]
+
+[[tag_rules]]
+prefix = "skills/antislop-code"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "skills/antislop-copywriting"
+tags = ["writing"]
+
+[[tag_rules]]
+prefix = "skills/antislop-human"
+tags = ["accessibility", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/antislop-layoutmobile"
+tags = ["frontend", "mobile"]
+
+[[tag_rules]]
+prefix = "skills/antislop-ui"
+tags = ["design", "frontend"]

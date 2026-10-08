@@ -5,6 +5,16 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0] - 2026-10-08
+
+### Added
+
+- **The `anti-slop` collection in the Hub.** Six skills from Miqdad Badjuber's ruleset against
+  generic, machine-made output — the always-loaded core filter plus one per concern (UI and
+  visual, copy and text, human and accessibility, mobile layout, code comments). Browsable and
+  installable like any other collection; each skill links to the core `antislop.md`, which stays
+  in the repository.
+
 ## [0.37.1] - 2026-10-07
 
 ### Changed
