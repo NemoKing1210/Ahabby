@@ -16,7 +16,7 @@ pub mod version_checker;
 pub mod web;
 
 pub use config_editor::{
-    list_backups, preview, preview_fact, read_snapshot, restore, save, save_fact,
+    list_backups, preview, preview_fact, read_snapshot, remove_fact, restore, save, save_fact,
     MAX_EDITABLE_BYTES,
 };
 pub use hub::{HubService, Prepared};

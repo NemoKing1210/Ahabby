@@ -48,6 +48,7 @@ macro_rules! handlers {
             commands::configs::save_config,
             commands::configs::preview_config_fact,
             commands::configs::save_config_fact,
+            commands::configs::remove_config_fact,
             commands::configs::list_backups,
             commands::configs::restore_backup,
             commands::configs::backup_root,

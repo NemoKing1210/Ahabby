@@ -5,6 +5,18 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0] - 2026-10-09
+
+### Added
+
+- **Remove an optional setting from an agent's config, right on the agent page.** Every row of
+  "Quick settings" that comes from an editable config file now has a trash action beside the
+  pencil: it asks once, then deletes that one entry — a proxy, an endpoint, a token that is no
+  longer used — with the same timestamped backup and stale guard every other write goes through.
+  A read-only or missing config offers neither action, a caller that skips the dialog is refused,
+  and a key the file no longer holds is an error rather than a no-op write. Dotenv (`text`)
+  configs are covered too: the matching line goes and the rest of the file is left as it was.
+
 ## [0.39.0] - 2026-10-08
 
 ### Added

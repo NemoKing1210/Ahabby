@@ -219,7 +219,7 @@
     },
     "facts": {
       "title": "Quick settings",
-      "hint": "Notable values read from this agent's config files — edit one right here, and the change goes straight to the file with a backup.",
+      "hint": "Notable values read from this agent's config files — edit or remove one right here, and the change goes straight to the file with a backup.",
       "kind": {
         "model": "Default model",
         "provider": "Provider",
@@ -238,6 +238,12 @@
       "saved": "Value saved",
       "showDiff": "Show diff",
       "editFailed": "Could not save that value",
+      "remove": "Remove from the file",
+      "removeTitle": "Remove {{key}} from the file?",
+      "removeBody": "The entry is deleted from {{file}}. A backup of the file is taken first, so it can be restored from the editor's Backups.",
+      "removeConfirm": "Remove",
+      "removed": "Entry removed",
+      "removeFailed": "Could not remove that value",
       "revealFailed": "Could not read that value"
     },
     "notFound": "This agent is not in the catalog any more.",

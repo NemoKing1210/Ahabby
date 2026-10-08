@@ -120,6 +120,34 @@ pub async fn save_config_fact(
     Ok(MutationResult::new(result, report))
 }
 
+/// Delete one value from a config file.
+///
+/// Removing a setting is destructive, so it takes `confirm` exactly like `remove_skill`: the
+/// card's dialog is the UI half, and this is the half a caller that skips it cannot bypass.
+#[tauri::command]
+pub async fn remove_config_fact(
+    state: State<'_, AppState>,
+    agent_id: String,
+    path: String,
+    key: String,
+    base_sha256: String,
+    confirm: bool,
+) -> Result<MutationResult<SaveResult>> {
+    crate::commands::require_confirmation(confirm, "removing a config value")?;
+    let target = state.document_target(&agent_id, &path)?;
+    require_editable(&target, &path)?;
+    let backup_root = state.backup_root();
+    let result = services::remove_fact(
+        &target.path,
+        target.format,
+        &key,
+        &base_sha256,
+        &backup_root,
+    )?;
+    let report = state.scan().await;
+    Ok(MutationResult::new(result, report))
+}
+
 #[tauri::command]
 pub async fn list_backups(
     state: State<'_, AppState>,

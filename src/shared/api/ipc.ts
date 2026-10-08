@@ -96,6 +96,21 @@ export const ipc = {
       value,
       baseSha256,
     }),
+  /** Delete one value from a config file; `confirm` is the dialog the backend also insists on. */
+  removeConfigFact: (
+    agentId: string,
+    path: string,
+    key: string,
+    baseSha256: string,
+    confirm: boolean,
+  ) =>
+    invoke<MutationResult<SaveResult>>('remove_config_fact', {
+      agentId,
+      path,
+      key,
+      baseSha256,
+      confirm,
+    }),
   listBackups: (agentId: string, path: string) =>
     invoke<BackupEntry[]>('list_backups', { agentId, path }),
   /** The masked value of a quick-info credential is all the scan exposes; this reads the real one. */

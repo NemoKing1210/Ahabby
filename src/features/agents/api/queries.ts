@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
 import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
 import type { RemovalMode } from '@/shared/bindings/RemovalMode'
+import type { ScanReport } from '@/shared/bindings/ScanReport'
 
 /**
  * The agent list is the app's single source of truth: the sidebar, the agent page and the
@@ -110,13 +111,36 @@ export function useSaveConfigFact() {
   return useMutation({
     mutationFn: (edit: ConfigFactEdit) =>
       ipc.saveConfigFact(edit.agentId, edit.path, edit.key, edit.value, edit.baseSha256),
-    onSuccess: (result, edit) => {
-      queryClient.setQueryData(queryKeys.agents(), result.report)
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.config(edit.agentId, edit.path) })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.backups(edit.agentId, edit.path) })
-    },
+    onSuccess: (result, edit) =>
+      applyConfigWrite(queryClient, edit.agentId, edit.path, result.report),
   })
+}
+
+/**
+ * Deletes one value from a config file. The dialog in the panel is the confirmation, so `confirm`
+ * is always sent; the backend requires it anyway, and refuses a caller that skips it.
+ */
+export function useRemoveConfigFact() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (edit: Omit<ConfigFactEdit, 'value'>) =>
+      ipc.removeConfigFact(edit.agentId, edit.path, edit.key, edit.baseSha256, true),
+    onSuccess: (result, edit) =>
+      applyConfigWrite(queryClient, edit.agentId, edit.path, result.report),
+  })
+}
+
+/** The cache work every single-value write on a config file shares. */
+function applyConfigWrite(
+  queryClient: QueryClient,
+  agentId: string,
+  path: string,
+  report: ScanReport,
+) {
+  queryClient.setQueryData(queryKeys.agents(), report)
+  void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
+  void queryClient.invalidateQueries({ queryKey: queryKeys.config(agentId, path) })
+  void queryClient.invalidateQueries({ queryKey: queryKeys.backups(agentId, path) })
 }
 
 /**

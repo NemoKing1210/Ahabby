@@ -49,6 +49,15 @@ vi.mock('@/shared/api/ipc', () => ({
       },
       report: { agents: [], projects: { folders: [], projects: [] } },
     }),
+    removeConfigFact: vi.fn().mockResolvedValue({
+      data: {
+        path: '/home/u/.codex/config.toml',
+        sha256: 'sha-3',
+        modifiedMs: 0,
+        sizeBytes: 0,
+      },
+      report: { agents: [], projects: { folders: [], projects: [] } },
+    }),
   },
 }))
 
@@ -193,17 +202,19 @@ describe('AgentFactsCard', () => {
   it('heads the panel "Quick settings" and says the values can be edited', () => {
     render([fact({})])
     expect(screen.getByText('Quick settings')).toBeTruthy()
-    expect(screen.getByText(/edit one right here/i)).toBeTruthy()
+    expect(screen.getByText(/edit or remove one right here/i)).toBeTruthy()
   })
 
-  it('offers no edit affordance on a read-only config', () => {
+  it('offers no edit or remove affordance on a read-only config', () => {
     render([fact({})], [config({ editable: false })])
     expect(screen.queryByRole('button', { name: 'Edit value' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove from the file' })).toBeNull()
   })
 
-  it('offers no edit affordance when the config is not there', () => {
+  it('offers no edit or remove affordance when the config is not there', () => {
     render([fact({})], [config({ exists: false })])
     expect(screen.queryByRole('button', { name: 'Edit value' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove from the file' })).toBeNull()
   })
 
   it('writes a plain value in place and offers the diff', async () => {
@@ -230,6 +241,28 @@ describe('AgentFactsCard', () => {
       'model',
       'gpt-5.2',
       'sha-1',
+    )
+  })
+
+  it('removes an optional value only after the dialog is confirmed', async () => {
+    render(
+      [fact({ id: 'config:httpProxy', kind: 'proxy', key: 'httpProxy', value: 'http://p:1' })],
+      [config()],
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove from the file' }))
+    const confirm = await screen.findByRole('button', { name: 'Remove' })
+    fireEvent.click(confirm)
+
+    // Destructive: the backend is told the dialog happened, and names the one key.
+    await waitFor(() =>
+      expect(vi.mocked(ipc.removeConfigFact)).toHaveBeenCalledWith(
+        'codex',
+        '/home/u/.codex/config.toml',
+        'httpProxy',
+        'sha-1',
+        true,
+      ),
     )
   })
 })

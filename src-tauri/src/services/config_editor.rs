@@ -193,6 +193,33 @@ fn patch_fact(path: &Path, format: ConfigFormat, key: &str, value: &str) -> Resu
     doc_edit::set_value(format, &content, key, value)
 }
 
+/// Delete one value from the document — the other half of editing a fact in place.
+///
+/// Same contract as [`preview_fact`]/[`save_fact`]: the frontend names a dotted key, the backend
+/// patches the file on disk, and a key that is not there is refused rather than silently treated
+/// as a no-op write. The backup and the stale guard are the ones every write goes through.
+pub fn remove_fact(
+    path: &Path,
+    format: ConfigFormat,
+    key: &str,
+    base_sha256: &str,
+    backup_root: &Path,
+) -> Result<SaveResult> {
+    if !path.is_file() {
+        return Err(AppError::NotFound(path.to_string_lossy().to_string()));
+    }
+    let key_path: Vec<String> = key.split('.').map(str::to_string).collect();
+    if key_path.iter().any(String::is_empty) {
+        return Err(AppError::InvalidInput(
+            "a value needs a non-empty dotted key".to_string(),
+        ));
+    }
+    let content = platform::read_text(path)?;
+    let patched = doc_edit::remove_entry(format, &content, &key_path)?
+        .ok_or_else(|| AppError::NotFound(format!("{key} is not in the document")))?;
+    save(path, format, &patched, base_sha256, backup_root)
+}
+
 /// Restore a backup over its original file. The current content is backed up first, so a
 /// restore is itself reversible.
 pub fn restore(
@@ -447,5 +474,49 @@ mod tests {
                 .code(),
             "not_found"
         );
+    }
+
+    #[test]
+    fn fact_removal_deletes_one_value_and_keeps_a_backup() {
+        let (_dir, file, backups) = setup();
+        std::fs::write(
+            &file,
+            "{\n  // keep me\n  \"model\": \"gpt-5\",\n  \"httpProxy\": \"http://p:1\",\n  \"other\": 1\n}\n",
+        )
+        .unwrap();
+        let snapshot = read_snapshot(&file, ConfigFormat::Jsonc, true).unwrap();
+
+        let saved = remove_fact(
+            &file,
+            ConfigFormat::Jsonc,
+            "httpProxy",
+            &snapshot.sha256,
+            &backups,
+        )
+        .unwrap();
+        let after = std::fs::read_to_string(&file).unwrap();
+        assert!(!after.contains("httpProxy"), "the entry is gone");
+        assert!(after.contains("// keep me"), "the comment survives");
+        assert!(after.contains("\"model\": \"gpt-5\","));
+        assert!(after.contains("\"other\": 1"));
+        assert!(saved.backup_path.is_some());
+
+        // A key that is not there is refused rather than written as a no-op.
+        let snapshot = read_snapshot(&file, ConfigFormat::Jsonc, true).unwrap();
+        let error = remove_fact(
+            &file,
+            ConfigFormat::Jsonc,
+            "httpProxy",
+            &snapshot.sha256,
+            &backups,
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "not_found");
+
+        // And a file changed since the row was read is never overwritten.
+        let error =
+            remove_fact(&file, ConfigFormat::Jsonc, "model", "deadbeef", &backups).unwrap_err();
+        assert_eq!(error.code(), "stale_file");
+        assert!(std::fs::read_to_string(&file).unwrap().contains("gpt-5"));
     }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Copy, ExternalLink, Eye, EyeOff, Pencil, X } from 'lucide-react'
+import { Check, Copy, ExternalLink, Eye, EyeOff, Pencil, Trash2, X } from 'lucide-react'
 
 import type { Agent } from '@/shared/bindings/Agent'
 import type { ConfigFact } from '@/shared/bindings/ConfigFact'
@@ -9,6 +9,7 @@ import { copyText } from '@/shared/lib/clipboard'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import {
   Dialog,
   DialogBody,
@@ -26,7 +27,12 @@ import { DocumentEditorDialog } from '@/features/editor/components/DocumentEdito
 import { DiffView } from '@/features/editor/components/DiffView'
 import { configDocument } from '@/features/editor/model'
 
-import { usePreviewConfigFact, useRevealConfigFact, useSaveConfigFact } from '../api/queries'
+import {
+  usePreviewConfigFact,
+  useRemoveConfigFact,
+  useRevealConfigFact,
+  useSaveConfigFact,
+} from '../api/queries'
 
 /**
  * "Quick settings": the few values a user wants at a glance, lifted out of the agent's own
@@ -165,20 +171,22 @@ function FactRow({
   const reveal = useRevealConfigFact()
   const preview = usePreviewConfigFact()
   const save = useSaveConfigFact()
+  const remove = useRemoveConfigFact()
   const browser = useBrowser()
   const [shown, setShown] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-  // The hash the row was read at. Fetched only while the row is open, it is what turns a file
-  // changed outside Ahabby into a refusal instead of a write.
-  const snapshot = useDocumentSnapshot(agentId, fact.configPath, editing)
+  const [removing, setRemoving] = useState(false)
+  // The hash the row was read at. Fetched while the row is open — for an edit or for the removal
+  // dialog — it is what turns a file changed outside Ahabby into a refusal instead of a write.
+  const snapshot = useDocumentSnapshot(agentId, fact.configPath, editing || removing)
 
   const value = fact.masked ? (shown ?? fact.value) : fact.value
   // A masked value is not the real one, so nothing may act on it until it is revealed.
   const actionable = !fact.masked || shown !== null
   // The backend refuses a read-only or missing file anyway; the affordance is not offered too.
   const editable = config?.editable === true && config.exists === true
-  const busy = preview.isPending || save.isPending
+  const busy = preview.isPending || save.isPending || remove.isPending
 
   /** The hash the file is at right now — the row's own read, or a fresh one if it has not landed. */
   const readBaseSha256 = async () => {
@@ -228,6 +236,22 @@ function FactRow({
   const cancel = () => {
     setEditing(false)
     setDraft('')
+  }
+
+  /** Delete this one entry from the file — the dialog is the confirmation, the call says so. */
+  const runRemove = async () => {
+    const baseSha256 = await readBaseSha256()
+    if (!baseSha256) {
+      toast.error(t('agent.facts.removeFailed'))
+      return
+    }
+    try {
+      await remove.mutateAsync({ agentId, path: fact.configPath, key: fact.key, baseSha256 })
+      setRemoving(false)
+      toast.success(t('agent.facts.removed'), `${fact.configLabel} · ${fact.key}`)
+    } catch (error) {
+      toastAppError(error, 'agent.facts.removeFailed')
+    }
   }
 
   return (
@@ -300,6 +324,17 @@ function FactRow({
               </Button>
             ) : null}
 
+            {editable ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('agent.facts.remove')}
+                onClick={() => setRemoving(true)}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            ) : null}
+
             {fact.masked ? (
               <Button
                 variant="ghost"
@@ -356,6 +391,20 @@ function FactRow({
           </>
         )}
       </div>
+
+      {removing ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setRemoving(false)
+          }}
+          title={t('agent.facts.removeTitle', { key: fact.key })}
+          description={t('agent.facts.removeBody', { file: fact.configLabel })}
+          confirmLabel={t('agent.facts.removeConfirm')}
+          busy={remove.isPending}
+          onConfirm={() => void runRemove()}
+        />
+      ) : null}
     </div>
   )
 }

@@ -53,7 +53,8 @@ pub fn remove_entry(
             .map_err(|message| AppError::invalid_format("jsonc", "<memory>", message)),
         ConfigFormat::Toml => remove_toml(content, key_path),
         ConfigFormat::Yaml => remove_yaml(content, key_path),
-        ConfigFormat::Markdown | ConfigFormat::Text => Err(AppError::NotSupported(
+        ConfigFormat::Text => remove_dotenv_line(content, key_path),
+        ConfigFormat::Markdown => Err(AppError::NotSupported(
             "this format does not hold structured data".to_string(),
         )),
     }
@@ -134,6 +135,32 @@ fn remove_yaml(content: &str, key_path: &[String]) -> Result<Option<String>> {
     let text = serde_yaml::to_string(&document)
         .map_err(|error| AppError::other(format!("cannot serialize YAML: {error}")))?;
     Ok(Some(text))
+}
+
+/// A dotenv (`text`) config: drop the line whose key matches, and nothing else — the other
+/// lines keep their text, their `export ` prefix and their line endings.
+fn remove_dotenv_line(content: &str, key_path: &[String]) -> Result<Option<String>> {
+    let key = key_path.join(".");
+    let mut out = String::with_capacity(content.len());
+    let mut removed = false;
+    for raw in content.split_inclusive('\n') {
+        let body = raw.strip_suffix('\n').unwrap_or(raw);
+        let body = body.strip_suffix('\r').unwrap_or(body);
+        let trimmed = body.trim_start();
+        let rest = trimmed
+            .strip_prefix("export ")
+            .map(str::trim_start)
+            .unwrap_or(trimmed);
+        let matches = rest
+            .find('=')
+            .is_some_and(|equal| rest[..equal].trim() == key);
+        if matches {
+            removed = true;
+            continue;
+        }
+        out.push_str(raw);
+    }
+    Ok(removed.then_some(out))
 }
 
 /// `mcpServers.<name>` inside the document, for error messages.
@@ -1621,6 +1648,26 @@ command = "npx"
         assert_eq!(
             updated,
             "# proxy\nHTTP_PROXY=http://old:1\nexport HTTPS_PROXY=http://new:2\nMODEL=gpt-4\n"
+        );
+    }
+
+    #[test]
+    fn removes_one_dotenv_line() {
+        let content =
+            "# proxy\nHTTP_PROXY=http://p:1\nexport HTTPS_PROXY=http://p:2\nMODEL=gpt-4\n";
+        let updated = remove_entry(ConfigFormat::Text, content, &["HTTPS_PROXY".into()])
+            .unwrap()
+            .expect("the line is there");
+        assert_eq!(updated, "# proxy\nHTTP_PROXY=http://p:1\nMODEL=gpt-4\n");
+
+        // A key that is not in the file is `None`, not an error.
+        assert!(remove_entry(ConfigFormat::Text, content, &["NOPE".into()])
+            .unwrap()
+            .is_none());
+        assert!(
+            remove_entry(ConfigFormat::Text, "# nothing\n", &["NOPE".into()])
+                .unwrap()
+                .is_none()
         );
     }
 }
