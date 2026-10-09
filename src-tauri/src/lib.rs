@@ -75,6 +75,7 @@ macro_rules! handlers {
             commands::hub::list_hub_sources,
             commands::hub::search_hub,
             commands::hub::get_hub_entry,
+            commands::hub::compare_hub_skill,
             commands::hub::install_hub_resource,
             commands::projects::add_project_folder,
             commands::projects::remove_project_folder,

@@ -23,6 +23,7 @@ import type { HubInstall } from '@/shared/bindings/HubInstall'
 import type { HubInstallRequest } from '@/shared/bindings/HubInstallRequest'
 import type { HubPage } from '@/shared/bindings/HubPage'
 import type { HubQuery } from '@/shared/bindings/HubQuery'
+import type { HubSkillCompare } from '@/shared/bindings/HubSkillCompare'
 import type { HubSourceCatalog } from '@/shared/bindings/HubSourceCatalog'
 import type { InstallAction } from '@/shared/bindings/InstallAction'
 import type { InstallPlan } from '@/shared/bindings/InstallPlan'
@@ -175,6 +176,12 @@ export const ipc = {
   /** One entry: its files (a skill) or its launch recipe (an MCP server). */
   getHubEntry: (entryId: string, refresh = false) =>
     invoke<HubEntryDetail>('get_hub_entry', { entryId, refresh }),
+  /**
+   * Both `SKILL.md` texts for one installed copy of a hub skill: the collection's, and the
+   * owner's. The local path is resolved from the scan — never trusted from the webview.
+   */
+  compareHubSkill: (entryId: string, ownerId: string) =>
+    invoke<HubSkillCompare>('compare_hub_skill', { entryId, ownerId }),
   /** Install one entry for an owner the scan knows (`shared`, an agent, or `project:<hash>`). */
   installHubResource: (request: HubInstallRequest) =>
     invoke<MutationResult<HubInstall>>('install_hub_resource', { request }),

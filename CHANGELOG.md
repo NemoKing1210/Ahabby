@@ -5,6 +5,15 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.47.2] - 2026-10-09
+
+### Added
+
+- **Compare a differing Hub skill.** When an installed skill no longer matches what the collection
+  publishes, the Hub opens a side-by-side (or unified) diff of both `SKILL.md` files — the same
+  view as backup compare. Click the warning icon on the card, or **Compare** in the preview /
+  install dialog.
+
 ## [0.47.1] - 2026-10-09
 
 ### Fixed

@@ -21,6 +21,7 @@ vi.mock('@/shared/api/ipc', () => ({
     listHubSources: vi.fn(),
     searchHub: vi.fn(),
     getHubEntry: vi.fn(),
+    compareHubSkill: vi.fn(),
     installHubResource: vi.fn(),
     cachedAgents: vi.fn(),
     getSettings: vi.fn(),
@@ -601,6 +602,70 @@ describe('HubPage', () => {
     await user.type(name, 'pdf-tools')
     await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull())
     expect(within(dialog).getByRole('button', { name: 'Install' })).toBeEnabled()
+  })
+
+  it('compares a differing installed skill with the collection copy', async () => {
+    const user = userEvent.setup()
+    const differing = entry({
+      installed: [
+        {
+          owner: { id: 'demo', name: 'Demo Agent', icon: null },
+          scope: { kind: 'global' },
+          path: '/home/me/.claude/skills/pdf',
+          enabled: true,
+          identical: false,
+        },
+      ],
+    })
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [differing] }))
+    vi.mocked(ipc.getHubEntry).mockResolvedValue({ ...skillDetail(), entry: differing })
+    vi.mocked(ipc.compareHubSkill).mockResolvedValue({
+      entryId: differing.id,
+      name: 'pdf',
+      owner: { id: 'demo', name: 'Demo Agent', icon: null },
+      localPath: '/home/me/.claude/skills/pdf/SKILL.md',
+      published: '---\nname: pdf\n---\n# Collection\n',
+      local: '---\nname: pdf\n---\n# Local edit\n',
+    })
+
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    // The "differs" icon on the card is itself a compare shortcut.
+    const card = within(container).getByRole('button', { name: 'pdf' })
+    expect(
+      within(card).getByRole('button', {
+        name: /Different from what the collection publishes/,
+      }),
+    ).toBeTruthy()
+
+    // The preview lists an explicit Compare control for the same owner.
+    await user.click(within(container).getByRole('button', { name: 'pdf' }))
+    const preview = await screen.findByRole('dialog')
+    await user.click(within(preview).getByRole('button', { name: 'Compare' }))
+    expect(ipc.compareHubSkill).toHaveBeenCalledWith(differing.id, 'demo')
+    expect(await screen.findByRole('heading', { name: 'Compare SKILL.md' })).toBeTruthy()
+    expect(screen.getByText('Collection')).toBeTruthy()
+    expect(screen.getByText('This copy')).toBeTruthy()
+    expect(screen.getByText(/Local edit/)).toBeTruthy()
+
+    // The card shortcut opens the same dialog.
+    cleanup()
+    const again = renderPage()
+    await within(again.container).findByText('Example Skills')
+    const cardAgain = within(again.container).getByRole('button', { name: 'pdf' })
+    await user.click(
+      within(cardAgain).getByRole('button', {
+        name: /Different from what the collection publishes/,
+      }),
+    )
+    expect(ipc.compareHubSkill).toHaveBeenCalledTimes(2)
+    expect(await screen.findByRole('heading', { name: 'Compare SKILL.md' })).toBeTruthy()
   })
 
   it('shows what an entry is for, and filters the sources by tag', async () => {

@@ -166,6 +166,29 @@ impl InstalledIndex {
         index
     }
 
+    /// The entry file of an installed skill for one owner, when the scan recorded one.
+    ///
+    /// Used by the Hub's compare dialog: the collection's `SKILL.md` is already in the payload,
+    /// and this is the path of the copy on disk that `identical` was decided against. A missing
+    /// path (no entry file, or no copy for that owner) means there is nothing to put on the
+    /// right-hand side of the diff.
+    pub fn skill_entry_path(&self, name: &str, owner_id: &str) -> Option<&str> {
+        self.skills
+            .get(&match_key(name))?
+            .iter()
+            .find(|candidate| candidate.owner.id == owner_id)
+            .and_then(|candidate| candidate.entry_path.as_deref())
+    }
+
+    /// The owner chip that holds a skill of this name, when the scan still knows it.
+    pub fn skill_owner(&self, name: &str, owner_id: &str) -> Option<&AgentRef> {
+        self.skills
+            .get(&match_key(name))?
+            .iter()
+            .find(|candidate| candidate.owner.id == owner_id)
+            .map(|candidate| &candidate.owner)
+    }
+
     /// Say, for every entry, where it already is.
     ///
     /// Called on each answer rather than remembered: the report moves (an install, a deletion, a
@@ -561,6 +584,39 @@ mod tests {
             .map(|install| install.owner.id.as_str())
             .collect();
         assert_eq!(owners, vec!["project:abc123", SHARED_OWNER_ID]);
+    }
+
+    #[test]
+    fn skill_entry_path_is_found_for_the_owner_that_holds_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let entry_file = directory.path().join("SKILL.md");
+        std::fs::write(&entry_file, b"# PDF\n").unwrap();
+        let entry_path = entry_file.to_string_lossy().to_string();
+
+        let mut with_entry = skill("pdf", "/home/u/.claude/skills/pdf", "claude-code");
+        with_entry.entry_path = Some(entry_path.clone());
+        let mut without = skill("pdf", "/home/u/.agents/skills/pdf", SHARED_OWNER_ID);
+        without_entry(&mut without);
+
+        let mut scan = report(
+            vec![agent("claude-code", vec![with_entry], Vec::new())],
+            Vec::new(),
+        );
+        scan.shared.skills = vec![without];
+        let index = InstalledIndex::of(&scan);
+
+        assert_eq!(
+            index.skill_entry_path("pdf", "claude-code"),
+            Some(entry_path.as_str())
+        );
+        // Name spelling follows the same key as annotate.
+        assert_eq!(
+            index.skill_entry_path("PDF", "claude-code"),
+            Some(entry_path.as_str())
+        );
+        assert_eq!(index.skill_entry_path("pdf", SHARED_OWNER_ID), None);
+        assert_eq!(index.skill_entry_path("pdf", "missing"), None);
+        assert_eq!(index.skill_entry_path("other", "claude-code"), None);
     }
 
     #[test]

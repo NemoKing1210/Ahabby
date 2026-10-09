@@ -1,5 +1,7 @@
+import type { MouseEvent } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, CircleSlash, ExternalLink, RefreshCw } from 'lucide-react'
+import { Check, CircleSlash, ExternalLink, GitCompareArrows, RefreshCw } from 'lucide-react'
 
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubEntryInstall } from '@/shared/bindings/HubEntryInstall'
@@ -17,6 +19,8 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useBrowser } from '@/features/browser/context'
 
+import { HubSkillCompareDialog } from './HubSkillCompareDialog'
+
 /**
  * The pieces an entry is shown with, shared by the preview and the install dialog.
  *
@@ -25,6 +29,11 @@ import { useBrowser } from '@/features/browser/context'
  * preview, and the target, the values and the confirmation for an install.
  */
 
+/** Whether this install can open the collection-vs-local SKILL.md compare. */
+function canCompare(entry: HubEntry, install: HubEntryInstall): boolean {
+  return entry.kind === 'skill' && install.identical === false
+}
+
 /**
  * What one existing copy is worth saying about it: switched off, no longer what the collection
  * publishes, or the same bytes it publishes — and nothing at all when the two could not be
@@ -32,9 +41,16 @@ import { useBrowser } from '@/features/browser/context'
  *
  * The claim is never invented: `identical` is set by the backend from the payload itself (a
  * skill's `SKILL.md`, a server's launch recipe), so a card can only say "this is the same thing"
- * when it actually compared them.
+ * when it actually compared them. When the copy differs and a compare handler is present, the
+ * icon itself is the shortcut into that diff.
  */
-function InstallState({ install }: { install: HubEntryInstall }) {
+function InstallState({
+  install,
+  onCompare,
+}: {
+  install: HubEntryInstall
+  onCompare?: () => void
+}) {
   const { t } = useTranslation()
 
   const state = !install.enabled
@@ -47,11 +63,51 @@ function InstallState({ install }: { install: HubEntryInstall }) {
 
   if (!state) return null
   const Icon = state.icon
+
+  if (onCompare && install.identical === false) {
+    const open = (event: MouseEvent) => {
+      event.stopPropagation()
+      event.preventDefault()
+      onCompare()
+    }
+    return (
+      <Tooltip content={t('hub.compareHint')}>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex shrink-0 rounded-sm outline-none',
+            'hover:bg-warning/10 focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
+          )}
+          aria-label={state.label}
+          onClick={open}
+        >
+          <Icon className={cn('size-3', state.tone)} aria-hidden />
+        </button>
+      </Tooltip>
+    )
+  }
+
   return (
     <Tooltip content={state.label}>
       <Icon className={cn('size-3 shrink-0', state.tone)} role="img" aria-label={state.label} />
     </Tooltip>
   )
+}
+
+/** Mounts the compare dialog for one install the user picked from a list or a card chip. */
+function useCompareTarget(entry: HubEntry) {
+  const [target, setTarget] = useState<HubEntryInstall | null>(null)
+  const dialog =
+    target !== null ? (
+      <HubSkillCompareDialog
+        key={`${entry.id}:${target.owner.id}:${target.path}`}
+        entryId={entry.id}
+        entryName={entry.title ?? entry.name}
+        install={target}
+        onOpenChange={() => setTarget(null)}
+      />
+    ) : null
+  return { openCompare: setTarget, dialog }
 }
 
 /**
@@ -63,24 +119,31 @@ function InstallState({ install }: { install: HubEntryInstall }) {
  */
 export function HubInstalled({ entry }: { entry: HubEntry }) {
   const { t } = useTranslation()
+  const { openCompare, dialog } = useCompareTarget(entry)
   if (entry.installed.length === 0) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Badge tone="success">
-        <Check className="size-3" aria-hidden />
-        {t('hub.installedBadge')}
-      </Badge>
-      {entry.installed.map((install) => (
-        <span
-          key={`${install.owner.id}:${install.path}`}
-          className="inline-flex items-center gap-1"
-        >
-          <AgentTag agent={install.owner} title={install.path} className="max-w-44" />
-          <InstallState install={install} />
-        </span>
-      ))}
-    </div>
+    <>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge tone="success">
+          <Check className="size-3" aria-hidden />
+          {t('hub.installedBadge')}
+        </Badge>
+        {entry.installed.map((install) => (
+          <span
+            key={`${install.owner.id}:${install.path}`}
+            className="inline-flex items-center gap-1"
+          >
+            <AgentTag agent={install.owner} title={install.path} className="max-w-44" />
+            <InstallState
+              install={install}
+              onCompare={canCompare(entry, install) ? () => openCompare(install) : undefined}
+            />
+          </span>
+        ))}
+      </div>
+      {dialog}
+    </>
   )
 }
 
@@ -88,32 +151,51 @@ export function HubInstalled({ entry }: { entry: HubEntry }) {
  * The same answer with room to read it: one line per copy, naming where it lives.
  *
  * The dialogs use this: a decision about installing a second copy is made with the existing ones
- * in sight, and the path is what makes "for that project, in this directory" checkable.
+ * in sight, and the path is what makes "for that project, in this directory" checkable. A skill
+ * that differs from the collection also gets an explicit Compare control next to the path.
  */
 export function HubInstalledList({ entry }: { entry: HubEntry }) {
   const { t } = useTranslation()
+  const { openCompare, dialog } = useCompareTarget(entry)
   if (entry.installed.length === 0) return null
 
   return (
-    <FormField label={t('hub.alreadyInstalled')} hint={t('hub.alreadyInstalledHint')}>
-      <ul className="border-border bg-surface-2/40 flex flex-col divide-y rounded-lg border">
-        {entry.installed.map((install) => (
-          <li
-            key={`${install.owner.id}:${install.path}`}
-            className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2"
-          >
-            <AgentTag agent={install.owner} />
-            <InstallState install={install} />
-            <code
-              className="text-faint min-w-0 flex-1 truncate font-mono text-[0.7rem]"
-              title={install.path}
+    <>
+      <FormField label={t('hub.alreadyInstalled')} hint={t('hub.alreadyInstalledHint')}>
+        <ul className="border-border bg-surface-2/40 flex flex-col divide-y rounded-lg border">
+          {entry.installed.map((install) => (
+            <li
+              key={`${install.owner.id}:${install.path}`}
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2"
             >
-              {install.path}
-            </code>
-          </li>
-        ))}
-      </ul>
-    </FormField>
+              <AgentTag agent={install.owner} />
+              <InstallState
+                install={install}
+                onCompare={canCompare(entry, install) ? () => openCompare(install) : undefined}
+              />
+              <code
+                className="text-faint min-w-0 flex-1 truncate font-mono text-[0.7rem]"
+                title={install.path}
+              >
+                {install.path}
+              </code>
+              {canCompare(entry, install) ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ms-auto shrink-0"
+                  onClick={() => openCompare(install)}
+                >
+                  <GitCompareArrows className="size-3.5" aria-hidden />
+                  {t('hub.compare')}
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </FormField>
+      {dialog}
+    </>
   )
 }
 

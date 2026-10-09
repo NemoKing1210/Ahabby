@@ -18,6 +18,9 @@ export const queryKeys = {
   hubEntry: (entryId: string) => ['hub-entry', entryId] as const,
   /** Every entry read, so a screen that says "already installed" can say it again. */
   hubEntryAll: () => ['hub-entry'] as const,
+  /** Collection vs local `SKILL.md` for one owner of one hub skill. */
+  hubSkillCompare: (entryId: string, ownerId: string) =>
+    ['hub-skill-compare', entryId, ownerId] as const,
   settings: () => ['settings'] as const,
   packageManagers: () => ['package-managers'] as const,
   config: (agentId: string, path: string) => ['config', agentId, path] as const,

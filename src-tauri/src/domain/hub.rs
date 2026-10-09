@@ -392,6 +392,29 @@ pub struct HubEntryInstall {
     pub identical: Option<bool>,
 }
 
+/// Both sides of a skill content comparison: what the collection publishes, and what one owner
+/// already holds.
+///
+/// The texts are the full `SKILL.md` bytes decoded as UTF-8 — the same bytes the Hub hashes for
+/// `identical` — so a truncated preview never stands in for either side.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct HubSkillCompare {
+    /// The hub entry both sides belong to.
+    pub entry_id: String,
+    /// The skill's name, as the collection publishes it.
+    pub name: String,
+    /// Who holds the local copy.
+    pub owner: AgentRef,
+    /// Absolute path of the local `SKILL.md`.
+    pub local_path: String,
+    /// The collection's `SKILL.md`.
+    pub published: String,
+    /// The local `SKILL.md`.
+    pub local: String,
+}
+
 /// The entry file of a skill, read out of the collection so the user can read the instructions
 /// *before* anything is written.
 ///

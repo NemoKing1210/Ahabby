@@ -10,7 +10,7 @@ use tauri::State;
 
 use crate::domain::{
     HubEntryDetail, HubInstall, HubInstallRequest, HubPage, HubQuery, HubResourceKind,
-    HubSourceCatalog, McpDraftTransport, McpServerDraft, McpTransport,
+    HubSkillCompare, HubSourceCatalog, McpDraftTransport, McpServerDraft, McpTransport,
 };
 use crate::error::{AppError, Result};
 use crate::services::hub::installed::InstalledIndex;
@@ -68,6 +68,86 @@ fn installed(state: &AppState) -> Option<InstalledIndex> {
         .report()
         .ok()
         .map(|report| InstalledIndex::of(&report))
+}
+
+/// Both `SKILL.md` texts for one installed copy of a hub skill: the collection's, and the owner's.
+///
+/// The path of the local file comes from the scan (never from the webview), and the published side
+/// is the same entry file the Hub hashes for `identical` — so the dialog shows exactly what made
+/// the "differs" claim, not a truncated preview.
+#[tauri::command]
+pub async fn compare_hub_skill(
+    state: State<'_, AppState>,
+    entry_id: String,
+    owner_id: String,
+) -> Result<HubSkillCompare> {
+    let catalog = state.hub_sources();
+    let detail = state.hub().detail(&catalog, &entry_id, false).await?;
+    if detail.entry.kind != HubResourceKind::Skill {
+        return Err(AppError::NotSupported(
+            "only a skill has a SKILL.md to compare".to_string(),
+        ));
+    }
+
+    let index = installed(&state).ok_or_else(|| {
+        AppError::NotFound("scan the machine first so Ahabby knows what is installed".to_string())
+    })?;
+    let local_path = index
+        .skill_entry_path(&detail.entry.name, &owner_id)
+        .ok_or_else(|| {
+            AppError::NotFound(format!(
+                "no installed SKILL.md for '{}' under '{}'",
+                detail.entry.name, owner_id
+            ))
+        })?
+        .to_string();
+    let owner = index
+        .skill_owner(&detail.entry.name, &owner_id)
+        .cloned()
+        .ok_or_else(|| {
+            AppError::NotFound(format!("owner '{owner_id}' no longer holds this skill"))
+        })?;
+
+    let local_bytes =
+        std::fs::read(&local_path).map_err(|error| AppError::io(&local_path, error))?;
+    let local = skill_md_text(&local_bytes, &local_path)?;
+
+    let payload = state
+        .hub()
+        .skill_install(&catalog, &entry_id, detail.entry.name.clone())
+        .await?;
+    let published_bytes = payload
+        .files
+        .iter()
+        .find(|file| file.path == "SKILL.md")
+        .map(|file| file.bytes.as_slice())
+        .ok_or_else(|| {
+            AppError::NotFound(format!(
+                "the collection no longer publishes a SKILL.md for '{}'",
+                detail.entry.name
+            ))
+        })?;
+    let published = skill_md_text(published_bytes, "SKILL.md")?;
+
+    Ok(HubSkillCompare {
+        entry_id,
+        name: detail.entry.name,
+        owner,
+        local_path,
+        published,
+        local,
+    })
+}
+
+/// Decode a `SKILL.md` the way the identity hash saw it: the full file as UTF-8 text.
+fn skill_md_text(bytes: &[u8], path: &str) -> Result<String> {
+    String::from_utf8(bytes.to_vec()).map_err(|_| {
+        AppError::invalid_format(
+            "markdown",
+            path,
+            "not valid UTF-8, so it cannot be compared",
+        )
+    })
 }
 
 /// Install one entry for any owner the scan knows.

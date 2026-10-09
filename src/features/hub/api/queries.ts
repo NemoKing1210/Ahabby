@@ -34,3 +34,19 @@ export function useHubEntry(entryId: string | null) {
     retry: false,
   })
 }
+
+/**
+ * Both `SKILL.md` texts for one installed copy of a hub skill — the collection's, and the owner's.
+ *
+ * Asked only while the compare dialog is open; the answer is the full files, not the truncated
+ * preview the entry dialog shows.
+ */
+export function useHubSkillCompare(entryId: string, ownerId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.hubSkillCompare(entryId, ownerId),
+    queryFn: () => ipc.compareHubSkill(entryId, ownerId),
+    enabled,
+    staleTime: 0,
+    retry: false,
+  })
+}
