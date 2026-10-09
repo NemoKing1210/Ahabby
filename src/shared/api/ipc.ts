@@ -229,6 +229,8 @@ export const ipc = {
   setSidebarCollapsed: (collapsed: boolean) =>
     invoke<Settings>('set_sidebar_collapsed', { collapsed }),
   setLastRoute: (route: string | null) => invoke<Settings>('set_last_route', { route }),
+  /** The shell's tour flag: written when the welcome is skipped or the spotlight finishes. */
+  setTourCompleted: (completed: boolean) => invoke<Settings>('set_tour_completed', { completed }),
   setWindowTheme: (theme: Theme, dark: boolean, caption: string, text: string) =>
     invoke<void>('set_window_theme', { theme, dark, caption, text }),
 

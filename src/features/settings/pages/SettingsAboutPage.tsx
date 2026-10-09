@@ -1,7 +1,9 @@
-import { Info } from 'lucide-react'
+import { Info, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalTour } from '@/features/tour/TourProvider'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
+import { Button } from '@/shared/ui/Button'
 import { ManagerIcon } from '@/shared/ui/ManagerIcon'
 import { MANAGER_NAME_KEY } from '@/shared/ui/managerBrands'
 
@@ -15,6 +17,7 @@ import { usePackageManagers } from '../api/hooks'
 export function SettingsAboutPage() {
   const { t } = useTranslation()
   const managers = usePackageManagers()
+  const { startTour } = useOptionalTour()
 
   return (
     <div className="flex flex-col gap-5">
@@ -27,6 +30,16 @@ export function SettingsAboutPage() {
               {t('settings.aboutVersion', { version: __APP_VERSION__ })}
             </span>
             <p className="text-muted max-w-prose text-[0.8125rem]">{t('settings.aboutText')}</p>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.tour')}>
+          <div className="flex flex-col gap-3 py-3" data-tour="settings-tour">
+            <p className="text-muted max-w-prose text-[0.8125rem]">{t('settings.tourHint')}</p>
+            <Button variant="secondary" className="w-fit" onClick={startTour}>
+              <Sparkles className="size-3.5" aria-hidden />
+              {t('settings.showTour')}
+            </Button>
           </div>
         </SettingsSection>
 

@@ -88,6 +88,9 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
    * It listens in the capture phase so it runs before anything else — including a router link
    * handler — and it decides on the *attribute*, not on `anchor.href`: a `href` the WebView
    * already resolved points at Ahabby's own origin, which is exactly the wrong answer.
+   *
+   * A drag on a link is cancelled the same way: the WebView would otherwise start a
+   * browser-style URL drag, which makes the desktop chrome feel like a document.
    */
   useEffect(() => {
     const onActivate = (event: MouseEvent) => {
@@ -107,11 +110,20 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       if (resolved.kind === 'reader') open(resolved.url)
     }
 
+    const onDragStart = (event: DragEvent) => {
+      const anchor =
+        event.target instanceof Element ? event.target.closest('a[href], a[data-anchor]') : null
+      if (!anchor) return
+      event.preventDefault()
+    }
+
     document.addEventListener('click', onActivate, true)
     document.addEventListener('auxclick', onActivate, true)
+    document.addEventListener('dragstart', onDragStart, true)
     return () => {
       document.removeEventListener('click', onActivate, true)
       document.removeEventListener('auxclick', onActivate, true)
+      document.removeEventListener('dragstart', onDragStart, true)
     }
   }, [open])
 

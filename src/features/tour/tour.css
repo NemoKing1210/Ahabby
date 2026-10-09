@@ -1,0 +1,118 @@
+/* Product tour popover — design tokens only; driver.js default CSS is imported in runTour.ts. */
+
+.driver-popover.ahabby-tour {
+  background-color: var(--ah-surface);
+  color: var(--ah-foreground);
+  border: 1px solid var(--ah-border);
+  border-radius: 1rem;
+  box-shadow: var(--ah-shadow-popover);
+  max-width: 22rem;
+  padding: 1rem 1.1rem;
+}
+
+.driver-popover.ahabby-tour .driver-popover-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ah-foreground);
+  padding-right: 1.75rem;
+}
+
+.driver-popover.ahabby-tour .driver-popover-description {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ah-muted);
+}
+
+.driver-popover.ahabby-tour .driver-popover-progress-text {
+  font-size: 0.6875rem;
+  color: var(--ah-faint);
+}
+
+.driver-popover.ahabby-tour .driver-popover-navigation-btns {
+  gap: 0.4rem;
+}
+
+/* Nav buttons only — the close control must not inherit the bordered chip look. */
+.driver-popover.ahabby-tour .driver-popover-navigation-btns button {
+  text-shadow: none;
+  border: 1px solid var(--ah-border);
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.75rem;
+  background-color: var(--ah-surface-2);
+  color: var(--ah-foreground);
+}
+
+.driver-popover.ahabby-tour .driver-popover-navigation-btns button:hover,
+.driver-popover.ahabby-tour .driver-popover-navigation-btns button:focus-visible {
+  background-color: var(--ah-surface-3);
+  color: var(--ah-foreground);
+}
+
+.driver-popover.ahabby-tour .driver-popover-next-btn,
+.driver-popover.ahabby-tour .driver-popover-done-btn {
+  background-color: var(--ah-accent);
+  border-color: transparent;
+  color: var(--ah-accent-foreground);
+}
+
+.driver-popover.ahabby-tour .driver-popover-next-btn:hover,
+.driver-popover.ahabby-tour .driver-popover-done-btn:hover,
+.driver-popover.ahabby-tour .driver-popover-next-btn:focus-visible,
+.driver-popover.ahabby-tour .driver-popover-done-btn:focus-visible {
+  background-color: var(--ah-accent-hover);
+  color: var(--ah-accent-foreground);
+}
+
+.driver-popover.ahabby-tour .driver-popover-close-btn {
+  all: unset;
+  box-sizing: border-box;
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  /* × sits low in most UI fonts; bottom padding lifts the glyph inside a fixed hit target. */
+  padding: 0 0 0.14em;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  color: var(--ah-faint);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.driver-popover.ahabby-tour .driver-popover-close-btn:hover,
+.driver-popover.ahabby-tour .driver-popover-close-btn:focus-visible {
+  color: var(--ah-foreground);
+  background-color: var(--ah-surface-2);
+}
+
+.driver-popover.ahabby-tour .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: var(--ah-surface);
+}
+
+.driver-popover.ahabby-tour .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: var(--ah-surface);
+}
+
+.driver-popover.ahabby-tour .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: var(--ah-surface);
+}
+
+.driver-popover.ahabby-tour .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: var(--ah-surface);
+}
+
+.driver-active .driver-active-element {
+  outline: 2px solid var(--ah-accent);
+  outline-offset: 2px;
+}

@@ -41,6 +41,17 @@ pub async fn set_last_route(state: State<'_, AppState>, route: Option<String>) -
     state.set_last_route(route.as_deref())
 }
 
+/**
+ * Remember that the product tour was finished or skipped.
+ *
+ * The shell owns this: the Settings page never edits it through a whole-document save, and
+ * `save_settings` keeps whatever the last tour write stored.
+ */
+#[tauri::command]
+pub async fn set_tour_completed(state: State<'_, AppState>, completed: bool) -> Result<Settings> {
+    state.set_tour_completed(completed)
+}
+
 /// Persist the settings document the Settings page edited.
 ///
 /// Two of its fields describe the machine rather than Ahabby's own files, and both are applied

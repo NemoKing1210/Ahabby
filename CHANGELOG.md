@@ -5,6 +5,60 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.0] - 2026-10-09
+
+### Added
+
+- **Five more interface languages.** Chinese (Simplified), Spanish, German, Japanese and French
+  join English and Russian in Settings → Appearance. The tray menu follows the same choice.
+
+## [0.48.3] - 2026-10-09
+
+### Fixed
+
+- **Tutorial close icon is centered.** The × is optically aligned inside the hit target.
+
+## [0.48.2] - 2026-10-09
+
+### Fixed
+
+- **Tutorial close button clicks again.** The × sits above the title so it is not blocked by
+  overlapping text.
+
+## [0.48.1] - 2026-10-09
+
+### Fixed
+
+- **Tutorial Next changes the screen.** “Next” / “Back” now navigate to the next step’s route
+  _before_ looking for the highlight, so page steps are no longer skipped while still on the
+  previous screen.
+- **Tutorial close control.** The × is a plain icon again instead of a bordered chip.
+
+## [0.48.0] - 2026-10-09
+
+### Added
+
+- **Interactive first-launch tutorial.** A short driver.js tour greets new installs with a welcome
+  dialog, then walks the sidebar and each main screen (Home, Agents, Projects, Library, Hub,
+  Settings, Terminal) with spotlights and descriptions. Skip or finish once; replay any time from
+  Settings → About → Show tutorial. Existing installs keep the tour marked done so an upgrade does
+  not re-open it.
+
+## [0.47.4] - 2026-10-09
+
+### Fixed
+
+- **Links no longer drag like in a browser.** Pulling on a link no longer starts a URL drag
+  ghost, so the chrome stays a desktop app rather than a document.
+
+## [0.47.3] - 2026-10-09
+
+### Added
+
+- **Country flags next to languages.** Settings → Appearance shows a flag beside each language
+  in the picker (and in the closed control), so English, Russian, Chinese and the rest are easier
+  to spot at a glance.
+
 ## [0.47.2] - 2026-10-09
 
 ### Added

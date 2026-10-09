@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -58,8 +58,9 @@ describe('ManagerIcon', () => {
     }
   })
 
-  it('names every manager in both locales', () => {
-    for (const locale of ['en', 'ru']) {
+  it('names every manager in every locale', () => {
+    for (const file of readdirSync(LOCALES).filter((name) => name.endsWith('.json'))) {
+      const locale = file.replace(/\.json$/, '')
       const messages = JSON.parse(readFileSync(join(LOCALES, `${locale}.json`), 'utf8')) as {
         managers?: Record<string, string>
       }

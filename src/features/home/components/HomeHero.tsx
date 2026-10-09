@@ -68,7 +68,13 @@ export function HomeHero({ report }: { report: ScanReport | undefined }) {
             {isScanning ? <Spinner className="size-3" /> : null}
             {scanLine}
           </p>
-          <Button variant="secondary" size="sm" onClick={rescan} loading={isScanning}>
+          <Button
+            variant="secondary"
+            size="sm"
+            data-tour="home-scan"
+            onClick={rescan}
+            loading={isScanning}
+          >
             {isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
             {t('agents.rescan')}
           </Button>

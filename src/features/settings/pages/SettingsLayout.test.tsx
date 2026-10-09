@@ -52,6 +52,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     startMinimized: false,
     sidebarCollapsed: false,
     lastRoute: null,
+    tourCompleted: true,
     ...overrides,
   }
 }

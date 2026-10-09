@@ -124,4 +124,11 @@ sidebarCollapsed: boolean,
  * screen. `boot()` reads it before the first render, so the app opens where the user left
  * it instead of painting home and navigating away.
  */
-lastRoute: string | null, };
+lastRoute: string | null, 
+/**
+ * Whether the product tour has been finished or skipped. Shell-owned like the rail: a
+ * whole-document save keeps whatever this field already holds. Older settings files that
+ * omit the key deserialize as completed so an upgrade does not re-show the tour; a brand-new
+ * install starts with [`Settings::default`]'s `false`.
+ */
+tourCompleted: boolean, };

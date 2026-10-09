@@ -1012,7 +1012,16 @@
     "pasteUnavailable": "This window does not allow reading the clipboard — use Ctrl+V"
   },
   "tray": {
-    "agentMissing": "That agent is not in the last scan — scan the machine again and retry."
+    "agentMissing": "That agent is not in the last scan — scan the machine again and retry.",
+    "open": "Open Ahabby",
+    "goTo": "Go to",
+    "run": "Run in terminal",
+    "runEmpty": "No agent is installed",
+    "rescan": "Scan again",
+    "quit": "Quit Ahabby",
+    "neverScanned": "Not scanned yet",
+    "agents": "Agents",
+    "updates": "Updates"
   },
   "settings": {
     "title": "Settings",
@@ -1162,7 +1171,75 @@
     "invalidPath": "That directory does not exist: {{path}}",
     "about": "About",
     "aboutVersion": "Ahabby {{version}}",
-    "aboutText": "Ahabby reads the configuration of your AI coding agents. It never sends your files anywhere, and every write is backed up first."
+    "aboutText": "Ahabby reads the configuration of your AI coding agents. It never sends your files anywhere, and every write is backed up first.",
+    "tour": "Tutorial",
+    "tourHint": "Walk through the main screens again — what each one is for, and which control to use first.",
+    "showTour": "Show tutorial"
+  },
+  "tour": {
+    "welcomeTitle": "Welcome to Ahabby",
+    "welcomeBody": "A short interactive tour of the sidebar and the main screens — what lives where, and what to click.",
+    "welcomeHint": "You can skip this and reopen it any time from Settings → About.",
+    "start": "Start tour",
+    "skip": "Skip",
+    "next": "Next",
+    "back": "Back",
+    "done": "Done",
+    "progress": "{{current}} of {{total}}",
+    "steps": {
+      "home": {
+        "title": "Home",
+        "body": "Your starting point: a summary of this machine and the agents Ahabby found."
+      },
+      "homeScan": {
+        "title": "Scan again",
+        "body": "Re-read agents, configs and projects from disk. Use this after installing something outside Ahabby."
+      },
+      "agents": {
+        "title": "Agents",
+        "body": "Every supported coding agent — installed ones and ones you can still set up."
+      },
+      "agentsRescan": {
+        "title": "Refresh the list",
+        "body": "The same scan as on Home, focused here so versions and install status stay current."
+      },
+      "projects": {
+        "title": "Projects",
+        "body": "Folders you add are searched for local skills, MCP servers and project documents."
+      },
+      "projectsAdd": {
+        "title": "Add a folder",
+        "body": "Pick a directory Ahabby should watch. Projects inside it show up here automatically."
+      },
+      "library": {
+        "title": "Library",
+        "body": "All skills, MCP servers and related files already on this machine — global and per agent."
+      },
+      "libraryBrowse": {
+        "title": "Find what you have",
+        "body": "Filter by owner, origin and activity, then open any entry to preview or edit it."
+      },
+      "hub": {
+        "title": "Hub",
+        "body": "Collections of skills and MCP servers you can install into an agent or a project."
+      },
+      "hubBrowse": {
+        "title": "Browse and install",
+        "body": "Search collections, filter by kind or tags, then install through the same safe path as a hand-written entry."
+      },
+      "settings": {
+        "title": "Settings",
+        "body": "Appearance, window and tray, terminal, network, safety — and this tutorial again."
+      },
+      "settingsReplay": {
+        "title": "Replay the tour",
+        "body": "Come back here whenever you want the guided walkthrough again."
+      },
+      "terminal": {
+        "title": "Terminal",
+        "body": "Run an installed agent in Ahabby's dock or in an external terminal you already have."
+      }
+    }
   },
   "errors": {
     "not_found": "Not found",

@@ -89,6 +89,7 @@ macro_rules! handlers {
             commands::settings::set_agent_favorite,
             commands::settings::set_sidebar_collapsed,
             commands::settings::set_last_route,
+            commands::settings::set_tour_completed,
             commands::settings::save_settings,
             commands::settings::set_window_theme,
             commands::terminal::list_terminals,

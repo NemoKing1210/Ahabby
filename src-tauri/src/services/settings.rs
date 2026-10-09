@@ -22,6 +22,26 @@ pub enum Language {
     #[default]
     En,
     Ru,
+    Zh,
+    Es,
+    De,
+    Ja,
+    Fr,
+}
+
+impl Language {
+    /// Stable code stored in settings and passed to the webview.
+    pub fn code(self) -> &'static str {
+        match self {
+            Language::En => "en",
+            Language::Ru => "ru",
+            Language::Zh => "zh",
+            Language::Es => "es",
+            Language::De => "de",
+            Language::Ja => "ja",
+            Language::Fr => "fr",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -177,6 +197,17 @@ pub struct Settings {
     /// screen. `boot()` reads it before the first render, so the app opens where the user left
     /// it instead of painting home and navigating away.
     pub last_route: Option<String>,
+    /// Whether the product tour has been finished or skipped. Shell-owned like the rail: a
+    /// whole-document save keeps whatever this field already holds. Older settings files that
+    /// omit the key deserialize as completed so an upgrade does not re-show the tour; a brand-new
+    /// install starts with [`Settings::default`]'s `false`.
+    #[serde(default = "default_tour_completed")]
+    pub tour_completed: bool,
+}
+
+/// Serde default for a missing `tourCompleted` key in an existing settings file.
+fn default_tour_completed() -> bool {
+    true
 }
 
 /// Longest remembered route Ahabby keeps. Every real screen is far shorter; anything longer is
@@ -248,6 +279,7 @@ impl Default for Settings {
             start_minimized: false,
             sidebar_collapsed: false,
             last_route: None,
+            tour_completed: false,
         }
     }
 }
@@ -393,15 +425,16 @@ impl SettingsService {
 
     /// Write a whole settings document — what the Settings page does.
     ///
-    /// The sidebar and the remembered screen belong to the shell, and a whole-document save is
-    /// never about them: the Settings page saves a copy fetched before the user last collapsed the
-    /// rail or navigated, so writing that copy back would undo state the user just set. Only
-    /// [`SettingsService::set_sidebar_collapsed`] / [`SettingsService::set_last_route`] move those
-    /// two, and they write through [`SettingsService::persist`] instead.
+    /// The sidebar, the remembered screen and the tour flag belong to the shell, and a
+    /// whole-document save is never about them: the Settings page saves a copy fetched before the
+    /// user last collapsed the rail, navigated or finished the tour, so writing that copy back
+    /// would undo state the user just set. Only the dedicated setters move those fields, and they
+    /// write through [`SettingsService::persist`] instead.
     pub fn save(&self, mut settings: Settings) -> Result<Settings> {
         let current = self.get();
         settings.sidebar_collapsed = current.sidebar_collapsed;
         settings.last_route = current.last_route;
+        settings.tour_completed = current.tour_completed;
         self.persist(settings)
     }
 
@@ -467,6 +500,16 @@ impl SettingsService {
             return Ok(settings);
         }
         settings.last_route = route;
+        self.persist(settings)
+    }
+
+    /// Remember that the product tour was finished or skipped (or cleared so it can run again).
+    pub fn set_tour_completed(&self, completed: bool) -> Result<Settings> {
+        let mut settings = self.get();
+        if settings.tour_completed == completed {
+            return Ok(settings);
+        }
+        settings.tour_completed = completed;
         self.persist(settings)
     }
 
@@ -721,22 +764,46 @@ mod tests {
         let service = SettingsService::load(dir.path());
         service.set_sidebar_collapsed(true).unwrap();
         service.set_last_route(Some("/library")).unwrap();
+        service.set_tour_completed(true).unwrap();
 
         // What the Settings page holds: a document fetched *before* the rail was collapsed.
         let stale = Settings {
             language: Language::Ru,
             sidebar_collapsed: false,
             last_route: None,
+            tour_completed: false,
             ..Settings::default()
         };
         let saved = service.save(stale).unwrap();
 
         assert_eq!(saved.language, Language::Ru, "the real setting is written");
         assert!(
-            saved.sidebar_collapsed && saved.last_route.as_deref() == Some("/library"),
+            saved.sidebar_collapsed
+                && saved.last_route.as_deref() == Some("/library")
+                && saved.tour_completed,
             "the shell's own state survives a whole-document save: {saved:?}"
         );
         assert_eq!(SettingsService::load(dir.path()).get(), saved);
+    }
+
+    #[test]
+    fn the_shell_remembers_the_tour_and_upgrades_keep_it_done() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        assert!(
+            !service.get().tour_completed,
+            "a brand-new install has not seen the tour"
+        );
+
+        service.set_tour_completed(true).unwrap();
+        assert!(SettingsService::load(dir.path()).get().tour_completed);
+
+        // An older settings file without the key must not re-show the tour on upgrade.
+        std::fs::write(dir.path().join("settings.json"), r#"{"language":"en"}"#).unwrap();
+        assert!(
+            SettingsService::load(dir.path()).get().tour_completed,
+            "missing tourCompleted means already done"
+        );
     }
 
     #[test]

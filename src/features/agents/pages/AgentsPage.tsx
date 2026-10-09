@@ -159,7 +159,7 @@ export function AgentsPage() {
             {t('agents.availableCount', { count: data?.availableToInstall ?? 0 })}
           </p>
         </div>
-        <Button variant="secondary" onClick={rescan} loading={isScanning}>
+        <Button variant="secondary" data-tour="agents-rescan" onClick={rescan} loading={isScanning}>
           {isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
           {t('agents.rescan')}
         </Button>

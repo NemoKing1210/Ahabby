@@ -52,15 +52,23 @@ import { useRunAgentInTerminal, useTerminals } from '@/features/terminal/api/hoo
 import { NewTerminalDialog } from '@/features/terminal/components/NewTerminalDialog'
 import { useTerminalStore } from '@/features/terminal/store'
 
+import { TourProvider } from '@/features/tour/TourProvider'
+
 import { TrayBridge } from './TrayBridge'
 
 const NAV_ITEMS = [
-  { to: '/', labelKey: 'nav.home', icon: House, end: true },
-  { to: '/agents', labelKey: 'nav.agents', icon: Boxes, end: false },
-  { to: '/projects', labelKey: 'nav.projects', icon: FolderGit2, end: false },
-  { to: '/library', labelKey: 'nav.library', icon: Library, end: false },
-  { to: '/hub', labelKey: 'nav.hub', icon: Store, end: false },
-  { to: '/settings', labelKey: 'nav.settings', icon: SettingsIcon, end: false },
+  { to: '/', labelKey: 'nav.home', icon: House, end: true, tour: 'nav-home' },
+  { to: '/agents', labelKey: 'nav.agents', icon: Boxes, end: false, tour: 'nav-agents' },
+  { to: '/projects', labelKey: 'nav.projects', icon: FolderGit2, end: false, tour: 'nav-projects' },
+  { to: '/library', labelKey: 'nav.library', icon: Library, end: false, tour: 'nav-library' },
+  { to: '/hub', labelKey: 'nav.hub', icon: Store, end: false, tour: 'nav-hub' },
+  {
+    to: '/settings',
+    labelKey: 'nav.settings',
+    icon: SettingsIcon,
+    end: false,
+    tour: 'nav-settings',
+  },
 ] as const
 
 /**
@@ -240,232 +248,241 @@ export function AppShell() {
   // The window is one flat background; the sidebar floats over it as an inset panel, so the
   // rail never fuses with the window edges and reads as its own surface.
   return (
-    <div className="bg-background flex h-full gap-3 p-3">
-      <RouteMemory />
-      <TrayBridge />
-      <aside
-        className={cn(
-          'border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col gap-2 rounded-2xl border p-2.5 transition-[width] duration-200',
-          collapsed ? 'w-[4.5rem]' : 'w-64',
-        )}
-      >
-        <div
-          className={cn('flex shrink-0 items-center', collapsed ? 'justify-center' : 'justify-end')}
-        >
-          <Tooltip content={toggleLabel} side="right">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={toggleLabel}
-              aria-expanded={!collapsed}
-              onClick={() => setSidebarCollapsed.mutate(!collapsed)}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="size-4.5" aria-hidden />
-              ) : (
-                <PanelLeftClose className="size-4.5" aria-hidden />
-              )}
-            </Button>
-          </Tooltip>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-          <div className="flex flex-col">
-            {collapsed ? null : <NavSection>{t('nav.sections')}</NavSection>}
-            <nav aria-label={t('nav.sections')} className="flex flex-col gap-1">
-              {NAV_ITEMS.map((item) => (
-                <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
-                  {/* The Radix trigger must be a plain element: `asChild` merges `className`,
-                      which would stringify NavLink's className function and drop every class. */}
-                  <div className="flex">
-                    <NavLink
-                      to={item.to}
-                      end={item.end}
-                      aria-label={collapsed ? t(item.labelKey) : undefined}
-                      className={({ isActive }) =>
-                        cn(
-                          'ease-warm relative flex items-center rounded-xl text-[0.9375rem] font-medium transition-colors duration-150',
-                          collapsed ? 'mx-auto size-11 justify-center' : 'flex-1 gap-3 px-3 py-2.5',
-                          isActive
-                            ? 'text-accent-strong'
-                            : 'text-muted hover:bg-surface-2 hover:text-foreground',
-                        )
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          {isActive ? (
-                            <motion.span
-                              aria-hidden
-                              layoutId="nav-active-pill"
-                              transition={glideTransition}
-                              className="bg-accent-soft absolute inset-0 rounded-xl"
-                            />
-                          ) : null}
-                          <item.icon className="relative size-5 shrink-0" aria-hidden />
-                          {collapsed ? null : (
-                            <span className="relative flex-1 truncate">{t(item.labelKey)}</span>
-                          )}
-                          {!collapsed && navCounts[item.to] ? (
-                            <Badge
-                              tone={isActive ? 'accent' : 'neutral'}
-                              className="relative tabular-nums"
-                            >
-                              {navCounts[item.to]}
-                            </Badge>
-                          ) : null}
-                        </>
-                      )}
-                    </NavLink>
-                  </div>
-                </Tooltip>
-              ))}
-            </nav>
-          </div>
-
-          <Reveal open={favoriteAgents.length > 0}>
-            <div className="flex flex-col">
-              {collapsed ? (
-                <span aria-hidden className="border-border mx-auto my-1.5 w-6 border-t" />
-              ) : (
-                <NavSection>{t('nav.favorites')}</NavSection>
-              )}
-              <nav aria-label={t('nav.favorites')}>
-                <AnimatedList grouped={false} className="flex flex-col gap-1">
-                  {favoriteAgents.map((agent) => (
-                    <ContextMenu key={agent.id}>
-                      <ContextMenuTrigger asChild>
-                        <div className={cn('group flex items-center', !collapsed && 'gap-1')}>
-                          <Tooltip content={collapsed ? agent.name : null} side="right">
-                            <NavLink
-                              to={`/agents/${agent.id}`}
-                              aria-label={collapsed ? agent.name : undefined}
-                              className={({ isActive }) =>
-                                cn(
-                                  'ease-warm relative flex items-center rounded-xl text-[0.8125rem] transition-colors duration-150',
-                                  collapsed
-                                    ? 'mx-auto size-10 justify-center'
-                                    : 'min-w-0 flex-1 gap-2.5 px-3 py-2',
-                                  isActive
-                                    ? 'bg-accent-soft text-accent-strong'
-                                    : 'text-muted hover:bg-surface-2 hover:text-foreground',
-                                )
-                              }
-                            >
-                              <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
-                              {collapsed ? null : (
-                                <span className="relative min-w-0 flex-1 truncate">
-                                  {agent.name}
-                                </span>
-                              )}
-                            </NavLink>
-                          </Tooltip>
-
-                          {/* A favourite is one click away from running: the button keeps its place
-                            (so nothing shifts on hover) and only the installed agents get one, so
-                            the row never offers a command that would be refused. */}
-                          {!collapsed && agent.status === 'installed' ? (
-                            <Tooltip content={t('agents.runInTerminal')} side="left">
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="size-7 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
-                                aria-label={`${t('agents.runInTerminal')} — ${agent.name}`}
-                                onClick={() => runInTerminal(agent)}
-                              >
-                                <TerminalIcon className="size-3.5" aria-hidden />
-                              </Button>
-                            </Tooltip>
-                          ) : null}
-                        </div>
-                      </ContextMenuTrigger>
-
-                      {/* The collapsed rail has no room for a second button, so the same action is
-                        a right click — the pattern every other surface with actions uses. */}
-                      <ContextMenuContent aria-label={agent.name}>
-                        <ContextMenuLabel>{agent.name}</ContextMenuLabel>
-                        {agent.status === 'installed' ? (
-                          <ContextMenuItem onSelect={() => runInTerminal(agent)}>
-                            <TerminalIcon aria-hidden />
-                            {t('agents.runInTerminal')}
-                          </ContextMenuItem>
-                        ) : null}
-                      </ContextMenuContent>
-                    </ContextMenu>
-                  ))}
-                </AnimatedList>
-              </nav>
-            </div>
-          </Reveal>
-        </div>
-
-        <div
+    <TourProvider>
+      <div className="bg-background flex h-full gap-3 p-3">
+        <RouteMemory />
+        <TrayBridge />
+        <aside
           className={cn(
-            'border-border flex shrink-0 flex-col gap-2 border-t pt-2.5',
-            collapsed && 'items-center',
+            'border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col gap-2 rounded-2xl border p-2.5 transition-[width] duration-200',
+            collapsed ? 'w-[4.5rem]' : 'w-64',
           )}
         >
-          {collapsed ? null : <ScanSummary />}
-          <Tooltip content={t('nav.terminal')} side={collapsed ? 'right' : 'top'}>
-            <Button
-              variant="subtle"
-              size="sm"
-              className={cn('w-full', collapsed && 'justify-center px-0')}
-              aria-label={collapsed ? t('nav.terminal') : undefined}
-              aria-expanded={tabs.length > 0 ? expanded : undefined}
-              onClick={openTerminal}
-            >
-              <TerminalIcon className="size-3.5" aria-hidden />
-              {collapsed ? null : <span>{t('nav.terminal')}</span>}
-              {!collapsed && tabs.length > 0 ? (
-                <Badge tone="neutral" className="ml-auto tabular-nums">
-                  {tabs.length}
-                </Badge>
-              ) : null}
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('agents.rescan')} side={collapsed ? 'right' : 'top'}>
-            <Button
-              variant="subtle"
-              size="sm"
-              className={cn('w-full', collapsed && 'justify-center px-0')}
-              aria-label={collapsed ? t('agents.rescan') : undefined}
-              onClick={rescan}
-              loading={isScanning}
-            >
-              {isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
-              {collapsed ? null : <span>{t('agents.rescan')}</span>}
-            </Button>
-          </Tooltip>
-        </div>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-5xl flex-col gap-6 px-8 py-8">
-            <PageTransition scrollRef={scrollRef} />
-          </div>
-        </main>
-
-        {/* The terminal sits under every screen, in the content column: the tab strip stays
-            visible while the pages above keep working, and the sidebar keeps its full height. */}
-        {tabs.length > 0 ? (
-          <Suspense
-            fallback={
-              <div
-                aria-hidden
-                className="border-border bg-surface h-11 shrink-0 animate-pulse rounded-2xl border"
-              />
-            }
+          <div
+            className={cn(
+              'flex shrink-0 items-center',
+              collapsed ? 'justify-center' : 'justify-end',
+            )}
           >
-            <TerminalDock onNew={openNew} />
-          </Suspense>
+            <Tooltip content={toggleLabel} side="right">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={toggleLabel}
+                aria-expanded={!collapsed}
+                onClick={() => setSidebarCollapsed.mutate(!collapsed)}
+              >
+                {collapsed ? (
+                  <PanelLeftOpen className="size-4.5" aria-hidden />
+                ) : (
+                  <PanelLeftClose className="size-4.5" aria-hidden />
+                )}
+              </Button>
+            </Tooltip>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
+            <div className="flex flex-col">
+              {collapsed ? null : <NavSection>{t('nav.sections')}</NavSection>}
+              <nav aria-label={t('nav.sections')} className="flex flex-col gap-1">
+                {NAV_ITEMS.map((item) => (
+                  <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
+                    {/* The Radix trigger must be a plain element: `asChild` merges `className`,
+                      which would stringify NavLink's className function and drop every class. */}
+                    <div className="flex">
+                      <NavLink
+                        to={item.to}
+                        end={item.end}
+                        data-tour={item.tour}
+                        aria-label={collapsed ? t(item.labelKey) : undefined}
+                        className={({ isActive }) =>
+                          cn(
+                            'ease-warm relative flex items-center rounded-xl text-[0.9375rem] font-medium transition-colors duration-150',
+                            collapsed
+                              ? 'mx-auto size-11 justify-center'
+                              : 'flex-1 gap-3 px-3 py-2.5',
+                            isActive
+                              ? 'text-accent-strong'
+                              : 'text-muted hover:bg-surface-2 hover:text-foreground',
+                          )
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            {isActive ? (
+                              <motion.span
+                                aria-hidden
+                                layoutId="nav-active-pill"
+                                transition={glideTransition}
+                                className="bg-accent-soft absolute inset-0 rounded-xl"
+                              />
+                            ) : null}
+                            <item.icon className="relative size-5 shrink-0" aria-hidden />
+                            {collapsed ? null : (
+                              <span className="relative flex-1 truncate">{t(item.labelKey)}</span>
+                            )}
+                            {!collapsed && navCounts[item.to] ? (
+                              <Badge
+                                tone={isActive ? 'accent' : 'neutral'}
+                                className="relative tabular-nums"
+                              >
+                                {navCounts[item.to]}
+                              </Badge>
+                            ) : null}
+                          </>
+                        )}
+                      </NavLink>
+                    </div>
+                  </Tooltip>
+                ))}
+              </nav>
+            </div>
+
+            <Reveal open={favoriteAgents.length > 0}>
+              <div className="flex flex-col">
+                {collapsed ? (
+                  <span aria-hidden className="border-border mx-auto my-1.5 w-6 border-t" />
+                ) : (
+                  <NavSection>{t('nav.favorites')}</NavSection>
+                )}
+                <nav aria-label={t('nav.favorites')}>
+                  <AnimatedList grouped={false} className="flex flex-col gap-1">
+                    {favoriteAgents.map((agent) => (
+                      <ContextMenu key={agent.id}>
+                        <ContextMenuTrigger asChild>
+                          <div className={cn('group flex items-center', !collapsed && 'gap-1')}>
+                            <Tooltip content={collapsed ? agent.name : null} side="right">
+                              <NavLink
+                                to={`/agents/${agent.id}`}
+                                aria-label={collapsed ? agent.name : undefined}
+                                className={({ isActive }) =>
+                                  cn(
+                                    'ease-warm relative flex items-center rounded-xl text-[0.8125rem] transition-colors duration-150',
+                                    collapsed
+                                      ? 'mx-auto size-10 justify-center'
+                                      : 'min-w-0 flex-1 gap-2.5 px-3 py-2',
+                                    isActive
+                                      ? 'bg-accent-soft text-accent-strong'
+                                      : 'text-muted hover:bg-surface-2 hover:text-foreground',
+                                  )
+                                }
+                              >
+                                <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
+                                {collapsed ? null : (
+                                  <span className="relative min-w-0 flex-1 truncate">
+                                    {agent.name}
+                                  </span>
+                                )}
+                              </NavLink>
+                            </Tooltip>
+
+                            {/* A favourite is one click away from running: the button keeps its place
+                            (so nothing shifts on hover) and only the installed agents get one, so
+                            the row never offers a command that would be refused. */}
+                            {!collapsed && agent.status === 'installed' ? (
+                              <Tooltip content={t('agents.runInTerminal')} side="left">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="size-7 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
+                                  aria-label={`${t('agents.runInTerminal')} — ${agent.name}`}
+                                  onClick={() => runInTerminal(agent)}
+                                >
+                                  <TerminalIcon className="size-3.5" aria-hidden />
+                                </Button>
+                              </Tooltip>
+                            ) : null}
+                          </div>
+                        </ContextMenuTrigger>
+
+                        {/* The collapsed rail has no room for a second button, so the same action is
+                        a right click — the pattern every other surface with actions uses. */}
+                        <ContextMenuContent aria-label={agent.name}>
+                          <ContextMenuLabel>{agent.name}</ContextMenuLabel>
+                          {agent.status === 'installed' ? (
+                            <ContextMenuItem onSelect={() => runInTerminal(agent)}>
+                              <TerminalIcon aria-hidden />
+                              {t('agents.runInTerminal')}
+                            </ContextMenuItem>
+                          ) : null}
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    ))}
+                  </AnimatedList>
+                </nav>
+              </div>
+            </Reveal>
+          </div>
+
+          <div
+            className={cn(
+              'border-border flex shrink-0 flex-col gap-2 border-t pt-2.5',
+              collapsed && 'items-center',
+            )}
+          >
+            {collapsed ? null : <ScanSummary />}
+            <Tooltip content={t('nav.terminal')} side={collapsed ? 'right' : 'top'}>
+              <Button
+                variant="subtle"
+                size="sm"
+                className={cn('w-full', collapsed && 'justify-center px-0')}
+                data-tour="nav-terminal"
+                aria-label={collapsed ? t('nav.terminal') : undefined}
+                aria-expanded={tabs.length > 0 ? expanded : undefined}
+                onClick={openTerminal}
+              >
+                <TerminalIcon className="size-3.5" aria-hidden />
+                {collapsed ? null : <span>{t('nav.terminal')}</span>}
+                {!collapsed && tabs.length > 0 ? (
+                  <Badge tone="neutral" className="ml-auto tabular-nums">
+                    {tabs.length}
+                  </Badge>
+                ) : null}
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('agents.rescan')} side={collapsed ? 'right' : 'top'}>
+              <Button
+                variant="subtle"
+                size="sm"
+                className={cn('w-full', collapsed && 'justify-center px-0')}
+                aria-label={collapsed ? t('agents.rescan') : undefined}
+                onClick={rescan}
+                loading={isScanning}
+              >
+                {isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
+                {collapsed ? null : <span>{t('agents.rescan')}</span>}
+              </Button>
+            </Tooltip>
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
+            <div className="mx-auto flex max-w-5xl flex-col gap-6 px-8 py-8">
+              <PageTransition scrollRef={scrollRef} />
+            </div>
+          </main>
+
+          {/* The terminal sits under every screen, in the content column: the tab strip stays
+            visible while the pages above keep working, and the sidebar keeps its full height. */}
+          {tabs.length > 0 ? (
+            <Suspense
+              fallback={
+                <div
+                  aria-hidden
+                  className="border-border bg-surface h-11 shrink-0 animate-pulse rounded-2xl border"
+                />
+              }
+            >
+              <TerminalDock onNew={openNew} />
+            </Suspense>
+          ) : null}
+        </div>
+
+        {newOpen && catalog.data ? (
+          <NewTerminalDialog catalog={catalog.data} onOpenChange={() => setNewOpen(false)} />
         ) : null}
       </div>
-
-      {newOpen && catalog.data ? (
-        <NewTerminalDialog catalog={catalog.data} onOpenChange={() => setNewOpen(false)} />
-      ) : null}
-    </div>
+    </TourProvider>
   )
 }

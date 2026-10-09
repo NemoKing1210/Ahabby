@@ -54,56 +54,66 @@ const DESTINATIONS: [(&str, &str); 6] = [
 ];
 
 /// Every string the tray shows, in the language picked in Settings. The tray cannot read the i18n
-/// bundle — the OS draws it, not the webview — so the strings live here, next to the menu that
-/// uses them.
+/// bundle at runtime — the OS draws it, not the webview — so the strings are embedded at compile
+/// time from the same JSON files the webview renders.
 struct Labels {
-    open: &'static str,
-    go_to: &'static str,
-    run: &'static str,
-    run_empty: &'static str,
-    rescan: &'static str,
-    quit: &'static str,
-    never_scanned: &'static str,
-    agents: &'static str,
-    updates: &'static str,
+    open: String,
+    go_to: String,
+    run: String,
+    run_empty: String,
+    rescan: String,
+    quit: String,
+    never_scanned: String,
+    agents: String,
+    updates: String,
     /// Labels of [`DESTINATIONS`], in the same order.
-    nav: [&'static str; DESTINATIONS.len()],
+    nav: Vec<String>,
+}
+
+fn locale_json(language: Language) -> &'static str {
+    match language {
+        Language::En => include_str!("../../../src/shared/i18n/locales/en.json"),
+        Language::Ru => include_str!("../../../src/shared/i18n/locales/ru.json"),
+        Language::Zh => include_str!("../../../src/shared/i18n/locales/zh.json"),
+        Language::Es => include_str!("../../../src/shared/i18n/locales/es.json"),
+        Language::De => include_str!("../../../src/shared/i18n/locales/de.json"),
+        Language::Ja => include_str!("../../../src/shared/i18n/locales/ja.json"),
+        Language::Fr => include_str!("../../../src/shared/i18n/locales/fr.json"),
+    }
 }
 
 impl Labels {
     fn for_language(language: Language) -> Self {
-        match language {
-            Language::En => Self {
-                open: "Open Ahabby",
-                go_to: "Go to",
-                run: "Run in terminal",
-                run_empty: "No agent is installed",
-                rescan: "Scan again",
-                quit: "Quit Ahabby",
-                never_scanned: "Not scanned yet",
-                agents: "Agents",
-                updates: "Updates",
-                nav: ["Home", "Agents", "Projects", "Library", "Hub", "Settings"],
-            },
-            Language::Ru => Self {
-                open: "Открыть Ahabby",
-                go_to: "Перейти",
-                run: "Запустить в терминале",
-                run_empty: "Ни один агент не установлен",
-                rescan: "Сканировать заново",
-                quit: "Выйти из Ahabby",
-                never_scanned: "Ещё не сканировано",
-                agents: "Агентов",
-                updates: "Обновлений",
-                nav: [
-                    "Главная",
-                    "Агенты",
-                    "Проекты",
-                    "Библиотека",
-                    "Хаб",
-                    "Настройки",
-                ],
-            },
+        let root: serde_json::Value =
+            serde_json::from_str(locale_json(language)).expect("locale JSON");
+        let tray = &root["tray"];
+        let nav_root = &root["nav"];
+        let nav = DESTINATIONS
+            .iter()
+            .map(|(_, key)| {
+                nav_root[*key]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("nav.{key} missing in {}", language.code()))
+                    .to_string()
+            })
+            .collect();
+        let text = |key: &str| {
+            tray[key]
+                .as_str()
+                .unwrap_or_else(|| panic!("tray.{key} missing in {}", language.code()))
+                .to_string()
+        };
+        Self {
+            open: text("open"),
+            go_to: text("goTo"),
+            run: text("run"),
+            run_empty: text("runEmpty"),
+            rescan: text("rescan"),
+            quit: text("quit"),
+            never_scanned: text("neverScanned"),
+            agents: text("agents"),
+            updates: text("updates"),
+            nav,
         }
     }
 
@@ -200,10 +210,10 @@ fn plan(app_name: &str, language: Language, summary: Option<&Summary>) -> Plan {
 
     let destinations = DESTINATIONS
         .iter()
-        .zip(labels.nav)
+        .zip(&labels.nav)
         .map(|((route, _), label)| Entry::Item {
             id: format!("{NAVIGATE_PREFIX}{route}"),
-            label: label.to_string(),
+            label: label.clone(),
             enabled: true,
         })
         .collect();
@@ -438,6 +448,11 @@ mod tests {
         let raw = match language {
             "en" => include_str!("../../../src/shared/i18n/locales/en.json"),
             "ru" => include_str!("../../../src/shared/i18n/locales/ru.json"),
+            "zh" => include_str!("../../../src/shared/i18n/locales/zh.json"),
+            "es" => include_str!("../../../src/shared/i18n/locales/es.json"),
+            "de" => include_str!("../../../src/shared/i18n/locales/de.json"),
+            "ja" => include_str!("../../../src/shared/i18n/locales/ja.json"),
+            "fr" => include_str!("../../../src/shared/i18n/locales/fr.json"),
             other => panic!("unexpected locale {other}"),
         };
         serde_json::from_str(raw).expect("the locale files are JSON")
@@ -554,36 +569,79 @@ mod tests {
     fn the_tray_speaks_every_language_the_interface_does() {
         // The screens the tray offers carry the names the sidebar uses: the bundle is the truth,
         // and the table next to the menu is checked against it rather than trusted.
-        for (locale_code, language) in [("en", Language::En), ("ru", Language::Ru)] {
+        for (locale_code, language) in [
+            ("en", Language::En),
+            ("ru", Language::Ru),
+            ("zh", Language::Zh),
+            ("es", Language::Es),
+            ("de", Language::De),
+            ("ja", Language::Ja),
+            ("fr", Language::Fr),
+        ] {
             let bundle = locale(locale_code);
-            for ((route, key), label) in DESTINATIONS.iter().zip(Labels::for_language(language).nav)
+            for ((route, key), label) in DESTINATIONS
+                .iter()
+                .zip(Labels::for_language(language).nav.iter())
             {
                 assert_eq!(
                     bundle["nav"][*key].as_str(),
-                    Some(label),
+                    Some(label.as_str()),
                     "the tray's label for {route} drifted from the sidebar's"
                 );
             }
         }
 
         // Every other string is spelled out per language: a table copied twice would pass the
-        // checks above and leave a Russian user reading English.
-        let (en, ru) = (
-            Labels::for_language(Language::En),
-            Labels::for_language(Language::Ru),
-        );
-        for (field, english, russian) in [
-            ("open", en.open, ru.open),
-            ("go_to", en.go_to, ru.go_to),
-            ("run", en.run, ru.run),
-            ("run_empty", en.run_empty, ru.run_empty),
-            ("rescan", en.rescan, ru.rescan),
-            ("quit", en.quit, ru.quit),
-            ("never_scanned", en.never_scanned, ru.never_scanned),
-            ("agents", en.agents, ru.agents),
-            ("updates", en.updates, ru.updates),
+        // checks above and leave a user reading English on a non-English UI. A few short labels
+        // ("Agents", "Updates") are the same word in English and French — that is fine; the set
+        // as a whole still has to differ.
+        let english = Labels::for_language(Language::En);
+        let fingerprint = |labels: &Labels| {
+            format!(
+                "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                labels.open,
+                labels.go_to,
+                labels.run,
+                labels.run_empty,
+                labels.rescan,
+                labels.quit,
+                labels.never_scanned,
+                labels.agents,
+                labels.updates,
+                labels.nav.join("|")
+            )
+        };
+        let english_fp = fingerprint(&english);
+        for language in [
+            Language::Ru,
+            Language::Zh,
+            Language::Es,
+            Language::De,
+            Language::Ja,
+            Language::Fr,
         ] {
-            assert_ne!(english, russian, "the tray's {field} was left in English");
+            let localized = Labels::for_language(language);
+            assert_ne!(
+                fingerprint(&localized),
+                english_fp,
+                "the tray for {:?} was left in English",
+                language
+            );
+            for (field, en, loc) in [
+                ("open", &english.open, &localized.open),
+                ("go_to", &english.go_to, &localized.go_to),
+                ("run", &english.run, &localized.run),
+                ("run_empty", &english.run_empty, &localized.run_empty),
+                ("rescan", &english.rescan, &localized.rescan),
+                ("quit", &english.quit, &localized.quit),
+                (
+                    "never_scanned",
+                    &english.never_scanned,
+                    &localized.never_scanned,
+                ),
+            ] {
+                assert_ne!(en, loc, "the tray's {field} was left in English");
+            }
         }
     }
 }

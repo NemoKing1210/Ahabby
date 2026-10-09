@@ -11,6 +11,7 @@ import { cn } from '@/shared/lib/cn'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Input } from '@/shared/ui/Input'
+import { LanguageFlag } from '@/shared/ui/LanguageFlag'
 import { Select } from '@/shared/ui/Select'
 
 import {
@@ -21,7 +22,15 @@ import {
 } from '../components/SettingsSection'
 import { useSettingsDraft } from '../lib/draft'
 
-const LANGUAGE_LABEL: Record<Language, string> = { en: 'English', ru: 'Русский' }
+const LANGUAGE_LABEL: Record<Language, string> = {
+  en: 'English',
+  ru: 'Русский',
+  zh: '中文',
+  es: 'Español',
+  de: 'Deutsch',
+  ja: '日本語',
+  fr: 'Français',
+}
 
 /** Both size knobs offer the same steps: they are different axes, not different scales. */
 const SCALE_STEPS = [90, 100, 110, 125] as const
@@ -140,6 +149,7 @@ export function SettingsAppearancePage() {
               options={LANGUAGES.map((language) => ({
                 value: language,
                 label: LANGUAGE_LABEL[language],
+                icon: <LanguageFlag language={language} />,
               }))}
               className="min-w-40"
             />

@@ -319,6 +319,11 @@ impl AppState {
         self.settings.set_last_route(route)
     }
 
+    /// Remember that the product tour was finished or skipped.
+    pub fn set_tour_completed(&self, completed: bool) -> Result<Settings> {
+        self.settings.set_tour_completed(completed)
+    }
+
     /// Adopt the login item the OS actually holds, so the settings page never claims something
     /// this machine does not do. Written by the startup check in `run()`, never by the UI.
     pub fn set_launch_at_login(&self, enabled: bool) -> Result<Settings> {

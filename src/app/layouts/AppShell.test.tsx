@@ -21,6 +21,7 @@ vi.mock('@/shared/api/ipc', () => ({
     getSettings: vi.fn(),
     setSidebarCollapsed: vi.fn(),
     setLastRoute: vi.fn(),
+    setTourCompleted: vi.fn(),
     cachedAgents: vi.fn(),
     listAgents: vi.fn(),
     listLibrary: vi.fn(),
@@ -72,6 +73,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     startMinimized: false,
     sidebarCollapsed: false,
     lastRoute: null,
+    tourCompleted: true,
     ...overrides,
   }
 }

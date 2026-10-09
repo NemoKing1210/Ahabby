@@ -57,10 +57,10 @@ export function useSaveSettings() {
 /**
  * Collapses or opens the sidebar rail.
  *
- * The two shell-owned settings (`sidebarCollapsed`, `lastRoute`) are written by these hooks, not
- * by `useSaveSettings`: the backend keeps them out of a whole-document save, so the Settings
- * page's draft can never roll them back. The rail moves from the click instead of from the round
- * trip, and falls back to where it was if the write fails.
+ * Shell-owned settings (`sidebarCollapsed`, `lastRoute`, `tourCompleted`) are written by these
+ * hooks, not by `useSaveSettings`: the backend keeps them out of a whole-document save, so the
+ * Settings page's draft can never roll them back. The rail moves from the click instead of from
+ * the round trip, and falls back to where it was if the write fails.
  */
 export function useSetSidebarCollapsed() {
   const client = useQueryClient()
@@ -85,6 +85,25 @@ export function useSetLastRoute() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (route: string) => ipc.setLastRoute(route),
+    onSuccess: (saved) => client.setQueryData(queryKeys.settings(), saved),
+  })
+}
+
+/** Remembers that the product tour was finished or skipped. */
+export function useSetTourCompleted() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (completed: boolean) => ipc.setTourCompleted(completed),
+    onMutate: (completed) => {
+      const previous = client.getQueryData<Settings>(queryKeys.settings())
+      if (previous) {
+        client.setQueryData(queryKeys.settings(), { ...previous, tourCompleted: completed })
+      }
+      return { previous }
+    },
+    onError: (_error, _completed, context) => {
+      if (context?.previous) client.setQueryData(queryKeys.settings(), context.previous)
+    },
     onSuccess: (saved) => client.setQueryData(queryKeys.settings(), saved),
   })
 }

@@ -1,7 +1,8 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import en from '@/shared/i18n/locales/en.json'
-import ru from '@/shared/i18n/locales/ru.json'
 
 /** Flattens nested translation objects into dotted keys. */
 function flatten(value: unknown, prefix = ''): string[] {
@@ -11,11 +12,25 @@ function flatten(value: unknown, prefix = ''): string[] {
   )
 }
 
+const localeDir = join(process.cwd(), 'src/shared/i18n/locales')
+const localeFiles = readdirSync(localeDir).filter(
+  (name) => name.endsWith('.json') && name !== 'en.json',
+)
+
+const locales = Object.fromEntries(
+  localeFiles.map((file) => {
+    const code = file.replace(/\.json$/, '')
+    const raw = readFileSync(join(localeDir, file), 'utf8')
+    return [code, JSON.parse(raw) as Record<string, unknown>]
+  }),
+)
+
 describe('locales', () => {
   it('define exactly the same keys in every language', () => {
     const english = flatten(en).sort()
-    const russian = flatten(ru).sort()
-    expect(russian).toEqual(english)
+    for (const [code, messages] of Object.entries(locales)) {
+      expect(flatten(messages).sort(), `${code} keys`).toEqual(english)
+    }
   })
 
   it('have no empty strings', () => {
@@ -27,8 +42,10 @@ describe('locales', () => {
       )
     }
 
-    for (const [key, text] of [...entries(en), ...entries(ru)]) {
-      expect(text.trim().length, `empty translation: ${key}`).toBeGreaterThan(0)
+    for (const [code, messages] of Object.entries({ en, ...locales })) {
+      for (const [key, text] of entries(messages)) {
+        expect(text.trim().length, `${code}: empty translation: ${key}`).toBeGreaterThan(0)
+      }
     }
   })
 })

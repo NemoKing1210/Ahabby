@@ -87,7 +87,7 @@ export function LibraryToolbar({
   const facetVisible = facet !== null && facet.options.length > 1
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" data-tour="library-toolbar">
       <div className="flex flex-wrap items-center gap-2">
         <Input
           className="w-64 shrink-0"

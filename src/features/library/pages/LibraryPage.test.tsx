@@ -160,6 +160,7 @@ const SETTINGS: Settings = {
   startMinimized: false,
   sidebarCollapsed: false,
   lastRoute: null,
+  tourCompleted: true,
 }
 
 /**

@@ -151,7 +151,11 @@ export function ProjectsPage() {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => setAddOpen(true)}>
+          <Button
+            variant="secondary"
+            data-tour="projects-add-folder"
+            onClick={() => setAddOpen(true)}
+          >
             <Plus className="size-3.5" aria-hidden />
             {t('projects.addFolder')}
           </Button>

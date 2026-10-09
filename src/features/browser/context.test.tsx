@@ -133,4 +133,13 @@ describe("Ahabby's own browser", () => {
     expect(ipc.fetchWebPage).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  it('cancels a drag on a link so the WebView does not start a URL drag', () => {
+    withLink(GUIDE)
+    const link = screen.getByRole('link', { name: 'the docs' })
+    // jsdom has no `DragEvent`; a cancelable `Event` is enough to prove the door stops it.
+    const event = new Event('dragstart', { bubbles: true, cancelable: true })
+    link.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+  })
 })

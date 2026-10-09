@@ -195,9 +195,13 @@
   /* Desktop feel: the chrome is not a document, so a drag across it must not leave a blue
      smear, and dragging a card must not start a text selection. Text that is actually copied
      opts back in — form fields, code, rendered markdown, the config editor — as does anything
-     that opts in with `select-text`. */
+     that opts in with `select-text`. Links also must not start a browser-style URL drag. */
   body {
     user-select: none;
+  }
+
+  a {
+    -webkit-user-drag: none;
   }
 
   input,
