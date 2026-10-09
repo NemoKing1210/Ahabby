@@ -16,6 +16,7 @@ pub mod skills;
 pub mod sync;
 pub mod terminal;
 pub mod web;
+pub mod window;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

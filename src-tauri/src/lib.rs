@@ -114,6 +114,11 @@ macro_rules! handlers {
             commands::terminal::open_in_terminal,
             commands::web::fetch_web_page,
             commands::web::fetch_web_image,
+            commands::window::window_chrome,
+            commands::window::window_start_drag,
+            commands::window::window_minimize,
+            commands::window::window_toggle_maximize,
+            commands::window::window_close,
         ]
     };
 }
@@ -146,10 +151,20 @@ pub fn run() {
         // The close button is the tray's business: with `close_to_tray` the window is not closed
         // at all, it is put away, and Ahabby lives on in the tray until `Quit` is picked there.
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if desktop::window::close_to_tray(window.app_handle()) {
-                    api.prevent_close();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    if desktop::window::close_to_tray(window.app_handle()) {
+                        api.prevent_close();
+                    }
                 }
+                // Whatever moved the window — the app's own header, the OS (a snap, a double
+                // click, Win+Up), the tray or a resize — the header it draws itself is told
+                // about it here: nothing else can see a maximize the OS performed behind the
+                // webview's back. The state is only sent when it actually changed.
+                tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Focused(_) => {
+                    desktop::window::report(window.app_handle());
+                }
+                _ => {}
             }
         })
         .setup(|app| {
@@ -186,6 +201,11 @@ pub fn run() {
                     let theme = services::SettingsService::load(&config).get().theme;
                     let _ = commands::settings::paint_startup_window_theme(window, theme);
                 }
+                // The frame the OS would draw is taken off while the window is still hidden: on
+                // Windows the webview paints the header itself (`desktop::window::custom_chrome`),
+                // and a caption that was on screen for a frame would be a flicker of a bar the app
+                // never shows again.
+                desktop::window::apply_chrome(window);
                 // A launch that starts in the tray leaves the window hidden — but only when a tray
                 // icon is really there: a platform that could not create one must never leave a
                 // running process with no surface to click, whatever the settings file says.

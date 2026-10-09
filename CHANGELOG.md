@@ -5,6 +5,31 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.0] - 2026-10-09
+
+### Changed
+
+- **The window wears Ahabby's own header on Windows.** The system caption is gone: the strip above the
+  sidebar is the app's own — no mark and no product name, just the three window buttons in the palette the
+  rest of the interface uses, dimmed while the window is not the active one, with the middle button turning
+  into a restore as soon as the window is maximized. The whole strip drags the window and a double click
+  maximizes it, exactly as a caption does, while snapping, the resize borders and the drop shadow stay the
+  system's. The bar is the content column's own top row, so the sidebar beside it now runs the window's full
+  height — from the top inset to the bottom one — instead of stopping under a strip across the whole window.
+  macOS and Linux keep the frame their own desktop gives them, and the bar is simply not drawn there.
+
+## [0.51.3] - 2026-10-09
+
+### Changed
+
+- **A file this machine was never given reads as such in the cloud library.** A declared config that is
+  not on disk — every agent ships a few — sorts after the files that are there, in its owner's group, and
+  wears the dashed, sunken outline of a config that was never created. The state it cannot honestly carry
+  ("not saved") gives way to "not on this machine", and it offers no Save, which had nothing to upload.
+- **The library's rows read as the app's cards.** They are the same card the agent list wears — the standard
+  gap between them, the corners facing a neighbour a step smaller than the exposed ones, and the card's own
+  padding — instead of hand-rolled boxes sitting further apart with all four corners fully round.
+
 ## [0.51.2] - 2026-10-09
 
 ### Added

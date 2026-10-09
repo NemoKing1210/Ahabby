@@ -1023,6 +1023,13 @@
     "agents": "Agentes",
     "updates": "Actualizaciones"
   },
+  "window": {
+    "bar": "Controles de la ventana",
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar",
+    "close": "Cerrar"
+  },
   "settings": {
     "title": "Ajustes",
     "subtitle": "Cada área de Ahabby, agrupada: cada sección es su propia página.",

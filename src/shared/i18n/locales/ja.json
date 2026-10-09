@@ -1023,6 +1023,13 @@
     "agents": "エージェント",
     "updates": "更新"
   },
+  "window": {
+    "bar": "ウィンドウ操作",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元に戻す",
+    "close": "閉じる"
+  },
   "settings": {
     "title": "コンテンツ",
     "subtitle": "Ahabbyの各領域をグループ化し、各セクションは独自のページです。",

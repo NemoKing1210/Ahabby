@@ -98,6 +98,17 @@ function ownerRefOf(owners: SyncOwners, ownerId: string, name: string): AgentRef
 }
 
 /**
+ * The files this machine holds first, and the declared file it was never given last.
+ *
+ * Nothing can be saved from a file that is not on disk, so an item that is not here belongs after
+ * the ones that are — the order a config that was never created already keeps on an agent's own
+ * Configs tab, which is also where its dashed, sunken look comes from.
+ */
+function byPresence(items: SyncItem[]): SyncItem[] {
+  return [...items.filter((item) => item.exists), ...items.filter((item) => !item.exists)]
+}
+
+/**
  * The owner-kind sub-tabs one half of the library has.
  *
  * A kind no owner of that half belongs to is not offered at all: a machine with no projects does
@@ -125,6 +136,10 @@ function facetCount(entries: { ownerId: string }[], facet: SyncOwnerFacet): numb
  * names the owner and how many copies it covers). Every row adds a right-click menu with the
  * actions a row has no room for. The local half is where selecting and saving happens; the cloud
  * half is where a copy is restored, refreshed or deleted.
+ *
+ * A local item whose file is not on this machine is the exception to "this machine" the screen has
+ * to make room for: it is the last row of its owner's group and wears the dashed look of a config
+ * that was never created, because nothing can be saved from it.
  *
  * Every filter — the tab, the owner kind, the search box, the item kinds — lives in the session
  * store, so leaving the screen and coming back finds the library as it was left.
@@ -259,8 +274,9 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
         }
       >
         {/* The group's list wraps every child in its own `<li>`, so a row is the context menu
-            and its row — never a list item of its own. */}
-        {items.map((item) => {
+            and its row — never a list item of its own. The files that are here come first: a row
+            for a file this machine was never given is the last thing in its owner's group. */}
+        {byPresence(items).map((item) => {
           const copy = item.remoteId
           const compare = copy
             ? () => setComparing(compareOf(copy, item.ownerId, owner, item.label))

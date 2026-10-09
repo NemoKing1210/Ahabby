@@ -89,10 +89,11 @@ export function SyncOwnerGroup({
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
 
+      {/* The rows are the cards of a page list, so they are one concentric run (`.ah-card-group`,
+          rendered by `AnimatedList` itself): a `--group-gap` apart, with only the corners at the
+          exposed ends keeping the full radius — the same treatment the agent list uses. */}
       <Reveal open={!collapsed}>
-        <AnimatedList as="ul" grouped={false} className="flex flex-col gap-2">
-          {children}
-        </AnimatedList>
+        <AnimatedList as="ul">{children}</AnimatedList>
       </Reveal>
     </section>
   )

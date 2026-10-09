@@ -1023,6 +1023,13 @@
     "agents": "代理",
     "updates": "更新"
   },
+  "window": {
+    "bar": "窗口控制",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
+  },
   "settings": {
     "title": "设置",
     "subtitle": "Ahabby的每一个地区都分组——每个部分都是自己的页面.",

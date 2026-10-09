@@ -55,6 +55,7 @@ import { useTerminalStore } from '@/features/terminal/store'
 import { TourProvider } from '@/features/tour/TourProvider'
 
 import { TrayBridge } from './TrayBridge'
+import { TitleBar } from './TitleBar'
 
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.home', icon: House, end: true, tour: 'nav-home' },
@@ -245,8 +246,10 @@ export function AppShell() {
       : undefined,
   }
 
-  // The window is one flat background; the sidebar floats over it as an inset panel, so the
-  // rail never fuses with the window edges and reads as its own surface.
+  // The window is one flat background; the sidebar floats over it as an inset panel, so the rail
+  // never fuses with the window edges and reads as its own surface — and it is as tall as the
+  // window's padding allows, which is why the header is not above it: the bar is the content
+  // column's own top row, and the rail runs from the top inset to the bottom one beside it.
   return (
     <TourProvider>
       <div className="bg-background flex h-full gap-3 p-3">
@@ -457,6 +460,7 @@ export function AppShell() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <TitleBar />
           <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-5xl flex-col gap-6 px-8 py-8">
               <PageTransition scrollRef={scrollRef} />

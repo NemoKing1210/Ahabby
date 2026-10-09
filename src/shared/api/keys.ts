@@ -22,6 +22,8 @@ export const queryKeys = {
   hubSkillCompare: (entryId: string, ownerId: string) =>
     ['hub-skill-compare', entryId, ownerId] as const,
   settings: () => ['settings'] as const,
+  /** Where the window is (maximized, focused) and whether the app draws its own header. */
+  windowChrome: () => ['window-chrome'] as const,
   /** The cloud sync connection and the last runs. */
   syncStatus: () => ['sync-status'] as const,
   /** The syncable items of this machine, optionally one owner's. */

@@ -1,8 +1,9 @@
 /**
  * Typed access to the backend's event bus.
  *
- * Three families of events: install/update jobs (`job://…`), scans (`scan://…`) and the tray
- * (`tray://…`). Event names must match `state::events` in Rust (asserted by
+ * The families of events: install/update jobs (`job://…`), scans (`scan://…`), the tray
+ * (`tray://…`), terminal sessions (`terminal://…`), cloud sync (`sync://…`) and the window's own
+ * chrome (`window://…`). Event names must match `state::events` in Rust (asserted by
  * `src-tauri/src/state.rs` tests).
  */
 
@@ -15,6 +16,7 @@ import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { SyncEvent } from '@/shared/bindings/SyncEvent'
 import type { TerminalExit } from '@/shared/bindings/TerminalExit'
 import type { TerminalOutput } from '@/shared/bindings/TerminalOutput'
+import type { WindowChrome } from '@/shared/bindings/WindowChrome'
 
 export const JOB_OUTPUT_EVENT = 'job://output'
 export const JOB_DONE_EVENT = 'job://done'
@@ -26,6 +28,7 @@ export const TERMINAL_EXIT_EVENT = 'terminal://exit'
 export const TRAY_NAVIGATE_EVENT = 'tray://navigate'
 export const TRAY_RUN_AGENT_EVENT = 'tray://run-agent'
 export const SYNC_DONE_EVENT = 'sync://done'
+export const WINDOW_STATE_EVENT = 'window://state'
 
 export function onJobOutput(handler: (event: JobOutputEvent) => void): Promise<UnlistenFn> {
   return listen<JobOutputEvent>(JOB_OUTPUT_EVENT, (event) => {
@@ -99,6 +102,19 @@ export function onTrayRunAgent(handler: (agentId: string) => void): Promise<Unli
  */
 export function onSyncDone(handler: (event: SyncEvent) => void): Promise<UnlistenFn> {
   return listen<SyncEvent>(SYNC_DONE_EVENT, (event) => {
+    handler(event.payload)
+  })
+}
+
+/**
+ * The window's own chrome moved: it was maximized or restored, or it became the active window
+ * (or stopped being it).
+ *
+ * Only a state the header does not already have is sent — the backend keeps the last one it
+ * published — so a resize drag is not a burst of events.
+ */
+export function onWindowState(handler: (chrome: WindowChrome) => void): Promise<UnlistenFn> {
+  return listen<WindowChrome>(WINDOW_STATE_EVENT, (event) => {
     handler(event.payload)
   })
 }

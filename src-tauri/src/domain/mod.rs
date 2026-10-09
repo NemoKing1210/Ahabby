@@ -25,6 +25,7 @@ pub mod sync;
 pub mod terminal;
 pub mod version;
 pub mod web;
+pub mod window;
 
 pub use agent::{
     Agent, AgentRef, AgentRemoval, AgentStatus, Detection, HiddenAgent, InstallAction,
@@ -75,6 +76,7 @@ pub use terminal::{
 };
 pub use version::Version;
 pub use web::{WebImage, WebPage, WebPageKind};
+pub use window::WindowChrome;
 
 /// Default for a `bool` field added after a report was cached.
 ///

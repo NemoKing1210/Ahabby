@@ -59,6 +59,7 @@ import type { TerminalSession } from '@/shared/bindings/TerminalSession'
 import type { Theme } from '@/shared/bindings/Theme'
 import type { WebImage } from '@/shared/bindings/WebImage'
 import type { WebPage } from '@/shared/bindings/WebPage'
+import type { WindowChrome } from '@/shared/bindings/WindowChrome'
 
 export const ipc = {
   // --- agents -------------------------------------------------------------------------
@@ -311,4 +312,21 @@ export const ipc = {
   fetchWebPage: (url: string) => invoke<WebPage>('fetch_web_page', { url }),
   /** One image of a page, base64, which the reader turns into a `data:` URL. */
   fetchWebImage: (url: string) => invoke<WebImage>('fetch_web_image', { url }),
+
+  // --- the window itself --------------------------------------------------------------
+  /**
+   * Where the window is, and whether the app draws its own header at all.
+   *
+   * A window the OS frames (macOS, Linux) has no header to draw — `custom` is what says so.
+   * Later changes arrive on `window://state`: the OS can maximize or focus the window without
+   * ever asking the webview.
+   */
+  windowChrome: () => invoke<WindowChrome>('window_chrome'),
+  /** Follow the cursor with the window: what the header's drag region asks for on a mouse down. */
+  windowStartDrag: () => invoke<void>('window_start_drag'),
+  windowMinimize: () => invoke<void>('window_minimize'),
+  /** Maximize a windowed window, restore a maximized one; answers the new state. */
+  windowToggleMaximize: () => invoke<WindowChrome>('window_toggle_maximize'),
+  /** The OS's own close request, so a window kept in the tray is put away rather than closed. */
+  windowClose: () => invoke<void>('window_close'),
 }

@@ -47,6 +47,9 @@ pub mod events {
     pub const TRAY_RUN_AGENT: &str = "tray://run-agent";
     /// A cloud sync run finished (manual or automatic): the payload is the [`SyncRun`].
     pub const SYNC_DONE: &str = "sync://done";
+    /// The window's own chrome moved (maximized, restored, focused or not): the payload is the
+    /// [`WindowChrome`](crate::domain::WindowChrome).
+    pub const WINDOW_STATE: &str = "window://state";
 }
 
 /// Emits job progress to the webview.
@@ -862,6 +865,7 @@ mod tests {
         assert_eq!(events::TERMINAL_EXIT, "terminal://exit");
         assert_eq!(events::TRAY_NAVIGATE, "tray://navigate");
         assert_eq!(events::TRAY_RUN_AGENT, "tray://run-agent");
+        assert_eq!(events::WINDOW_STATE, "window://state");
     }
 
     fn manifest(id: &str, source: ManifestSource) -> AgentManifest {

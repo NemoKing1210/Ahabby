@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.51.2`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.52.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -50,9 +50,9 @@ commands → services → adapters → catalog → domain
 - `commands` — thin Tauri command surface; validates input, calls a service.
 - `desktop` — the three surfaces the OS draws _for_ Ahabby and no service can own, because each needs
   the live `AppHandle`: the tray icon and its menu (`desktop::tray`), the window's life cycle
-  (`desktop::window` — show, hide, and whether the close button quits) and the login item
-  (`desktop::autostart`). It depends on `state`/`services` and nothing depends on it, which is why it
-  sits beside `state.rs` rather than inside the service layer.
+  (`desktop::window` — show, hide, whether the close button quits, and the frame the OS draws around it)
+  and the login item (`desktop::autostart`). It depends on `state`/`services` and nothing depends on it,
+  which is why it sits beside `state.rs` rather than inside the service layer.
 
 Data flow:
 
@@ -89,7 +89,7 @@ Frontend boundaries (enforce them):
 - **`src/shared/api/ipc.ts` is the only module that calls Tauri `invoke`.** No component or hook calls it.
 - **`src/shared/api/events.ts` is the only module that calls `listen`** (`job://output`, `job://done`,
   `scan://…`, `terminal://output`, `terminal://exit`, `tray://navigate`, `tray://run-agent`,
-  `sync://done`).
+  `sync://done`, `window://state`).
 - Server state = React Query (per-feature `api/` hooks, keys in `src/shared/api/keys.ts`). Zustand is used in
   exactly three places: the install-job console store, the toast store and the terminal tab store.
 - Routing is hash-based (`createHashRouter` in `src/app/router.tsx`) because the packaged app has no server SPA
@@ -121,7 +121,7 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 | `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                                                                                                           |
 | `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                                                                                                                        |
 | `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                                                                                                                       |
-| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services                                                                                                        |
+| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle and frame (`window.rs`), login item (`autostart.rs`) — app-level, not services                                                                                              |
 | `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                                                                                                          |
 | `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                                                                                                                       |
 | `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                                                                                                            |
@@ -338,6 +338,19 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   (`app/routeMemory.ts`) and the settings straight into a query cache primed for `AppShell`. The rail is
   therefore already collapsed and the right screen is the first thing painted; a hash the app was started
   with wins over the remembered route.
+- **The shell carries the window's own header, where the OS draws no frame.** `app/layouts/TitleBar.tsx`
+  renders nothing until `app/window.ts` says `custom` (Windows only — `desktop::window::custom_chrome`),
+  which `boot()` primes out of `window://state`'s sibling query before the first render so the header is
+  never a paint behind the panels. It holds no mark and no product name: the whole strip drags the window
+  on the first press of the left button and maximizes it on the second (the `detail` check is Tauri's own
+  drag-region rule, so the second press does not start another drag), and the three buttons on the right
+  are the window's — minimize, maximize/restore, close — each one command in `desktop::window`. An inactive
+  window dims them, and the middle one follows `maximized` from `window://state`, which is how a maximize
+  the OS performed behind the webview's back (a snap, a double click, Win+Up) still turns the icon around.
+  The labels live under `window.*` in the locales. The bar is the content column's **top row**, not a strip
+  across the window: the rail beside it runs the window's full height — from the shell's top inset to its
+  bottom one — so nothing is ever drawn above the sidebar and the window's controls stay where a caption's
+  are.
 - **A filter outlives the screen that set it.** Leaving a screen unmounts it, so the search box, the facet
   chips, the Hub's kind/source/tags and the Library's tab, owner, origin, sort and activity are held in
   `shared/lib/sessionState.ts` — a process-lifetime map read and written by `useSessionState`, which is a
@@ -375,7 +388,13 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   verdicts and `BackupDiff` from `features/editor`, with Restore in the footer — the diff _is_ its review,
   the way the editor's backup comparison works, so no second dialog). Saving is per item, per group or everything at once;
   restoring always goes through
-  the preview or a confirmation, never straight from a click. The tab, search box and kind filter (chips with
+  the preview or a confirmation, never straight from a click. A declared file this machine was never given —
+  a config that is not on disk — is not a file that can be saved: it is the last row of its owner's group and
+  wears the dashed, sunken look of a config that was never created, saying it is not here in place of a state
+  badge and offering no Save. The rows themselves are `Card`s of the concentric run `AnimatedList` renders
+  by default (`.ah-card-group`: a `--group-gap` apart, only the corners at the exposed ends keeping the full
+  radius), exactly as the agent list wears them — the library is a page-level list of cards, not a set of
+  boxes that happen to have borders. The tab, search box and kind filter (chips with
   per-kind counts) live in the session store like every other filter. A run that finishes on its own is
   painted from `sync://done` (`app/providers.tsx` invalidates the status, item and library keys), so an
   automatic save is on screen without a refresh.
@@ -384,14 +403,30 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
 
 - **Every disk write goes through `platform::write_atomic`** (temp file → fsync → rename, timestamped
   backup first, Unix permissions preserved). Do not open a config file for writing anywhere else.
-- The native title bar is painted by `set_window_theme` → `platform::set_window_chrome`. On Windows it
+- **The window wears Ahabby's own header on Windows, and the OS's frame everywhere else.**
+  `tauri.conf.json` asks for decorations, and `run()`'s setup takes them off on Windows only — while the
+  window is still hidden, so no caption is ever painted (`desktop::window::apply_chrome`, whose
+  `custom_chrome()` is what the frontend's `TitleBar` renders from). Windows is the platform that gains
+  from it: tao keeps the resizable style and the DWM shadow of an undecorated window, so snapping, the
+  resize borders and the drop shadow stay the system's. macOS and Linux keep their frame — tao drops the
+  traffic lights entirely from a window without decorations, and an undecorated Linux window loses its
+  resize borders. The window's own four operations (`window_start_drag`, `window_minimize`,
+  `window_toggle_maximize`, `window_close`) are commands, because the webview is given no window
+  permission of its own; `window_close` is the OS's own close request, so `close_to_tray` decides what
+  happens to it. `window_toggle_maximize` and `window_chrome` answer with a `WindowChrome`, and every
+  change the OS makes behind the webview's back — a maximize, a restore, a snap, a focus change — is
+  pushed on `window://state` from the window's own event handler, which only sends a state that changed
+  (`desktop::window::report`).
+- The native caption is painted by `set_window_theme` → `platform::set_window_chrome`. On Windows it
   must go through DWM, not `Window::set_theme`: tao turns that into a theme change that reaches our own
   webview and flips the `prefers-color-scheme` a `system` theme is resolved from. The window is created
   hidden (`visible: false`) and `run()`'s setup paints the chrome from the settings file and only then shows
   it: the webview cannot colour the caption before its bundle, stylesheet and settings round-trip exist, and
   our own setup runs only after WebView2 is up — so a window shown at creation would wear the OS caption for
   the whole splash. The palette is the one copy of the `--ah-background`/`--ah-foreground` tokens in
-  `platform::chrome_tokens` (a unit test reads `globals.css` and fails if the two drift).
+  `platform::chrome_tokens` (a unit test reads `globals.css` and fails if the two drift), and it is also what
+  fills the frame region DWM leaves around an undecorated window — which is why the header sits on the same
+  colour as the app.
 - Services take a `PlatformContext` and must not depend on `AppHandle` (except where a `JobSink` is needed).
   The tray, the window and the login item need one, which is why they live in `desktop/` and not in a service.
 - **The reader fetches, the frontend sanitizes.** `services::web` reads one page — `http(s)` only, host
@@ -644,7 +679,10 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   entry is already installed for with the name a chosen owner already holds refused, and the entry
   context menu), the terminal tab store (buffered output, finishing and closing a tab, an exit that beat its
   tab, and reconciling with the backend in both directions), `TerminalView` (the scheme it paints the panel
-  with, and that a remount shows the session's own emulator again rather than a fresh, blank one), the animated
+  with, and that a remount shows the session's own emulator again rather than a fresh, blank one), the
+  window's own header (`TitleBar`: nothing where the OS frames the window, a press on the bar dragging it
+  while a press on a button does not, the second press maximizing instead of dragging, and the middle
+  button turning into a restore as its answer lands), the animated
   list (the row order it renders, and a removed row staying in
   the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
   composed within one tick, and one key not leaking into another), the Settings areas (appearance,

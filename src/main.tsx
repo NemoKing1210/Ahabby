@@ -47,6 +47,16 @@ async function boot() {
     // A missing/unreadable settings file is not fatal: fall back to the defaults.
     themeApplier.apply('system')
   }
+
+  // Where the window is, read before the first render for the same reason as the settings: a
+  // window the OS frames draws no header, and one that does must not have the header appear a
+  // paint later, moving every panel down with it.
+  try {
+    client.setQueryData(queryKeys.windowChrome(), await ipc.windowChrome())
+  } catch {
+    // No window to ask (UI-only work in a browser): there is no header to draw either.
+  }
+
   initI18n(language)
 
   ReactDOM.createRoot(container).render(

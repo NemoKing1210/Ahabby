@@ -417,6 +417,42 @@ describe('Settings → cloud sync', () => {
     )
   })
 
+  it('sorts a file this machine was never given last, and says what it is', async () => {
+    // A declared config that was never created here: it is in the scan, and nowhere else.
+    const ABSENT: SyncItem = {
+      ...CONFIG,
+      id: 'config|.aider.conf.yml#zzz',
+      key: 'config|.aider.conf.yml',
+      name: '.aider.conf.yml',
+      label: '.aider.conf.yml',
+      path: '/home/u/.aider.conf.yml',
+      relativePath: '~/.aider.conf.yml',
+      files: 0,
+      sizeBytes: 0,
+      exists: false,
+      status: 'unsynced',
+      remoteId: null,
+      remoteUri: null,
+      syncedAtMs: null,
+    }
+    await openSync({ items: [ABSENT, INSTRUCTION, CONFIG] })
+
+    // One owner, three rows: the two files that are here, then the one that is not.
+    const rows = await screen.findAllByRole('checkbox')
+    expect(rows.map((box) => box.getAttribute('aria-label'))).toEqual([
+      'AGENTS.md',
+      'Settings',
+      '.aider.conf.yml',
+    ])
+    // The row reports where it stands — nowhere — instead of a state it cannot have...
+    expect(screen.getByText('Not on this machine')).toBeInTheDocument()
+    expect(screen.queryByText('Not saved')).not.toBeInTheDocument()
+    // ...and there is nothing on disk to upload, so its Save is not offered. The page's own Save
+    // is a different button, so the row is what is looked in.
+    const row = rows[2]?.closest('li') as HTMLElement
+    expect(within(row).getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
   it('cuts the library into owner sub-tabs, each with what it holds', async () => {
     await openSync({ items: [INSTRUCTION, CONFIG, CURSOR, SHARED_ITEM, PROJECT_ITEM] })
     const user = userEvent.setup()

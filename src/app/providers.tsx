@@ -9,6 +9,7 @@ import {
   onSyncDone,
   onTerminalExit,
   onTerminalOutput,
+  onWindowState,
 } from '@/shared/api/events'
 import { queryKeys } from '@/shared/api/keys'
 import { Toaster } from '@/shared/ui/Toast'
@@ -99,6 +100,32 @@ function SyncEventBridge() {
 }
 
 /**
+ * Keeps the header's own state current.
+ *
+ * The window can be maximized, restored or left unfocused without the webview ever being asked
+ * — by the OS (a snap, Win+Up), by the tray, or by the header's own buttons — so the state is
+ * pushed from the backend's window events rather than read back after every action. The backend
+ * sends only what changed, which is what keeps a resize drag from being a stream of events.
+ */
+function WindowChromeBridge() {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const listeners = [
+      onWindowState((chrome) => queryClient.setQueryData(queryKeys.windowChrome(), chrome)),
+    ]
+
+    return () => {
+      void Promise.all(listeners).then((unlisten) => {
+        for (const off of unlisten) off()
+      })
+    }
+  }, [queryClient])
+
+  return null
+}
+
+/**
  * Bridges the backend's terminal sessions into the tab store.
  *
  * Output has to be routed even for a tab that is not on screen, which is why the subscription
@@ -154,6 +181,7 @@ export function AppProviders({ children, client }: { children: ReactNode; client
           <JobEventBridge />
           <SyncEventBridge />
           <TerminalEventBridge />
+          <WindowChromeBridge />
           <ScanRefreshProvider>
             {/* Ahabby's own browser sits above every screen: one click listener catches the
                 external links anywhere in the app, and the reader is a modal over the shell. */}

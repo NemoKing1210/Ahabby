@@ -27,6 +27,7 @@ vi.mock('@/shared/api/ipc', () => ({
     listAgents: vi.fn(),
     listLibrary: vi.fn(),
     listTerminals: vi.fn(),
+    windowChrome: vi.fn(),
   },
 }))
 
@@ -85,7 +86,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
  * and only the commands the shell actually calls are mocked. What is asserted here is the pair of
  * remembered values — the rail and the open screen — from the click to the write.
  */
-function renderShell(stored = settings(), route = '/agents') {
+function renderShell(stored = settings(), route = '/agents', customChrome = false) {
   vi.mocked(ipc.cachedAgents).mockResolvedValue(null)
   vi.mocked(ipc.listAgents).mockResolvedValue(REPORT)
   vi.mocked(ipc.listLibrary).mockResolvedValue({
@@ -107,6 +108,13 @@ function renderShell(stored = settings(), route = '/agents') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(queryKeys.settings(), stored)
   client.setQueryData(queryKeys.agents(), REPORT)
+  // A window the OS frames by default — what the shell looks like on macOS and Linux, where the
+  // header is never drawn — so the tests below see the shell alone.
+  client.setQueryData(queryKeys.windowChrome(), {
+    custom: customChrome,
+    maximized: false,
+    focused: true,
+  })
 
   const router = createMemoryRouter(
     [
@@ -195,5 +203,27 @@ describe('AppShell', () => {
 
     expect(await screen.findByText('agents screen')).toBeInTheDocument()
     expect(ipc.setLastRoute).not.toHaveBeenCalled()
+  })
+
+  it('keeps the rail as tall as the window, with the header beside it', () => {
+    renderShell(settings(), '/agents', true)
+
+    const rail = screen.getByRole('complementary')
+    const header = screen.getByRole('banner')
+
+    // The header is not above the rail but beside it — the rail runs the window's full height,
+    // from one 12px inset to the other, and the bar is the top row of the column to its right.
+    expect(rail.contains(header)).toBe(false)
+    expect(rail.parentElement?.contains(header)).toBe(true)
+    expect(header.parentElement).toBe(screen.getByRole('main').parentElement)
+  })
+
+  it('draws no header where the OS frames the window', () => {
+    renderShell(settings(), '/agents', false)
+
+    expect(screen.queryByRole('banner')).toBeNull()
+    expect(
+      screen.getByRole('complementary').parentElement?.contains(screen.getByRole('main')),
+    ).toBe(true)
   })
 })

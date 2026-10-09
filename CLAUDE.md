@@ -35,9 +35,12 @@ Rust dependencies point one way: `commands → services → adapters → catalog
 
 A terminal session is a real PTY (`services/terminal.rs` over `portable-pty`): the backend runs the user's own shell, gives the PTY the terminal environment a GUI launch lacks, and types the agent's executable into it once the shell's first prompt is up; the frontend renders the bytes with xterm and sends the keys back, from one emulator per session that outlives the component showing it. It is asked for with an **agent id**, never a program or a command line.
 
+On Windows the window wears Ahabby's own header instead of the system caption — `app/layouts/TitleBar.tsx` over the `window_*` commands, drawn only where `desktop::window::custom_chrome()` is true, as the top row of the content column so the sidebar keeps the window's full height; macOS and Linux keep the frame their desktop gives them. Nothing about a window is trusted to the webview, and a maximize the OS performs behind its back comes back on `window://state`.
+
 ```
-src/app/                   providers (React Query, toasts, job + terminal bridges), hash router, theme, shell
-                           (which owns the terminal dock and loads xterm.js on demand)
+src/app/                   providers (React Query, toasts, job + terminal bridges, the window's own
+                           header state), hash router, theme, shell (which owns the terminal dock and
+                           loads xterm.js on demand)
 src/features/<feature>/    api/ hooks, components/, pages/
 src/shared/api/            ipc.ts, events.ts, keys.ts, errors.ts
 src/shared/bindings/       ts-rs generated types (do not edit)

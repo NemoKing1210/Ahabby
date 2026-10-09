@@ -1023,6 +1023,13 @@
     "agents": "Agents",
     "updates": "Mises à jour"
   },
+  "window": {
+    "bar": "Commandes de la fenêtre",
+    "minimize": "Réduire",
+    "maximize": "Agrandir",
+    "restore": "Restaurer",
+    "close": "Fermer"
+  },
   "settings": {
     "title": "Paramètres",
     "subtitle": "Chaque secteur d'Ahabby, groupé — chaque section est sa propre page.",

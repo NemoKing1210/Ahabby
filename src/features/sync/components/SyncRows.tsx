@@ -26,6 +26,7 @@ import { cn } from '@/shared/lib/cn'
 import { formatBytes, formatRelative } from '@/shared/lib/format'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
+import { Card } from '@/shared/ui/Card'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { statusTone } from '../lib/labels'
@@ -97,6 +98,11 @@ function KindLabel({ kind }: { kind: SyncKind }) {
  *
  * The checkbox is only rendered when the caller takes a selection (the Settings library);
  * the agent page shows a plain "Save" per row instead.
+ *
+ * An item whose file is not on this machine is the one row that is not about this machine: it is
+ * painted dashed and sunken, says it is not here instead of reporting a state it cannot have, and
+ * offers no Save. `SyncLibrary` sorts it after the files that are here, the way a config that was
+ * never created is ordered.
  */
 export function SyncItemRow({
   item,
@@ -121,11 +127,17 @@ export function SyncItemRow({
 } & Omit<ComponentPropsWithRef<'div'>, 'onSelect'>) {
   const { t } = useTranslation()
   const size = formatBytes(item.sizeBytes)
+  // A declared file this machine was never given has no state to report of its own — nothing was
+  // ever saved, changed or lost — so it says it is not here and wears the dashed, sunken outline a
+  // config that was never created wears. Its state badge would only be a lie about a file that
+  // does not exist to have one.
+  const missing = !item.exists
 
   return (
-    <div
+    <Card
       className={cn(
-        'border-border bg-surface hover:bg-surface-2/60 ease-warm flex items-center gap-3 rounded-xl border p-3 transition-colors duration-150',
+        'ease-warm flex items-center gap-3 p-4 transition-colors duration-150',
+        missing ? 'border-border-strong bg-surface-2/40 border-dashed' : 'hover:bg-surface-2/60',
         className,
       )}
       {...rest}
@@ -139,7 +151,11 @@ export function SyncItemRow({
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-medium">{item.label}</span>
-          <Badge tone={statusTone(item.status)}>{t(`sync.status.${item.status}`)}</Badge>
+          {missing ? (
+            <Badge tone="accent">{t('sync.noLocalCopy')}</Badge>
+          ) : (
+            <Badge tone={statusTone(item.status)}>{t(`sync.status.${item.status}`)}</Badge>
+          )}
           {item.hasSecrets ? <Badge tone="warning">{t('sync.secretBadge')}</Badge> : null}
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -179,12 +195,14 @@ export function SyncItemRow({
             </Button>
           </Tooltip>
         ) : null}
-        <Button variant="secondary" size="sm" loading={busy} onClick={onSave}>
+        {/* There is nothing to upload for a file that is not on this machine: the backend only
+            skips it, so the button says so instead of offering a click that does nothing. */}
+        <Button variant="secondary" size="sm" loading={busy} disabled={missing} onClick={onSave}>
           <Upload className="size-3.5" aria-hidden />
           {item.remoteId ? t('sync.saveAgain') : t('sync.save')}
         </Button>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -224,9 +242,9 @@ export function RemoteItemRow({
   const updated = formatRelative(item.updatedAtMs, i18n.language)
 
   return (
-    <div
+    <Card
       className={cn(
-        'border-border bg-surface hover:bg-surface-2/60 ease-warm flex items-center gap-3 rounded-xl border p-3 transition-colors duration-150',
+        'hover:bg-surface-2/60 ease-warm flex items-center gap-3 p-4 transition-colors duration-150',
         className,
       )}
       {...rest}
@@ -296,6 +314,6 @@ export function RemoteItemRow({
           </span>
         </Button>
       </div>
-    </div>
+    </Card>
   )
 }
