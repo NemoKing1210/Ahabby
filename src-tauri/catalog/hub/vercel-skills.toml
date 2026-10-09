@@ -1,0 +1,55 @@
+# Vercel's official Agent Skills — React, Next.js, web design and deploy guidance.
+#
+# SOURCE: https://github.com/vercel-labs/agent-skills (checked 2026-10-09) —
+#   `skills/<name>/SKILL.md`; the repository declares the MIT license.
+id = "vercel-skills"
+name = "Vercel Skills"
+kind = "githubSkills"
+repository = "vercel-labs/agent-skills"
+path = "skills"
+provides = ["skill"]
+vendor = "Vercel"
+homepage = "https://github.com/vercel-labs/agent-skills"
+docs = "https://skills.sh/vercel-labs/agent-skills"
+license = "MIT"
+description = """React and Next.js performance rules, web design guidelines, composition
+patterns, React Native guidance, and Vercel deploy/optimise helpers — the skills Vercel
+Engineering publishes for coding agents."""
+
+tags = ["frontend", "development"]
+
+[[tag_rules]]
+prefix = "skills/react-best-practices"
+tags = ["frontend", "performance"]
+
+[[tag_rules]]
+prefix = "skills/web-design-guidelines"
+tags = ["design", "frontend", "accessibility"]
+
+[[tag_rules]]
+prefix = "skills/composition-patterns"
+tags = ["frontend"]
+
+[[tag_rules]]
+prefix = "skills/react-view-transitions"
+tags = ["frontend"]
+
+[[tag_rules]]
+prefix = "skills/react-native-skills"
+tags = ["mobile", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/deploy-to-vercel"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "skills/vercel-optimize"
+tags = ["ops", "performance"]
+
+[[tag_rules]]
+prefix = "skills/vercel-cli-with-tokens"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "skills/writing-guidelines"
+tags = ["writing"]

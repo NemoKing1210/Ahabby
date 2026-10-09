@@ -258,7 +258,7 @@ impl AppState {
                 current.version_cache_minutes,
                 &proxy,
             ))),
-            hub: RwLock::new(Arc::new(HubService::new(&proxy))),
+            hub: RwLock::new(Arc::new(HubService::new(&proxy, &app_data))),
             web: WebService::new(&proxy),
             scan_sink: Arc::new(TauriScanSink { app: app.clone() }),
             scanner,

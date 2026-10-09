@@ -13,7 +13,9 @@ export function useHubSources() {
   return useQuery({
     queryKey: queryKeys.hubSources(),
     queryFn: ipc.listHubSources,
-    staleTime: 60_000,
+    // Star counts are cached for a day on the backend; re-asking the list every minute only
+    // burns GitHub's rate limit when the screen is revisited. Refresh still invalidates.
+    staleTime: 5 * 60_000,
   })
 }
 

@@ -347,6 +347,32 @@ describe('HubPage', () => {
     expect(within(container).getByText('/home/me/.config/ahabby/hub')).toBeTruthy()
   })
 
+  it('opens Recommendations with role chips and asks for curated entries', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    await user.click(screen.getByRole('tab', { name: 'Recommendations' }))
+
+    expect(
+      await within(container).findByText(
+        'Shortlists curated from the collections Ahabby can install — pick a role, then install what you need.',
+      ),
+    ).toBeTruthy()
+    expect(within(container).getByRole('option', { name: 'Frontend' })).toBeTruthy()
+    expect(within(container).getByRole('option', { name: 'Everyday' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    await user.click(within(container).getByRole('option', { name: 'Frontend' }))
+    expect(within(container).getByRole('option', { name: 'Frontend' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await waitFor(() => expect(ipc.getHubEntry).toHaveBeenCalled())
+  })
+
   it('folds a whole source while keeping its heading', async () => {
     const user = userEvent.setup()
     const { container } = renderPage()

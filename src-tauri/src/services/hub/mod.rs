@@ -17,6 +17,7 @@
 
 pub mod installed;
 mod parse;
+mod stars_cache;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -37,6 +38,7 @@ use crate::platform::now_ms;
 
 use super::http;
 use parse::{IndexItem, RegistryItem, RepoSkill, TarFile};
+use stars_cache::{resolve_star_count, StarsCache};
 
 /// Repository payloads kept in memory before the oldest one is dropped.
 const CACHE_BUDGET_BYTES: u64 = 96 * 1024 * 1024;
@@ -59,14 +61,19 @@ const GITHUB_API: &str = "https://api.github.com";
 pub struct HubService {
     client: RwLock<reqwest::Client>,
     cache: Mutex<Cache>,
+    stars: Mutex<StarsCache>,
 }
 
 impl HubService {
     /// `proxy` decides how requests leave the machine, exactly as it does for version checks.
-    pub fn new(proxy: &Proxy) -> Self {
+    ///
+    /// `app_data` holds the on-disk star-count cache (`cache/hub-stars.json`), so a rate-limited
+    /// or offline open still keeps the last known popularity order.
+    pub fn new(proxy: &Proxy, app_data: &Path) -> Self {
         Self {
             client: RwLock::new(http::client(proxy, REQUEST_TIMEOUT, MAX_REDIRECTS)),
             cache: Mutex::new(Cache::default()),
+            stars: Mutex::new(StarsCache::load(app_data)),
         }
     }
 
@@ -86,11 +93,11 @@ impl HubService {
     /// The hub's sources for the screen: every source with the star count of its GitHub
     /// repository, ordered by popularity.
     ///
-    /// The count is third-party trivia read over the network, so it is best-effort: a source that
-    /// is not on GitHub, or whose count cannot be read, simply carries none. The order follows the
-    /// same rule — the GitHub collections by stars, most first, then everything else by name — so
-    /// an offline machine only loses the ordering, never the screen. Any other command keeps
-    /// using [`HubService::sources`]: resolving an entry needs no count, and no request.
+    /// The count is third-party trivia read over the network, so a failed refresh is not fatal:
+    /// the last known count (memory, then the on-disk cache) stays on the source and the
+    /// popularity order is kept. A source that never had a count, or that is not on GitHub,
+    /// simply carries none. Any other command keeps using [`HubService::sources`]: resolving an
+    /// entry needs no count, and no request.
     pub async fn sources_with_stars(&self, user_dir: &Path) -> HubSourceCatalog {
         let mut catalog = catalog_hub::load(Some(user_dir));
         self.annotate_stars(&mut catalog.sources).await;
@@ -100,8 +107,10 @@ impl HubService {
 
     /// Fill in the star count of every GitHub source, one request per distinct repository.
     ///
-    /// The requests go out together: the Hub screen waits for them, and five collections, one
-    /// after another, would be five round trips of latency on a cold cache.
+    /// Fresh counts are served from the star cache without a network round trip. Stale or missing
+    /// ones are asked for together — several collections, one after another, would otherwise be
+    /// several round trips of latency on a cold cache — and a failed ask keeps the last known
+    /// value so the sort does not collapse.
     async fn annotate_stars(&self, sources: &mut [HubSource]) {
         let mut repositories: Vec<String> = Vec::new();
         for source in sources.iter() {
@@ -141,21 +150,38 @@ impl HubService {
         }
     }
 
-    /// A repository's star count: the cached answer while it is fresh, else GitHub's own number.
+    /// A repository's star count: fresh cache → GitHub → last known (stale) cache.
     ///
-    /// `None` is the ordinary answer to a rate limit or an offline machine, never an error — a
-    /// star count is trivia, and the Hub screen must render without it.
+    /// `None` only when nothing has ever been read for this repository — a rate limit or an
+    /// offline machine must not erase a count that already ordered the Hub once.
     async fn star_count(&self, repository: &str) -> Option<u64> {
-        if let Some(cached) = self.cached_stars(repository) {
-            return Some(cached);
+        let fresh = {
+            let stars = self.stars.lock().unwrap_or_else(PoisonError::into_inner);
+            stars.get_fresh(repository)
+        };
+        if fresh.is_some() {
+            return fresh;
         }
+
+        let stale = {
+            let stars = self.stars.lock().unwrap_or_else(PoisonError::into_inner);
+            stars.get_any(repository)
+        };
+
+        let fetched = self.fetch_star_count(repository).await;
+        if let Some(count) = fetched {
+            let mut stars = self.stars.lock().unwrap_or_else(PoisonError::into_inner);
+            stars.put(repository, count);
+        }
+
+        resolve_star_count(None, fetched, stale)
+    }
+
+    /// Ask GitHub for one repository's star count. Failures are `None`, never an error.
+    async fn fetch_star_count(&self, repository: &str) -> Option<u64> {
         let url = format!("{GITHUB_API}/repos/{repository}");
         let body = self.get_json(&url).await.ok()?;
-        let stars = parse::stars(&body)?;
-        self.cache()
-            .stars
-            .insert(repository.to_string(), Cached::new(stars));
-        Some(stars)
+        parse::stars(&body)
     }
 
     /// One page of one source.
@@ -703,12 +729,6 @@ impl HubService {
         fresh(cached.at_ms).then(|| Arc::clone(&cached.value))
     }
 
-    fn cached_stars(&self, repository: &str) -> Option<u64> {
-        let cache = self.cache();
-        let cached = cache.stars.get(repository)?;
-        fresh(cached.at_ms).then_some(cached.value)
-    }
-
     fn cache(&self) -> MutexGuard<'_, Cache> {
         self.cache.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -845,8 +865,6 @@ struct Cache {
     snapshots: HashMap<String, Cached<Arc<Snapshot>>>,
     /// Index documents by source id.
     indexes: HashMap<String, Cached<Arc<IndexDocument>>>,
-    /// Star counts of GitHub repositories, keyed `owner/repo`.
-    stars: HashMap<String, Cached<u64>>,
 }
 
 impl Cache {
@@ -879,8 +897,9 @@ fn fresh(at_ms: i64) -> bool {
 /// Order sources for the screen: the GitHub collections by stars (most first), then the rest by
 /// name.
 ///
-/// A GitHub source whose count could not be read carries none and so keeps the name-ordered place
-/// of the second group: an offline machine degrades the ordering, not the list.
+/// A GitHub source whose count was never known carries none and so keeps the name-ordered place
+/// of the second group. Once a count has been cached, a failed refresh must not drop it — that is
+/// what [`stars_cache::resolve_star_count`] enforces before this runs.
 fn sort_by_popularity(sources: &mut [HubSource]) {
     sources.sort_by(|a, b| match (a.stars, b.stars) {
         (Some(a_stars), Some(b_stars)) => b_stars.cmp(&a_stars).then_with(|| by_name(a, b)),
@@ -1343,7 +1362,8 @@ tags = ["mcp"]
             "test",
         )
         .expect("a valid source");
-        let service = HubService::new(&Proxy::none());
+        let dir = tempfile::tempdir().unwrap();
+        let service = HubService::new(&Proxy::none(), dir.path());
 
         let page = service
             .registry_page(&source, &query(&["design"]))

@@ -14,6 +14,7 @@ import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { PathRow } from '@/shared/ui/PathRow'
 import { SkeletonList } from '@/shared/ui/Primitives'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { useRefreshHubEntry } from '../api/hooks'
@@ -21,11 +22,15 @@ import { useHubSources } from '../api/queries'
 import { HubBatchInstallDialog } from '../components/HubBatchInstallDialog'
 import { HubEntryDialog } from '../components/HubEntryDialog'
 import { HubInstallDialog } from '../components/HubInstallDialog'
+import { HubRecommendations } from '../components/HubRecommendations'
 import { HubSelectionBar } from '../components/HubSelectionBar'
 import { HubSourceSection } from '../components/HubSourceSection'
 import { HubToolbar } from '../components/HubToolbar'
 import type { InstalledFilter } from '../installed'
 import { isBatchable } from '../lib/grouping'
+import type { RecommendationRoleId } from '../recommendations/catalog'
+
+type HubTab = 'catalog' | 'recommendations'
 
 /** How long typing settles before the sources are asked again. */
 const SEARCH_DEBOUNCE_MS = 350
@@ -33,10 +38,10 @@ const SEARCH_DEBOUNCE_MS = 350
 /**
  * The Hub: every collection of skills and MCP servers Ahabby knows how to read, in one screen.
  *
- * One section per source, each with its own request, its own paging and its own failure — a
- * collection that is slow or down is a note under its own heading, never an empty screen. The
- * page owns the filters, the install dialogs, and the multi-select for batch skill installs,
- * because everything a source *is* belongs to the manifest that declared it (`catalog/HUB.md`).
+ * Two tabs: the catalogue (one section per source, each with its own request, paging and failure)
+ * and Recommendations (role-based shortlists that resolve to the same install dialogs). The page
+ * owns the filters, the install dialogs, and the multi-select for batch skill installs, because
+ * everything a source *is* belongs to the manifest that declared it (`catalog/HUB.md`).
  */
 export function HubPage() {
   const { t } = useTranslation()
@@ -45,6 +50,8 @@ export function HubPage() {
 
   // The five filters a user sets here are kept for the session (`useSessionState`), so an entry
   // previewed and installed, or a source read again, does not cost the search box its text.
+  const [tab, setTab] = useSessionState<HubTab>('hub.tab', 'catalog')
+  const [role, setRole] = useSessionState<RecommendationRoleId>('hub.role', 'everyday')
   const [query, setQuery] = useSessionState('hub.query', '')
   // Typing settles before it reaches the network: a source is a real request, not a local list.
   // The settled copy starts from the restored query, so a revisit asks for the filtered first
@@ -173,67 +180,95 @@ export function HubPage() {
 
       <CatalogProblems problems={data.problems} />
 
-      <HubToolbar
-        query={query}
-        onQueryChange={setQuery}
-        kind={kind}
-        onKindChange={(value) => {
-          setKind(value)
-          setSourceId('all')
-        }}
-        installed={installed}
-        onInstalledChange={setInstalled}
-        sourceId={sourceId}
-        onSourceChange={setSourceId}
-        sources={matching}
-        tags={vocabulary}
-        selectedTags={tags}
-        onToggleTag={toggleTag}
-        onRefresh={refresh}
-        refreshing={busy}
-      />
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as HubTab)}
+        className="flex flex-col"
+      >
+        <TabsList>
+          <TabsTrigger value="catalog">{t('hub.tabs.catalog')}</TabsTrigger>
+          <TabsTrigger value="recommendations">{t('hub.tabs.recommendations')}</TabsTrigger>
+        </TabsList>
 
-      {visible.length === 0 ? (
-        <EmptyState
-          icon={Store}
-          title={t('hub.noSources')}
-          hint={t('hub.noSourcesHint')}
-          action={
-            <Button variant="secondary" size="sm" onClick={refresh}>
-              {t('common.refresh')}
-            </Button>
-          }
-        />
-      ) : (
-        <AnimatedList grouped={false} className="flex flex-col gap-10">
-          {visible.map((source) => (
-            <HubSourceSection
-              key={source.id}
-              source={source}
-              kind={kind}
-              installed={installed}
-              query={settled}
-              tags={tags}
-              generation={generation}
-              selectedIds={selectedIds}
-              onView={setViewEntry}
-              onInstall={openInstall}
-              onRefresh={readEntryAgain}
-              onToggleSelect={toggleSelect}
-              onSelectEntries={selectEntries}
-              onDeselectEntries={deselectEntries}
-              onBatchInstall={openBatch}
-              refreshingId={readingId}
+        <TabsContent value="catalog" className="flex flex-col gap-6">
+          <HubToolbar
+            query={query}
+            onQueryChange={setQuery}
+            kind={kind}
+            onKindChange={(value) => {
+              setKind(value)
+              setSourceId('all')
+            }}
+            installed={installed}
+            onInstalledChange={setInstalled}
+            sourceId={sourceId}
+            onSourceChange={setSourceId}
+            sources={matching}
+            tags={vocabulary}
+            selectedTags={tags}
+            onToggleTag={toggleTag}
+            onRefresh={refresh}
+            refreshing={busy}
+          />
+
+          {visible.length === 0 ? (
+            <EmptyState
+              icon={Store}
+              title={t('hub.noSources')}
+              hint={t('hub.noSourcesHint')}
+              action={
+                <Button variant="secondary" size="sm" onClick={refresh}>
+                  {t('common.refresh')}
+                </Button>
+              }
             />
-          ))}
-        </AnimatedList>
-      )}
+          ) : (
+            <AnimatedList grouped={false} className="flex flex-col gap-10">
+              {visible.map((source) => (
+                <HubSourceSection
+                  key={source.id}
+                  source={source}
+                  kind={kind}
+                  installed={installed}
+                  query={settled}
+                  tags={tags}
+                  generation={generation}
+                  selectedIds={selectedIds}
+                  onView={setViewEntry}
+                  onInstall={openInstall}
+                  onRefresh={readEntryAgain}
+                  onToggleSelect={toggleSelect}
+                  onSelectEntries={selectEntries}
+                  onDeselectEntries={deselectEntries}
+                  onBatchInstall={openBatch}
+                  refreshingId={readingId}
+                />
+              ))}
+            </AnimatedList>
+          )}
 
-      <div className="border-border flex flex-col gap-2 border-t pt-4">
-        <h2 className="text-[0.8125rem] font-medium">{t('hub.userSources')}</h2>
-        <p className="text-muted text-[0.8125rem]">{t('hub.userSourcesHint')}</p>
-        <PathRow path={data.userDir} />
-      </div>
+          <div className="border-border flex flex-col gap-2 border-t pt-4">
+            <h2 className="text-[0.8125rem] font-medium">{t('hub.userSources')}</h2>
+            <p className="text-muted text-[0.8125rem]">{t('hub.userSourcesHint')}</p>
+            <PathRow path={data.userDir} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="recommendations">
+          <HubRecommendations
+            roleId={role}
+            onRoleChange={setRole}
+            sources={data.sources}
+            onView={setViewEntry}
+            onInstall={openInstall}
+            onRefresh={readEntryAgain}
+            onBatchInstall={openBatch}
+            refreshingId={readingId}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+          />
+        </TabsContent>
+      </Tabs>
 
       <HubSelectionBar
         count={selection.size}

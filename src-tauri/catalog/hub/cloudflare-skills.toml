@@ -1,0 +1,49 @@
+# Cloudflare's Agent Skills — Workers, Wrangler, Durable Objects, and edge platform guidance.
+#
+# SOURCE: https://github.com/cloudflare/skills (checked 2026-10-09) —
+#   `skills/<name>/SKILL.md`; the repository declares the Apache-2.0 license.
+id = "cloudflare-skills"
+name = "Cloudflare Skills"
+kind = "githubSkills"
+repository = "cloudflare/skills"
+path = "skills"
+provides = ["skill"]
+vendor = "Cloudflare"
+homepage = "https://github.com/cloudflare/skills"
+license = "Apache-2.0"
+description = """Build on the Cloudflare Developer Platform with coding agents: Workers best
+practices, Wrangler, Durable Objects, Agents SDK, web performance, and Next.js on Cloudflare."""
+
+tags = ["ops", "development"]
+
+[[tag_rules]]
+prefix = "skills/cloudflare"
+tags = ["ops"]
+
+[[tag_rules]]
+prefix = "skills/wrangler"
+tags = ["ops", "development"]
+
+[[tag_rules]]
+prefix = "skills/workers-best-practices"
+tags = ["ops", "development"]
+
+[[tag_rules]]
+prefix = "skills/durable-objects"
+tags = ["ops", "development"]
+
+[[tag_rules]]
+prefix = "skills/agents-sdk"
+tags = ["agents", "ai"]
+
+[[tag_rules]]
+prefix = "skills/web-perf"
+tags = ["performance", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/nextjs-on-cloudflare"
+tags = ["frontend", "ops"]
+
+[[tag_rules]]
+prefix = "skills/cloudflare-one"
+tags = ["security", "ops"]

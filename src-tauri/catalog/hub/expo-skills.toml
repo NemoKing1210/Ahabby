@@ -1,0 +1,61 @@
+# Expo's official Agent Skills — React Native, Expo Router, EAS, and mobile UI.
+#
+# SOURCE: https://github.com/expo/skills (checked 2026-10-09) —
+#   `plugins/<plugin>/skills/<skill>/SKILL.md`; the repository declares the MIT license.
+id = "expo-skills"
+name = "Expo Skills"
+kind = "githubSkills"
+repository = "expo/skills"
+provides = ["skill"]
+vendor = "Expo"
+homepage = "https://github.com/expo/skills"
+license = "MIT"
+description = """Mobile skills from the Expo team: app structure, Expo Router, native UI,
+animations, EAS Build/Update/Submit, and upgrading Expo projects — for agents that ship React
+Native apps."""
+
+tags = ["mobile", "frontend"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-overview"
+tags = ["mobile"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-project-structure"
+tags = ["mobile", "development"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-router"
+tags = ["mobile", "frontend"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-ui"
+tags = ["mobile", "design"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-native-ui"
+tags = ["mobile", "design"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-animation"
+tags = ["mobile", "design"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-data-fetching"
+tags = ["mobile", "api"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/eas-update"
+tags = ["mobile", "ops"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/eas-workflows"
+tags = ["mobile", "ci"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/eas-app-stores"
+tags = ["mobile", "ops"]
+
+[[tag_rules]]
+prefix = "plugins/expo/skills/expo-upgrade"
+tags = ["mobile", "development"]

@@ -56,7 +56,9 @@ async fn main() {
     }
 
     let dir = user_dir();
-    let service = HubService::new(&Proxy::none());
+    let cache_dir = std::env::temp_dir().join("ahabby-hub-example");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    let service = HubService::new(&Proxy::none(), &cache_dir);
     let catalog = service.sources(&dir);
 
     println!("sources: {}", catalog.sources.len());

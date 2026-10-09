@@ -5,6 +5,24 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.47.1] - 2026-10-09
+
+### Fixed
+
+- **Hub star counts stay put.** GitHub star counts for skill collections are cached for a day in
+  memory and on disk. If GitHub rate-limits or the machine is offline, the last known numbers
+  still show and the popularity order of the catalog does not collapse.
+
+## [0.47.0] - 2026-10-09
+
+### Added
+
+- **Hub Recommendations.** The Hub has a **Recommendations** tab next to the catalog: pick what
+  you do (frontend, backend, security, mobile, and more) and get a short curated list of skills
+  to install through the same preview and install dialogs. Missing picks can be installed as a
+  batch. New builtin collections join the catalog too — **Vercel Skills**, **Trail of Bits
+  Skills**, **Cloudflare Skills**, and **Expo Skills**.
+
 ## [0.46.0] - 2026-10-09
 
 ### Added

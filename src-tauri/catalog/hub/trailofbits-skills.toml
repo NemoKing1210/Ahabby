@@ -1,0 +1,73 @@
+# Trail of Bits security skills — static analysis, differential review, and audit workflows.
+#
+# SOURCE: https://github.com/trailofbits/skills (checked 2026-10-09) —
+#   `plugins/<plugin>/skills/<skill>/SKILL.md`; the repository declares CC-BY-SA-4.0.
+id = "trailofbits-skills"
+name = "Trail of Bits Skills"
+kind = "githubSkills"
+repository = "trailofbits/skills"
+provides = ["skill"]
+vendor = "Trail of Bits"
+homepage = "https://github.com/trailofbits/skills"
+docs = "https://trailofbits-skills.mintlify.app/quickstart"
+license = "CC-BY-SA-4.0"
+description = """Security research and audit skills from Trail of Bits: Semgrep and CodeQL,
+differential review, variant analysis, supply-chain risk, and language-specific review plugins."""
+
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "plugins/static-analysis"
+tags = ["security", "review"]
+
+[[tag_rules]]
+prefix = "plugins/differential-review"
+tags = ["security", "review"]
+
+[[tag_rules]]
+prefix = "plugins/variant-analysis"
+tags = ["security", "review"]
+
+[[tag_rules]]
+prefix = "plugins/supply-chain-risk-auditor"
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "plugins/building-secure-contracts"
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "plugins/c-review"
+tags = ["security", "review"]
+
+[[tag_rules]]
+prefix = "plugins/rust-review"
+tags = ["security", "review"]
+
+[[tag_rules]]
+prefix = "plugins/modern-python"
+tags = ["development"]
+
+[[tag_rules]]
+prefix = "plugins/gh-cli"
+tags = ["git"]
+
+[[tag_rules]]
+prefix = "plugins/devcontainer-setup"
+tags = ["ops", "development"]
+
+[[tag_rules]]
+prefix = "plugins/testing-handbook-skills"
+tags = ["testing", "security"]
+
+[[tag_rules]]
+prefix = "plugins/property-based-testing"
+tags = ["testing"]
+
+[[tag_rules]]
+prefix = "plugins/yara-authoring"
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "plugins/agentic-actions-auditor"
+tags = ["security", "ci"]
