@@ -5,6 +5,18 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.46.0] - 2026-10-09
+
+### Added
+
+- **Install several Hub skills at once.** Plugin collections (skills under
+  `plugins/<group>/skills/…`) are now grouped on the Hub screen. Each group has clear **Select all**
+  and **Install all** buttons and can be folded away; whole sources fold the same way. Flat skill
+  lists get the same actions on the section. Individual skills also carry a checkbox, and a floating
+  bar installs the selection. One review dialog picks the owner, lists every skill (skipping ones
+  that owner already holds), warns about scripts, and writes them one by one with the same
+  confirmation the single install always required.
+
 ## [0.45.0] - 2026-10-09
 
 ### Added

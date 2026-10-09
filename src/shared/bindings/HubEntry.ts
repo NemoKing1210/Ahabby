@@ -19,6 +19,11 @@ id: string, sourceId: string, sourceName: string, kind: HubResourceKind, name: s
  */
 title?: string | null, description?: string | null, version?: string | null, vendor?: string | null, homepage?: string | null, repository?: string | null, license?: string | null, tags: Array<string>, 
 /**
+ * Plugin / collection the skill sits in (`plugins/<group>/skills/<skill>`), when the
+ * repository layout names one. The Hub groups cards by this and offers "install all".
+ */
+group?: string | null, 
+/**
  * Files the install writes (skills), from the repository listing — no download needed.
  */
 fileCount?: number | null, 

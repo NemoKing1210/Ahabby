@@ -18,11 +18,14 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { useRefreshHubEntry } from '../api/hooks'
 import { useHubSources } from '../api/queries'
+import { HubBatchInstallDialog } from '../components/HubBatchInstallDialog'
 import { HubEntryDialog } from '../components/HubEntryDialog'
 import { HubInstallDialog } from '../components/HubInstallDialog'
+import { HubSelectionBar } from '../components/HubSelectionBar'
 import { HubSourceSection } from '../components/HubSourceSection'
 import { HubToolbar } from '../components/HubToolbar'
 import type { InstalledFilter } from '../installed'
+import { isBatchable } from '../lib/grouping'
 
 /** How long typing settles before the sources are asked again. */
 const SEARCH_DEBOUNCE_MS = 350
@@ -32,7 +35,7 @@ const SEARCH_DEBOUNCE_MS = 350
  *
  * One section per source, each with its own request, its own paging and its own failure — a
  * collection that is slow or down is a note under its own heading, never an empty screen. The
- * page owns only the five filters (search, kind, installed, source, tags) and the install dialog,
+ * page owns the filters, the install dialogs, and the multi-select for batch skill installs,
  * because everything a source *is* belongs to the manifest that declared it (`catalog/HUB.md`).
  */
 export function HubPage() {
@@ -57,6 +60,10 @@ export function HubPage() {
   // place to decide, and the second follows the first.
   const [viewEntry, setViewEntry] = useState<HubEntry | null>(null)
   const [installEntry, setInstallEntry] = useState<HubEntry | null>(null)
+  // Several skills reviewed together for one owner — from checkboxes or a group's "install all".
+  const [batch, setBatch] = useState<{ entries: HubEntry[]; groupId?: string } | null>(null)
+  // Selected skills across sources; keyed by entry id so a re-fetched card can still be toggled.
+  const [selection, setSelection] = useState<Map<string, HubEntry>>(() => new Map())
   // Bumped by Refresh: a new generation makes every section ask its first page again, this time
   // telling the backend to ignore the answers it has already cached.
   const [generation, setGeneration] = useState(0)
@@ -92,6 +99,48 @@ export function HubPage() {
     setViewEntry(null)
     setInstallEntry(entry)
   }
+
+  const toggleSelect = (entry: HubEntry) => {
+    if (!isBatchable(entry)) return
+    setSelection((current) => {
+      const next = new Map(current)
+      if (next.has(entry.id)) next.delete(entry.id)
+      else next.set(entry.id, entry)
+      return next
+    })
+  }
+
+  const selectEntries = (entries: HubEntry[]) => {
+    setSelection((current) => {
+      const next = new Map(current)
+      for (const entry of entries) {
+        if (isBatchable(entry)) next.set(entry.id, entry)
+      }
+      return next
+    })
+  }
+
+  const deselectEntries = (entries: HubEntry[]) => {
+    setSelection((current) => {
+      const next = new Map(current)
+      for (const entry of entries) next.delete(entry.id)
+      return next
+    })
+  }
+
+  const openBatch = (entries: HubEntry[], groupId?: string) => {
+    const batchable = entries.filter(isBatchable)
+    if (batchable.length === 0) {
+      toast.info(t('hub.batchEmpty'))
+      return
+    }
+    setViewEntry(null)
+    setInstallEntry(null)
+    setBatch({ entries: batchable, groupId })
+  }
+
+  const selectedIds = new Set(selection.keys())
+  const selectedEntries = [...selection.values()]
 
   if (catalog.isPending) return <SkeletonList rows={5} />
   if (catalog.error && !catalog.data) {
@@ -166,9 +215,14 @@ export function HubPage() {
               query={settled}
               tags={tags}
               generation={generation}
+              selectedIds={selectedIds}
               onView={setViewEntry}
               onInstall={openInstall}
               onRefresh={readEntryAgain}
+              onToggleSelect={toggleSelect}
+              onSelectEntries={selectEntries}
+              onDeselectEntries={deselectEntries}
+              onBatchInstall={openBatch}
               refreshingId={readingId}
             />
           ))}
@@ -180,6 +234,12 @@ export function HubPage() {
         <p className="text-muted text-[0.8125rem]">{t('hub.userSourcesHint')}</p>
         <PathRow path={data.userDir} />
       </div>
+
+      <HubSelectionBar
+        count={selection.size}
+        onClear={() => setSelection(new Map())}
+        onInstall={() => openBatch(selectedEntries)}
+      />
 
       {viewEntry ? (
         <HubEntryDialog
@@ -197,6 +257,18 @@ export function HubPage() {
           key={installEntry.id}
           entryId={installEntry.id}
           onClose={() => setInstallEntry(null)}
+        />
+      ) : null}
+
+      {batch ? (
+        <HubBatchInstallDialog
+          key={batch.groupId ?? batch.entries.map((entry) => entry.id).join('|')}
+          entries={batch.entries}
+          groupId={batch.groupId}
+          onClose={() => {
+            setBatch(null)
+            setSelection(new Map())
+          }}
         />
       ) : null}
     </div>

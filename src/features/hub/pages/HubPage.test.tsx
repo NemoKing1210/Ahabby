@@ -83,6 +83,7 @@ function entry(overrides: Partial<HubEntry> = {}): HubEntry {
     repository: 'https://github.com/owner/repo',
     license: 'MIT',
     tags: [],
+    group: null,
     fileCount: 2,
     sizeBytes: 2048,
     installable: true,
@@ -344,6 +345,22 @@ describe('HubPage', () => {
     expect(ipc.installHubResource).not.toHaveBeenCalled()
     // The folder the user's own sources go in is shown, so a collection can be added by hand.
     expect(within(container).getByText('/home/me/.config/ahabby/hub')).toBeTruthy()
+  })
+
+  it('folds a whole source while keeping its heading', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+    expect(within(container).getByText('Read and fill PDF forms.')).toBeTruthy()
+
+    await user.click(within(container).getByRole('button', { name: 'Collapse Example Skills' }))
+    await waitFor(() =>
+      expect(within(container).queryByText('Read and fill PDF forms.')).toBeNull(),
+    )
+    expect(within(container).getByText('Example Skills')).toBeTruthy()
+
+    await user.click(within(container).getByRole('button', { name: 'Expand Example Skills' }))
+    expect(await within(container).findByText('Read and fill PDF forms.')).toBeTruthy()
   })
 
   it('asks only the sources that offer the chosen kind', async () => {
@@ -685,5 +702,185 @@ describe('HubPage', () => {
 
     // The MCP registry is not a GitHub repository: it carries no count, so its row shows none.
     expect(within(container).getAllByText('Stars on GitHub')).toHaveLength(1)
+  })
+
+  it('groups plugin skills and installs a selection with confirm for each', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    const review = entry({
+      id: 'example-skills/plugins/teams/skills/review',
+      name: 'review',
+      description: 'Review a pull request.',
+      group: 'teams',
+      tags: ['teams', 'review'],
+      hasScripts: false,
+    })
+    const plan = entry({
+      id: 'example-skills/plugins/teams/skills/plan',
+      name: 'plan',
+      description: 'Plan the work.',
+      group: 'teams',
+      tags: ['teams'],
+      hasScripts: false,
+      installed: [
+        {
+          owner: { id: 'shared', name: 'Shared', icon: null },
+          scope: { kind: 'global' },
+          path: '/home/me/.agents/skills/plan',
+          enabled: true,
+          identical: true,
+        },
+      ],
+    })
+    const lone = entry({
+      id: 'example-skills/skills/pdf',
+      name: 'pdf',
+      group: null,
+      hasScripts: false,
+    })
+    vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [review, plan, lone] }))
+    vi.mocked(ipc.installHubResource).mockImplementation((request) =>
+      Promise.resolve({
+        data: {
+          kind: 'skill',
+          entryId: request.entryId,
+          owner: { id: 'shared', name: 'Shared', icon: null },
+          path: `/skills/${request.entryId}`,
+          filesWritten: 1,
+          skill: null,
+          server: null,
+        },
+        report: scanReport(),
+      }),
+    )
+
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    // Plugin skills share a heading with select-all / install-all; an ungrouped skill stays under
+    // "Other entries".
+    expect(within(container).getByText('Teams')).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'Select all 2' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'Install all' })).toBeTruthy()
+    expect(within(container).getByText('Other entries')).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'review' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'plan' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'pdf' })).toBeTruthy()
+
+    // Folding the group hides the cards; Select all / Install all stay on the header.
+    await user.click(within(container).getByRole('button', { name: 'Collapse Teams' }))
+    await waitFor(() =>
+      expect(within(container).queryByRole('button', { name: 'review' })).toBeNull(),
+    )
+    expect(within(container).getByRole('button', { name: 'Select all 2' })).toBeTruthy()
+    await user.click(within(container).getByRole('button', { name: 'Expand Teams' }))
+    expect(await within(container).findByRole('button', { name: 'review' })).toBeTruthy()
+
+    // The group header's Select all marks both skills; the floating bar follows.
+    await user.click(within(container).getByRole('button', { name: 'Select all 2' }))
+    expect(await screen.findByText('2 skills selected')).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: 'Select review' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByRole('checkbox', { name: 'Select plan' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Install selected' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Install selected skills')).toBeTruthy()
+    expect(within(dialog).getByText('Already installed for this owner — skipped')).toBeTruthy()
+    // plan is already on shared: only review is written.
+    expect(within(dialog).getByRole('button', { name: 'Install 1 skill' })).toBeEnabled()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Install 1 skill' }))
+    await waitFor(() => expect(ipc.installHubResource).toHaveBeenCalledTimes(1))
+    expect(ipc.installHubResource).toHaveBeenCalledWith({
+      ownerId: 'shared',
+      entryId: 'example-skills/plugins/teams/skills/review',
+      name: null,
+      transport: null,
+      confirm: true,
+    })
+  })
+
+  it('installs every skill of a plugin group after loading the full group', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    const review = entry({
+      id: 'example-skills/plugins/teams/skills/review',
+      name: 'review',
+      description: 'Review a pull request.',
+      group: 'teams',
+      tags: ['teams'],
+      hasScripts: false,
+    })
+    const plan = entry({
+      id: 'example-skills/plugins/teams/skills/plan',
+      name: 'plan',
+      description: 'Plan the work.',
+      group: 'teams',
+      tags: ['teams'],
+      hasScripts: false,
+    })
+    // The first page only has one of the two; Install all asks again with the group tag.
+    vi.mocked(ipc.searchHub).mockImplementation((_sourceId, query) => {
+      if (query.tags?.includes('teams')) {
+        return Promise.resolve(page({ entries: [review, plan] }))
+      }
+      return Promise.resolve(page({ entries: [review] }))
+    })
+    vi.mocked(ipc.installHubResource).mockImplementation((request) =>
+      Promise.resolve({
+        data: {
+          kind: 'skill',
+          entryId: request.entryId,
+          owner: { id: 'shared', name: 'Shared', icon: null },
+          path: `/skills/${request.entryId}`,
+          filesWritten: 1,
+          skill: null,
+          server: null,
+        },
+        report: scanReport(),
+      }),
+    )
+
+    const { container } = renderPage()
+    await within(container).findByText('Teams')
+
+    await user.click(within(container).getByRole('button', { name: 'Install all' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Install “Teams”')).toBeTruthy()
+    expect(within(dialog).getByText('review')).toBeTruthy()
+    expect(within(dialog).getByText('plan')).toBeTruthy()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Install 2 skills' }))
+    await waitFor(() => expect(ipc.installHubResource).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(ipc.installHubResource).mock.calls.map(([request]) => request)).toEqual([
+      {
+        ownerId: 'shared',
+        entryId: 'example-skills/plugins/teams/skills/review',
+        name: null,
+        transport: null,
+        confirm: true,
+      },
+      {
+        ownerId: 'shared',
+        entryId: 'example-skills/plugins/teams/skills/plan',
+        name: null,
+        transport: null,
+        confirm: true,
+      },
+    ])
   })
 })

@@ -1,9 +1,10 @@
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Server, Sparkles } from 'lucide-react'
+import { Check, ExternalLink, Server, Sparkles } from 'lucide-react'
 
 import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubSource } from '@/shared/bindings/HubSource'
+import { cn } from '@/shared/lib/cn'
 import { formatBytes, isKnownNumber } from '@/shared/lib/format'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -12,6 +13,7 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { useBrowser } from '@/features/browser/context'
 
+import { isBatchable } from '../lib/grouping'
 import { HubContextMenu } from './HubContextMenu'
 import { HubInstalled, HubTagList } from './HubEntryParts'
 
@@ -23,6 +25,9 @@ import { HubInstalled, HubTagList } from './HubEntryParts'
  * payload *is* costs nothing and writes nothing — while the trailing button goes straight to the
  * install dialog, so browsing and installing each have exactly one affordance. A right click opens
  * the same two, plus the places the card has no room for.
+ *
+ * Installable skills also carry a checkbox: selecting several feeds the page's batch install bar
+ * without opening a dialog for each one.
  */
 export function HubEntryCard({
   entry,
@@ -31,6 +36,8 @@ export function HubEntryCard({
   onInstall,
   onRefresh,
   refreshing,
+  selected,
+  onToggleSelect,
 }: {
   entry: HubEntry
   source: HubSource
@@ -38,6 +45,8 @@ export function HubEntryCard({
   onInstall: (entry: HubEntry) => void
   onRefresh: (entry: HubEntry) => void
   refreshing?: boolean
+  selected?: boolean
+  onToggleSelect?: (entry: HubEntry) => void
 }) {
   const { t } = useTranslation()
   const browser = useBrowser()
@@ -48,6 +57,8 @@ export function HubEntryCard({
   // three plural forms), while "Files 3" is the same string for every count in every language.
   const files = isKnownNumber(entry.fileCount) ? `${t('hub.files')} ${entry.fileCount}` : null
   const values = entry.inputCount > 0 ? `${t('hub.inputs')} ${entry.inputCount}` : null
+  const selectable = Boolean(onToggleSelect) && isBatchable(entry)
+  const isSelected = Boolean(selected)
 
   // The body is a div rather than a button: a button may not contain the block content the card
   // needs. Enter/Space keep it reachable from the keyboard.
@@ -56,6 +67,11 @@ export function HubEntryCard({
       event.preventDefault()
       onView(entry)
     }
+  }
+
+  const toggle = (event: MouseEvent) => {
+    event.stopPropagation()
+    onToggleSelect?.(entry)
   }
 
   return (
@@ -67,8 +83,32 @@ export function HubEntryCard({
       onRefresh={onRefresh}
       refreshing={refreshing}
     >
-      <Card className="hover:border-border-strong ease-warm group transition-[border-color,translate] duration-150 hover:-translate-y-px">
+      <Card
+        className={cn(
+          'hover:border-border-strong ease-warm group transition-[border-color,translate,background-color] duration-150 hover:-translate-y-px',
+          isSelected && 'border-accent/40 bg-accent-soft/40 hover:border-accent/50',
+        )}
+      >
         <div className="flex items-start gap-3 p-4">
+          {selectable ? (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={isSelected}
+              aria-label={t('hub.selectEntry', { name: entry.title ?? entry.name })}
+              onClick={toggle}
+              className={cn(
+                'mt-1.5 inline-flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors duration-150',
+                'focus-visible:outline-ring outline-none focus-visible:outline-2 focus-visible:outline-offset-2',
+                isSelected
+                  ? 'border-accent bg-accent text-accent-foreground'
+                  : 'border-border-strong bg-surface hover:border-accent/50 text-transparent',
+              )}
+            >
+              <Check className="size-3.5" aria-hidden strokeWidth={3} />
+            </button>
+          ) : null}
+
           <div
             role="button"
             tabIndex={0}

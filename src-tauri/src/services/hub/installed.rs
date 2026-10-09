@@ -403,6 +403,7 @@ mod tests {
             repository: None,
             license: None,
             tags: Vec::new(),
+            group: None,
             file_count: None,
             size_bytes: None,
             installable: true,

@@ -439,6 +439,7 @@ fn item_from_record(record: RegistryRecord, source: &HubSource) -> RegistryItem 
         repository,
         license: source.license.clone(),
         tags: source.declared_tags(&record.name),
+        group: None,
         file_count: None,
         size_bytes: None,
         installable: problem.is_none(),
@@ -883,6 +884,7 @@ fn item_from_index(
             repository: entry.repository,
             license: entry.license.or_else(|| source.license.clone()),
             tags: normalize_tags(entry.tags.into_iter().chain(source.declared_tags(id))),
+            group: None,
             file_count: None,
             size_bytes: None,
             // An entry that made it this far has everything installing it needs; an entry that

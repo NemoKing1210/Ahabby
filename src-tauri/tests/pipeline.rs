@@ -1837,6 +1837,7 @@ async fn a_hub_entry_is_found_installed_in_the_scan_report() {
         repository: None,
         license: None,
         tags: Vec::new(),
+        group: None,
         file_count: None,
         size_bytes: None,
         installable: true,

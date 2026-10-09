@@ -326,6 +326,10 @@ pub struct HubEntry {
     pub license: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Plugin / collection the skill sits in (`plugins/<group>/skills/<skill>`), when the
+    /// repository layout names one. The Hub groups cards by this and offers "install all".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
     /// Files the install writes (skills), from the repository listing — no download needed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "number | null")]
