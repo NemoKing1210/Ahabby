@@ -15,7 +15,7 @@ use crate::error::{AppError, Result};
 use crate::services;
 use crate::state::{AppState, DocumentTarget};
 
-use super::MutationResult;
+use super::{require_confirmation, MutationResult};
 
 /// Refuse a document the manifest marks read-only, for every write path alike.
 ///
@@ -28,6 +28,29 @@ pub(crate) fn require_editable(target: &DocumentTarget, path: &str) -> Result<()
         return Err(AppError::CommandNotAllowed(format!("{path} is read-only")));
     }
     Ok(())
+}
+
+/// Resolve a backup path the frontend sent, refusing anything that is not a backup of this
+/// exact file.
+///
+/// The frontend only ever gets paths out of `list_backups`, but this is what makes the backup
+/// commands safe for a caller that skips the UI: nothing outside the document's own backup
+/// directory can be read or deleted through them.
+fn require_backup_of(
+    state: &AppState,
+    target: &DocumentTarget,
+    backup_path: &str,
+) -> Result<(PathBuf, PathBuf)> {
+    let backup_root = state.backup_root();
+    let backup = PathBuf::from(backup_path);
+    let expected = services::list_backups(&backup_root, &target.path)?;
+    if !expected.iter().any(|entry| entry.path == backup) {
+        return Err(AppError::CommandNotAllowed(format!(
+            "{backup_path} is not a backup of {}",
+            target.path.display()
+        )));
+    }
+    Ok((backup_root, backup))
 }
 
 #[tauri::command]
@@ -169,20 +192,45 @@ pub async fn restore_backup(
     let target = state.document_target(&agent_id, &path)?;
     require_editable(&target, &path)?;
 
-    // The backup must belong to this exact file: the frontend only ever gets paths that
-    // came out of `list_backups`, but the check is cheap insurance.
-    let backup_root = state.backup_root();
-    let backup = PathBuf::from(&backup_path);
-    let expected = services::list_backups(&backup_root, &target.path)?;
-    if !expected.iter().any(|entry| entry.path == backup) {
-        return Err(AppError::CommandNotAllowed(format!(
-            "{backup_path} is not a backup of {path}"
-        )));
-    }
-
+    let (backup_root, backup) = require_backup_of(&state, &target, &backup_path)?;
     let result = services::restore(&backup, &target.path, target.format, &backup_root)?;
     let report = state.scan().await;
     Ok(MutationResult::new(result, report))
+}
+
+/// Read a backup as text so the frontend can diff it against the file it came from.
+///
+/// Same ownership check as a restore: only a backup `list_backups` reports for this document
+/// can be read, so the comparison view cannot be turned into a reader of arbitrary files.
+#[tauri::command]
+pub async fn read_backup(
+    state: State<'_, AppState>,
+    agent_id: String,
+    path: String,
+    backup_path: String,
+) -> Result<String> {
+    let target = state.document_target(&agent_id, &path)?;
+    let (_root, backup) = require_backup_of(&state, &target, &backup_path)?;
+    services::read_backup(&backup)
+}
+
+/// Delete one backup of a document.
+///
+/// Removing it is destructive and irreversible, so it takes `confirm` exactly like
+/// `remove_skill` and answers with the backups that remain, so the panel never has to guess.
+#[tauri::command]
+pub async fn delete_backup(
+    state: State<'_, AppState>,
+    agent_id: String,
+    path: String,
+    backup_path: String,
+    confirm: bool,
+) -> Result<Vec<BackupEntry>> {
+    require_confirmation(confirm, "deleting a backup")?;
+    let target = state.document_target(&agent_id, &path)?;
+    let (backup_root, backup) = require_backup_of(&state, &target, &backup_path)?;
+    services::delete_backup(&backup_root, &target.path, &backup)?;
+    services::list_backups(&backup_root, &target.path)
 }
 
 /// Where backups are written (shown in Settings).

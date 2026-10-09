@@ -54,6 +54,55 @@ export function useDocumentBackups(agentId: string, path: string, enabled: boole
   })
 }
 
+/** The text of one backup, read only while its comparison view is open. */
+export function useBackupContent(
+  agentId: string,
+  path: string,
+  backupPath: string,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: queryKeys.backup(agentId, path, backupPath),
+    queryFn: () => ipc.readBackup(agentId, path, backupPath),
+    enabled,
+    // A backup of a path never changes: once read it is good for the life of the window.
+    staleTime: Infinity,
+  })
+}
+
+/** Removes one backup. Rust insists on an explicit `confirm`, so the dialog is the only way in. */
+export function useDeleteDocumentBackup() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { agentId: string; path: string; backupPath: string; confirm: boolean }) =>
+      ipc.deleteBackup(vars.agentId, vars.path, vars.backupPath, vars.confirm),
+    // The command answers with what is left, so the panel is repainted without a second round trip.
+    onSuccess: (entries, vars) => {
+      client.setQueryData(queryKeys.backups(vars.agentId, vars.path), entries)
+      client.removeQueries({ queryKey: queryKeys.backup(vars.agentId, vars.path, vars.backupPath) })
+    },
+  })
+}
+
+/** Editors installed on this machine, asked for once the file is known to be on disk. */
+export function useExternalEditors(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.externalEditors(),
+    queryFn: () => ipc.listExternalEditors(),
+    enabled,
+    // What is installed on the machine does not change while a dialog is open.
+    staleTime: Infinity,
+  })
+}
+
+/** Hands the file to an editor. The editor outlives Ahabby; nothing comes back but acceptance. */
+export function useOpenInEditor() {
+  return useMutation({
+    mutationFn: (vars: { agentId: string; path: string; editorId: string }) =>
+      ipc.openInEditor(vars.agentId, vars.path, vars.editorId),
+  })
+}
+
 export function useRestoreDocumentBackup() {
   const client = useQueryClient()
   return useMutation({

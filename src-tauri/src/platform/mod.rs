@@ -4,6 +4,7 @@
 //! The rest of the backend only ever talks to [`PlatformContext`], which makes the
 //! scanner testable on temporary directories (see `services::scanner` tests).
 
+pub mod editors;
 pub mod file_io;
 pub mod open;
 pub mod packages;
@@ -15,8 +16,8 @@ pub mod which;
 pub mod window;
 
 pub use file_io::{
-    backup_dir_for, create_backup, list_backups, modified_ms, read_text, sha256_file, sha256_hex,
-    write_atomic, write_atomic_bytes, WriteOutcome,
+    backup_dir_for, create_backup, delete_backup, list_backups, modified_ms, read_text,
+    sha256_file, sha256_hex, write_atomic, write_atomic_bytes, WriteOutcome,
 };
 pub use packages::{detect_managers, PackageManager};
 pub use paths::{expand_template, PlatformContext};

@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.41.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.45.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -232,6 +232,9 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   and the preview re-runs on a debounce so the banner and the Save button always describe the text on screen.
   Stale-file errors are detected via `isStaleFileError` and turn into the reload banner; `editable` is never
   raised on the frontend — a read-only document stays read-only in the UI and the backend refuses it anyway.
+  The dialog expands to the whole window, and every write leaves a timestamped backup: the backups panel
+  compares a copy against the text on screen in `BackupDiff` (`diff`/jsdiff, split or unified), restores it
+  or deletes it — deletion is a `ConfirmDialog` because the command refuses a call without `confirm`.
 - **CodeMirror** (`shared/ui/CodeViewer`, lazy-loaded) is themed by `shared/ui/code/editorTheme.ts` from
   design tokens only, and the wrapper passes `theme="none"` so CodeMirror's own light/dark palettes cannot
   paint over them. Adding a language means extending `extensionsFor`; `Ctrl+F` needs the `search()` extension
@@ -425,6 +428,16 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   its per-OS detection candidates and its documented launch contract (`-e`, Windows Terminal's `-w 0 nt -d`,
   AppleScript `do script`, or Warp's URI, which is why Warp is offered as `opensDirectory` — it cannot be told
   to run a command). A terminal is only offered after `detect()` found it on this machine.
+- **Opening a file in the user's own editor is a table too.** `platform/editors.rs` lists VS Code, Cursor, Zed,
+  Windsurf, VSCodium, Sublime Text, Notepad++ and the JetBrains IDEs with their per-OS detection candidates (the
+  command-line shim on `PATH` first, then the documented install location) and one launch contract that follows
+  what was resolved: a macOS `.app` bundle through `open -a`, a Windows `.cmd` shim through `cmd /C` — handed over
+  with `raw_arg` and wrapped in a _second_ pair of quotes, because `cmd` strips the outermost ones itself and a
+  line that opens with the already-quoted program then splits the shim at its first space — and everything else
+  directly. `commands::editors` resolves the document through `document_target` like every other document command
+  (read-only ones included: nothing is written here), and the dialog's toolbar picker offers only what `detect()`
+  found, one row per editor with the brand tile from `shared/ui/editorBrands.ts`; Visual Studio Code's mark is
+  Ahabby's own copy of the official logo, since simple-icons no longer ships it.
 - **The Hub installs through the adapters, not around them.** `services::hub` only _reads_ third-party
   collections (one request per source, cached in memory, with every limit explicit: 25 s per request, 64 MiB
   per body read while streaming, 8 MiB per file, 48 MiB per repository, oldest-first eviction); the write is

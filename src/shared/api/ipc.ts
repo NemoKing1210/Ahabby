@@ -13,6 +13,7 @@ import type { AgentRemoval } from '@/shared/bindings/AgentRemoval'
 import type { BackupEntry } from '@/shared/bindings/BackupEntry'
 import type { ConfigSnapshot } from '@/shared/bindings/ConfigSnapshot'
 import type { DiffPreview } from '@/shared/bindings/DiffPreview'
+import type { ExternalEditor } from '@/shared/bindings/ExternalEditor'
 import type { ExtensionAction } from '@/shared/bindings/ExtensionAction'
 import type { ExtensionRemoval } from '@/shared/bindings/ExtensionRemoval'
 import type { ExtensionToggle } from '@/shared/bindings/ExtensionToggle'
@@ -113,6 +114,12 @@ export const ipc = {
     }),
   listBackups: (agentId: string, path: string) =>
     invoke<BackupEntry[]>('list_backups', { agentId, path }),
+  /** The text of one backup, for the comparison view. */
+  readBackup: (agentId: string, path: string, backupPath: string) =>
+    invoke<string>('read_backup', { agentId, path, backupPath }),
+  /** Destructive and irreversible, so Rust insists on an explicit `confirm`. */
+  deleteBackup: (agentId: string, path: string, backupPath: string, confirm: boolean) =>
+    invoke<BackupEntry[]>('delete_backup', { agentId, path, backupPath, confirm }),
   /** The masked value of a quick-info credential is all the scan exposes; this reads the real one. */
   revealConfigFact: (agentId: string, path: string, key: string) =>
     invoke<string>('reveal_config_fact', { agentId, path, key }),
@@ -120,6 +127,12 @@ export const ipc = {
     invoke<MutationResult<SaveResult>>('restore_backup', { agentId, path, backupPath }),
   backupRoot: () => invoke<string>('backup_root'),
   userCatalogDir: () => invoke<string>('user_catalog_dir'),
+
+  // --- editors ------------------------------------------------------------------------
+  /** Editors installed on this machine, with the shim each of them was found at. */
+  listExternalEditors: () => invoke<ExternalEditor[]>('list_external_editors'),
+  openInEditor: (agentId: string, path: string, editorId: string) =>
+    invoke<void>('open_in_editor', { agentId, path, editorId }),
 
   // --- library ------------------------------------------------------------------------
   listLibrary: () => invoke<Library>('list_library'),

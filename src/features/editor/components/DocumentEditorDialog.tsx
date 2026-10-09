@@ -7,12 +7,17 @@ import {
   Copy,
   Diff,
   Eraser,
+  FileClock,
+  GitCompare,
   History,
+  Maximize2,
+  Minimize2,
   Redo2,
   RotateCcw,
   Save,
   Search,
   ShieldAlert,
+  Trash2,
   Undo2,
   WrapText,
 } from 'lucide-react'
@@ -20,10 +25,11 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { useTranslation } from 'react-i18next'
 
 import { isStaleFileError } from '@/shared/api/errors'
+import type { BackupEntry } from '@/shared/bindings/BackupEntry'
 import type { DiffPreview } from '@/shared/bindings/DiffPreview'
 import { copyText } from '@/shared/lib/clipboard'
 import { cn } from '@/shared/lib/cn'
-import { formatBytes, formatRelative } from '@/shared/lib/format'
+import { fileName, formatBytes, formatRelative } from '@/shared/lib/format'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -37,19 +43,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/Dialog'
+import { EditorIcon } from '@/shared/ui/EditorIcon'
 import { PathRow } from '@/shared/ui/PathRow'
+import { Select } from '@/shared/ui/Select'
 import { Spinner } from '@/shared/ui/Primitives'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
 import {
+  useDeleteDocumentBackup,
   useDocumentBackups,
   useDocumentSnapshot,
+  useExternalEditors,
+  useOpenInEditor,
   usePreviewDocumentSave,
   useRestoreDocumentBackup,
   useSaveDocument,
 } from '../api/hooks'
 import type { EditorDocument } from '../model'
+import { BackupDiffDialog } from './BackupDiffDialog'
 import { DiffView } from './DiffView'
 
 /** How long the editor waits after the last keystroke before validating the draft. */
@@ -129,6 +141,7 @@ export function DocumentEditorDialog({
   const { mutate: previewMutate } = preview
   const save = useSaveDocument()
   const restore = useRestoreDocumentBackup()
+  const removeBackup = useDeleteDocumentBackup()
   const backups = useDocumentBackups(agentId, doc.path, true)
 
   const editorRef = useRef<ReactCodeMirrorRef | null>(null)
@@ -140,7 +153,10 @@ export function DocumentEditorDialog({
   const [showDiff, setShowDiff] = useState(false)
   const [showBackups, setShowBackups] = useState(false)
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
+  const [compareTarget, setCompareTarget] = useState<BackupEntry | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<BackupEntry | null>(null)
   const [wrap, setWrap] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [staleWarning, setStaleWarning] = useState(false)
 
   const loaded = snapshot.data?.content ?? null
@@ -156,6 +172,10 @@ export function DocumentEditorDialog({
   const errors = checkedCurrent ? checked.data.errors : []
   const inSync = !staleWarning && (checkedCurrent ? checked.data.inSync : true)
   const canSave = dirty && editable && inSync && errors.length === 0 && !save.isPending
+
+  // Editors installed on this machine. Only a file that is really on disk can be handed over.
+  const externalEditors = useExternalEditors(exists)
+  const openInEditor = useOpenInEditor()
 
   const runPreview = useCallback(
     (content: string, sha256: string) => {
@@ -239,6 +259,20 @@ export function DocumentEditorDialog({
   const lines = value.length === 0 ? 0 : value.split('\n').length
   const canFormat = editable && doc.format === 'json'
 
+  /** Hand the file to an external editor. Ahabby writes nothing and waits for nothing. */
+  const openIn = (editorId: string) => {
+    openInEditor.mutate(
+      { agentId, path: doc.path, editorId },
+      {
+        onSuccess: () => {
+          const name = externalEditors.data?.find((editor) => editor.id === editorId)?.name
+          toast.success(t('editor.opened', { editor: name ?? editorId }))
+        },
+        onError: (error) => toastAppError(error),
+      },
+    )
+  }
+
   // `Mod-s` saves, like in any editor. CodeMirror leaves the shortcut free, so this lives here,
   // where the current draft and the validation state are both in scope.
   useEffect(() => {
@@ -275,7 +309,19 @@ export function DocumentEditorDialog({
     <>
       <Dialog open onOpenChange={onOpenChange}>
         <DialogContent
-          className="flex h-[85vh] w-[min(1100px,96vw)] flex-col"
+          className={cn(
+            'flex flex-col',
+            expanded
+              ? 'h-dvh max-h-none w-dvw max-w-none rounded-none border-0'
+              : 'h-[85vh] w-[min(1100px,96vw)]',
+          )}
+          onEscapeKeyDown={(event) => {
+            // Escape leaves full screen first; only the next one closes the dialog.
+            if (expanded) {
+              event.preventDefault()
+              setExpanded(false)
+            }
+          }}
           footer={
             <>
               <div className="text-faint mr-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem]">
@@ -428,6 +474,12 @@ export function DocumentEditorDialog({
               active={wrap}
               onClick={() => setWrap((current) => !current)}
             />
+            <ToolbarButton
+              icon={expanded ? Minimize2 : Maximize2}
+              label={expanded ? t('editor.exitFullscreen') : t('editor.fullscreen')}
+              active={expanded}
+              onClick={() => setExpanded((current) => !current)}
+            />
             <Divider />
             <ToolbarButton
               icon={Diff}
@@ -444,6 +496,23 @@ export function DocumentEditorDialog({
             />
             {backups.data && backups.data.length > 0 ? (
               <Badge tone="neutral">{backups.data.length}</Badge>
+            ) : null}
+
+            {externalEditors.data && externalEditors.data.length > 0 ? (
+              <div className="ms-auto">
+                <Select
+                  value=""
+                  onValueChange={openIn}
+                  ariaLabel={t('editor.openIn')}
+                  placeholder={t('editor.openIn')}
+                  className="h-8 text-[0.8125rem]"
+                  options={externalEditors.data.map((editor) => ({
+                    value: editor.id,
+                    label: editor.name,
+                    icon: <EditorIcon editor={editor.id} size="sm" />,
+                  }))}
+                />
+              </div>
             ) : null}
           </div>
 
@@ -517,24 +586,40 @@ export function DocumentEditorDialog({
                   {t('editor.backups')}
                 </span>
                 {backups.data && backups.data.length > 0 ? (
-                  <AnimatedList as="ul" grouped={false} className="flex flex-col gap-1">
+                  <AnimatedList as="ul" grouped={false} className="flex flex-col gap-0.5">
                     {backups.data.map((backup) => (
                       <div
                         key={backup.path}
-                        className="flex items-center justify-between gap-3 rounded-lg px-1 py-1"
+                        className="hover:bg-surface-2 flex items-center gap-2 rounded-lg px-2 py-1.5"
                       >
-                        <div className="flex min-w-0 flex-col">
+                        <FileClock className="text-faint size-4 shrink-0" aria-hidden />
+                        <div className="flex min-w-0 flex-1 flex-col">
                           <span className="text-foreground text-[0.8125rem]">
                             {formatRelative(backup.createdMs, i18n.language)}
                           </span>
-                          <span className="text-faint truncate font-mono text-[0.6875rem]">
-                            {backup.path}
+                          <span
+                            className="text-faint truncate font-mono text-[0.6875rem]"
+                            title={backup.path}
+                          >
+                            {fileName(backup.path)}
                           </span>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span className="text-muted text-[0.75rem]">
-                            {formatBytes(backup.sizeBytes)}
-                          </span>
+                        <span className="text-muted shrink-0 text-[0.75rem]">
+                          {formatBytes(backup.sizeBytes)}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Tooltip content={t('editor.compareHint')}>
+                            <span className="inline-flex">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t('editor.compare')}
+                                onClick={() => setCompareTarget(backup)}
+                              >
+                                <GitCompare className="size-4" aria-hidden />
+                              </Button>
+                            </span>
+                          </Tooltip>
                           <Button
                             variant="secondary"
                             size="sm"
@@ -542,6 +627,18 @@ export function DocumentEditorDialog({
                           >
                             {t('editor.restore')}
                           </Button>
+                          <Tooltip content={t('editor.deleteBackupHint')}>
+                            <span className="inline-flex">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t('editor.deleteBackup')}
+                                onClick={() => setDeleteTarget(backup)}
+                              >
+                                <Trash2 className="text-danger-fg size-4" aria-hidden />
+                              </Button>
+                            </span>
+                          </Tooltip>
                         </div>
                       </div>
                     ))}
@@ -588,6 +685,49 @@ export function DocumentEditorDialog({
           )
         }}
       />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title={t('editor.deleteBackupTitle')}
+        description={t('editor.deleteBackupBody', {
+          file: doc.label,
+          when: formatRelative(deleteTarget?.createdMs ?? 0, i18n.language) ?? t('common.unknown'),
+        })}
+        confirmLabel={t('editor.deleteBackupConfirm')}
+        busy={removeBackup.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return
+          removeBackup.mutate(
+            { agentId, path: doc.path, backupPath: deleteTarget.path, confirm: true },
+            {
+              onSuccess: () => {
+                toast.success(t('editor.backupDeleted'))
+                setDeleteTarget(null)
+              },
+              onError: (error) => toastAppError(error),
+            },
+          )
+        }}
+      />
+
+      {compareTarget ? (
+        <BackupDiffDialog
+          agentId={agentId}
+          path={doc.path}
+          label={doc.label}
+          entry={compareTarget}
+          current={value}
+          onOpenChange={() => setCompareTarget(null)}
+          onRestore={() => {
+            const target = compareTarget
+            setCompareTarget(null)
+            setRestoreTarget(target.path)
+          }}
+        />
+      ) : null}
     </>
   )
 }

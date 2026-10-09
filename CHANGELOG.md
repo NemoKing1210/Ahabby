@@ -5,6 +5,56 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.0] - 2026-10-09
+
+### Added
+
+- **Open a file in your own editor.** The editor and the read-only viewer now carry an **Open in…**
+  picker in the toolbar: every editor Ahabby found on this machine — Visual Studio Code, Cursor,
+  Zed, Windsurf, VSCodium, Sublime Text, Notepad++ and the JetBrains IDEs — with its own icon on
+  the row, so the one you want is recognised before the name is read. The list is what was really
+  detected (the editor's command-line shim on `PATH`, or its install location for the platform;
+  a macOS `.app` is opened through `open -a`), nothing is offered that would fail when clicked,
+  and a file that is not on disk is not offered at all. Ahabby writes nothing and waits for
+  nothing: the editor opens the file and Ahabby is done with it.
+
+## [0.44.0] - 2026-10-09
+
+### Added
+
+- **Backups can be compared and deleted from the editor.** Every row of the file editor's backups
+  panel now opens its copy in a comparison window: the backup against the file's current text —
+  side by side with line numbers, or as a single list, the way `git diff` reads (`diff`/jsdiff
+  computes the change). The row also offers **Delete** next to **Restore**; it asks once, and the
+  backend refuses the call without an explicit confirmation because removing a backup cannot be
+  undone.
+
+## [0.43.0] - 2026-10-09
+
+### Added
+
+- **A project's files can be read without opening them for editing.** The Files tab of a project
+  now describes each file the way the agents' configuration list does — its format, what it is
+  for, its path, its size and when it last changed — and offers **View** next to **Edit**, which
+  opens the same editor read-only: the file is there to read, copy from and search in, and nothing
+  can be written from it. A file the project has not created yet keeps offering **Create** and is
+  listed after the ones that exist.
+
+### Changed
+
+- The Files tab of a project is the same list an agent's configuration tab shows, so a project's
+  `.mcp.json`, `.cursor/mcp.json` and settings files are now presented, filtered and acted on the
+  same way everywhere in the app.
+
+## [0.42.0] - 2026-10-09
+
+### Added
+
+- **The file editor can go full screen.** A button in the editor's toolbar expands the dialog to
+  the whole window, so a long config is readable without scrolling through a small panel; pressing
+  it again — or `Esc`, which leaves full screen first and only closes the dialog on the next press —
+  returns it to its normal size.
+
 ## [0.41.0] - 2026-10-09
 
 ### Added

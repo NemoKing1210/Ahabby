@@ -16,12 +16,21 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { configDocument } from '@/features/editor/model'
 
-export function ConfigsTab({ agentId, configs }: { agentId: string; configs: ConfigFile[] }) {
+export function ConfigsTab({
+  agentId,
+  configs,
+  emptyHint,
+}: {
+  agentId: string
+  configs: ConfigFile[]
+  /** Replaces the default hint — a project has its own wording for "nothing declared". */
+  emptyHint?: string
+}) {
   const { t, i18n } = useTranslation()
   const [target, setTarget] = useState<{ config: ConfigFile; editable: boolean } | null>(null)
 
   if (configs.length === 0) {
-    return <EmptyState title={t('configs.none')} hint={t('configs.noneHint')} />
+    return <EmptyState title={t('configs.none')} hint={emptyHint ?? t('configs.noneHint')} />
   }
 
   // Files that do not exist yet are listed after the ones that do — nothing to act on is never

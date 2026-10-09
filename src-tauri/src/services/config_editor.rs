@@ -151,6 +151,17 @@ pub fn list_backups(backup_root: &Path, path: &Path) -> Result<Vec<BackupEntry>>
     file_io::list_backups(backup_root, path)
 }
 
+/// Read a backup as text, so the frontend can diff it against the file it came from.
+pub fn read_backup(backup: &Path) -> Result<String> {
+    platform::read_text(backup)
+}
+
+/// Remove one backup of `path`. The membership check lives in the command, so this is the
+/// same thin delegation `list_backups` is.
+pub fn delete_backup(backup_root: &Path, path: &Path, backup: &Path) -> Result<()> {
+    file_io::delete_backup(backup_root, path, backup)
+}
+
 /// Validate a one-value edit and diff it against the file, without writing anything.
 ///
 /// The frontend sends a key and a value, never a document: [`patch_fact`] reads the file and

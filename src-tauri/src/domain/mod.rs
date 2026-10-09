@@ -6,6 +6,7 @@
 pub mod agent;
 pub mod catalog;
 pub mod config;
+pub mod editor;
 pub mod extension;
 pub mod fact;
 pub mod hub;
@@ -30,6 +31,7 @@ pub use agent::{
 };
 pub use catalog::CatalogProblem;
 pub use config::{BackupEntry, ConfigFile, ConfigFormat, ConfigSnapshot, DiffPreview, SaveResult};
+pub use editor::ExternalEditor;
 pub use extension::{
     Extension, ExtensionAction, ExtensionKind, ExtensionManager, ExtensionRemoval,
     ExtensionResources, ExtensionToggle,

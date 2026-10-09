@@ -1,13 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+import type { BackupEntry } from '@/shared/bindings/BackupEntry'
 import type { ConfigSnapshot } from '@/shared/bindings/ConfigSnapshot'
 import type { DiffPreview } from '@/shared/bindings/DiffPreview'
+import type { ExternalEditor } from '@/shared/bindings/ExternalEditor'
 import { ipc } from '@/shared/api/ipc'
 import { renderWithProviders } from '@/test/render'
 
 import { DocumentEditorDialog } from './DocumentEditorDialog'
+
+// Radix's Select opens on pointerdown and scrolls the active row into view; jsdom has neither
+// pointer capture nor scrollIntoView (the same stubs `Select.test.tsx` uses).
+Element.prototype.hasPointerCapture = () => false
+Element.prototype.setPointerCapture = () => {}
+Element.prototype.releasePointerCapture = () => {}
+Element.prototype.scrollIntoView = () => {}
 
 /**
  * The dialog's contract with the user: nothing reaches the disk before the backend has
@@ -44,6 +54,10 @@ vi.mock('@/shared/api/ipc', () => ({
     saveConfig: vi.fn(),
     listBackups: vi.fn(),
     restoreBackup: vi.fn(),
+    readBackup: vi.fn(),
+    deleteBackup: vi.fn(),
+    listExternalEditors: vi.fn(),
+    openInEditor: vi.fn(),
   },
 }))
 
@@ -174,6 +188,30 @@ describe('DocumentEditorDialog', () => {
     expect(screen.getByRole('button', { name: 'Copy contents' })).toBeEnabled()
   })
 
+  it('expands to the full screen, and Escape leaves full screen before closing the dialog', async () => {
+    vi.mocked(ipc.readConfig).mockResolvedValue(snapshot())
+    vi.mocked(ipc.listBackups).mockResolvedValue([])
+    renderDialog()
+
+    await editor()
+    expect(screen.getByRole('dialog').className).not.toContain('h-dvh')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand to full screen' }))
+    expect(screen.getByRole('dialog').className).toContain('h-dvh')
+    expect(screen.getByRole('button', { name: 'Exit full screen' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(screen.getByRole('dialog').className).not.toContain('h-dvh')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand to full screen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }))
+    expect(screen.getByRole('dialog').className).not.toContain('h-dvh')
+  })
+
   it('never raises editability above what the caller asked for', async () => {
     vi.mocked(ipc.readConfig).mockResolvedValue(snapshot({ editable: true }))
     vi.mocked(ipc.listBackups).mockResolvedValue([])
@@ -202,5 +240,106 @@ describe('DocumentEditorDialog', () => {
       await screen.findByText('This file changed on disk since you opened it.'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  const BACKUP_PATH = '/data/backups/0f2a/20260101-120000__settings.json'
+
+  function backup(): BackupEntry {
+    return {
+      path: BACKUP_PATH,
+      originalPath: PATH,
+      createdMs: Date.now(),
+      sizeBytes: SAVED.length,
+    }
+  }
+
+  it('opens a backup in a comparison window against the current content', async () => {
+    vi.mocked(ipc.readConfig).mockResolvedValue(snapshot())
+    vi.mocked(ipc.listBackups).mockResolvedValue([backup()])
+    vi.mocked(ipc.readBackup).mockResolvedValue('{\n  "theme": "light"\n}\n')
+    renderDialog()
+
+    await editor()
+    fireEvent.click(screen.getByRole('button', { name: 'Backups' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Compare with the current version' }))
+
+    await waitFor(() => expect(ipc.readBackup).toHaveBeenCalledWith(AGENT_ID, PATH, BACKUP_PATH))
+    expect(await screen.findByText('Backup')).toBeInTheDocument()
+    expect(screen.getByText('Current version')).toBeInTheDocument()
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('"theme": "light"')
+    expect(text).toContain('"theme": "dark"')
+  })
+
+  it('deletes a backup only after the confirmation', async () => {
+    vi.mocked(ipc.readConfig).mockResolvedValue(snapshot())
+    vi.mocked(ipc.listBackups).mockResolvedValue([backup()])
+    vi.mocked(ipc.deleteBackup).mockResolvedValue([])
+    renderDialog()
+
+    await editor()
+    fireEvent.click(screen.getByRole('button', { name: 'Backups' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete backup' }))
+
+    expect(ipc.deleteBackup).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() =>
+      expect(ipc.deleteBackup).toHaveBeenCalledWith(AGENT_ID, PATH, BACKUP_PATH, true),
+    )
+    expect(await screen.findByText('No backups yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Compare with the current version' })).toBeNull()
+  })
+
+  const EDITORS: ExternalEditor[] = [
+    { id: 'vscode', name: 'Visual Studio Code', path: 'C:/bin/code.cmd' },
+    { id: 'zed', name: 'Zed', path: '/usr/bin/zed' },
+  ]
+
+  it('offers the installed editors with their own icons and hands the file to the chosen one', async () => {
+    vi.mocked(ipc.readConfig).mockResolvedValue(snapshot())
+    vi.mocked(ipc.listBackups).mockResolvedValue([])
+    vi.mocked(ipc.listExternalEditors).mockResolvedValue(EDITORS)
+    renderDialog()
+
+    await editor()
+    await userEvent.click(await screen.findByLabelText('Open in…'))
+
+    const rows = await screen.findAllByRole('option')
+    expect(rows.map((row) => row.querySelector('span[id]')?.textContent)).toEqual([
+      'Visual Studio Code',
+      'Zed',
+    ])
+    // Every row carries the editor's own brand tile, so it is recognised before the name is read.
+    const tiles = rows.map((row) => row.querySelector('span[aria-hidden]') as HTMLElement)
+    expect(tiles.map((tile) => tile.style.backgroundColor)).toEqual([
+      'rgb(0, 122, 204)',
+      'rgb(8, 76, 207)',
+    ])
+    expect(tiles.every((tile) => tile.querySelector('svg') !== null)).toBe(true)
+
+    await userEvent.click(rows[1] as HTMLElement)
+    await waitFor(() => expect(ipc.openInEditor).toHaveBeenCalledWith(AGENT_ID, PATH, 'zed'))
+  })
+
+  it('offers no external editor when none is installed on this machine', async () => {
+    vi.mocked(ipc.readConfig).mockResolvedValue(snapshot())
+    vi.mocked(ipc.listBackups).mockResolvedValue([])
+    vi.mocked(ipc.listExternalEditors).mockResolvedValue([])
+    renderDialog()
+
+    await editor()
+    expect(screen.queryByLabelText('Open in…')).toBeNull()
+  })
+
+  it('does not ask for editors when the file is not on disk', async () => {
+    vi.mocked(ipc.readConfig).mockResolvedValue(snapshot({ exists: false, content: '' }))
+    vi.mocked(ipc.listBackups).mockResolvedValue([])
+    vi.mocked(ipc.listExternalEditors).mockResolvedValue(EDITORS)
+    renderDialog()
+
+    await editor()
+    expect(ipc.listExternalEditors).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Open in…')).toBeNull()
   })
 })

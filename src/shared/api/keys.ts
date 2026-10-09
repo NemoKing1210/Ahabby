@@ -21,7 +21,11 @@ export const queryKeys = {
   settings: () => ['settings'] as const,
   packageManagers: () => ['package-managers'] as const,
   config: (agentId: string, path: string) => ['config', agentId, path] as const,
+  /** Editors installed on this machine — a machine-level list, so one key is enough. */
+  externalEditors: () => ['external-editors'] as const,
   backups: (agentId: string, path: string) => ['backups', agentId, path] as const,
+  backup: (agentId: string, path: string, backupPath: string) =>
+    ['backup', agentId, path, backupPath] as const,
   installPlan: (agentId: string, action: string, methodId?: string | null) =>
     ['install-plan', agentId, action, methodId ?? null] as const,
   extensionPlan: (agentId: string, extensionId: string, action: string) =>

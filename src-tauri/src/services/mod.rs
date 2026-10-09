@@ -16,8 +16,8 @@ pub mod version_checker;
 pub mod web;
 
 pub use config_editor::{
-    list_backups, preview, preview_fact, read_snapshot, remove_fact, restore, save, save_fact,
-    MAX_EDITABLE_BYTES,
+    delete_backup, list_backups, preview, preview_fact, read_backup, read_snapshot, remove_fact,
+    restore, save, save_fact, MAX_EDITABLE_BYTES,
 };
 pub use hub::{HubService, Prepared};
 pub use installer::{JobOutcome, JobOutputEvent, JobRunner, JobSink, StreamKind};

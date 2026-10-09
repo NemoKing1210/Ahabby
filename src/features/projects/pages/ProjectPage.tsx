@@ -16,11 +16,11 @@ import { toastAppError } from '@/shared/ui/Toast'
 
 import { useRevealPath } from '@/features/agents/api/queries'
 import { OtherTab } from '@/features/agents/components/OtherTab'
+import { ConfigsTab } from '@/features/configs/components/ConfigsTab'
 import { McpTab } from '@/features/mcp/components/McpTab'
 import { SkillsTab } from '@/features/skills/components/SkillsTab'
 
 import { useProjects } from '../api/queries'
-import { ProjectFiles } from '../components/ProjectFiles'
 import { RunInProjectDialog } from '../components/RunInProjectDialog'
 
 /** Small count next to a tab label; nothing is shown for an empty list. */
@@ -145,7 +145,11 @@ export function ProjectPage() {
         </TabsContent>
 
         <TabsContent value="files">
-          <ProjectFiles project={project} />
+          <ConfigsTab
+            agentId={project.id}
+            configs={project.configs}
+            emptyHint={t('projects.filesEmpty')}
+          />
         </TabsContent>
 
         <TabsContent value="other">

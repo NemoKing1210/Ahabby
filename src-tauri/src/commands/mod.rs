@@ -5,6 +5,7 @@
 
 pub mod agents;
 pub mod configs;
+pub mod editors;
 pub mod extensions;
 pub mod hub;
 pub mod install;

@@ -118,6 +118,35 @@ pub fn list_backups(backup_root: &Path, original: &Path) -> Result<Vec<BackupEnt
     Ok(entries)
 }
 
+/// Remove one backup file from the store.
+///
+/// The path must be a direct child of this file's own backup directory, so a caller that did
+/// not come through `list_backups` cannot delete anything else. The directory goes with the
+/// last copy — an empty store holds nothing worth keeping.
+pub fn delete_backup(backup_root: &Path, original: &Path, backup: &Path) -> Result<()> {
+    let directory = backup_dir_for(backup_root, original);
+    if backup.parent() != Some(directory.as_path()) {
+        return Err(AppError::CommandNotAllowed(format!(
+            "{} is not a backup of {}",
+            backup.display(),
+            original.display()
+        )));
+    }
+    if !backup.is_file() {
+        return Err(AppError::NotFound(backup.to_string_lossy().to_string()));
+    }
+    std::fs::remove_file(backup).map_err(|error| AppError::io(backup, error))?;
+
+    let has_backups = std::fs::read_dir(&directory)
+        .map_err(|error| AppError::io(&directory, error))?
+        .flatten()
+        .any(|entry| entry.file_name() != "meta.json");
+    if !has_backups {
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+    Ok(())
+}
+
 /// Write `content` to `path` atomically, taking a backup first when the file exists.
 pub fn write_atomic(
     path: &Path,
@@ -256,6 +285,39 @@ mod tests {
             .collect();
         assert!(contents.contains(&"one".to_string()));
         assert!(contents.contains(&"two".to_string()));
+    }
+
+    #[test]
+    fn deletes_one_backup_and_refuses_a_path_outside_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = tempfile::tempdir().unwrap();
+        let file = dir.path().join("config.json");
+
+        write_atomic(&file, "one", Some(backups.path())).unwrap();
+        write_atomic(&file, "two", Some(backups.path())).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        write_atomic(&file, "three", Some(backups.path())).unwrap();
+
+        let entries = list_backups(backups.path(), &file).unwrap();
+        assert_eq!(entries.len(), 2);
+        let newest = Path::new(&entries[0].path).to_path_buf();
+
+        // A path that is not a backup of this file is refused, and nothing is removed.
+        let stranger = dir.path().join("other.json");
+        std::fs::write(&stranger, "keep me").unwrap();
+        let refused = delete_backup(backups.path(), &file, &stranger);
+        assert!(refused.is_err());
+        assert!(stranger.is_file());
+
+        delete_backup(backups.path(), &file, &newest).unwrap();
+        assert!(!newest.exists());
+        let remaining = list_backups(backups.path(), &file).unwrap();
+        assert_eq!(remaining.len(), 1);
+
+        // The last copy takes the directory with it.
+        delete_backup(backups.path(), &file, Path::new(&remaining[0].path)).unwrap();
+        assert!(list_backups(backups.path(), &file).unwrap().is_empty());
+        assert!(!backup_dir_for(backups.path(), &file).exists());
     }
 
     #[cfg(unix)]

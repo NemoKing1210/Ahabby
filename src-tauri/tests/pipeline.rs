@@ -565,6 +565,42 @@ async fn editing_a_config_is_backed_up_and_stale_safe() {
 }
 
 #[tokio::test]
+async fn a_backup_is_readable_and_deletable() {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("1.0.0");
+    fixture.write_agent_files();
+    let path = fixture.settings_json();
+    let backup_root = fixture.context().backup_root;
+
+    let snapshot = services::read_snapshot(&path, ConfigFormat::Json, true).unwrap();
+    let edited = snapshot.content.replace("\"dark\"", "\"light\"");
+    let saved = services::save(
+        &path,
+        ConfigFormat::Json,
+        &edited,
+        &snapshot.sha256,
+        &backup_root,
+    )
+    .unwrap();
+    let backup = PathBuf::from(saved.backup_path.expect("backup created"));
+
+    // The comparison view reads exactly the version the write replaced.
+    assert_eq!(services::read_backup(&backup).unwrap(), snapshot.content);
+    assert_eq!(
+        services::list_backups(&backup_root, &path).unwrap().len(),
+        1
+    );
+
+    // Deleting goes through the same store: the copy is gone and the list shrinks.
+    services::delete_backup(&backup_root, &path, &backup).unwrap();
+    assert!(!backup.exists());
+    assert!(services::list_backups(&backup_root, &path)
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
 async fn removing_an_mcp_server_rewrites_only_that_entry() {
     let fixture = Fixture::new();
     fixture.write_manifest();
