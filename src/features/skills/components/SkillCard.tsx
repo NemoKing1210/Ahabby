@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pencil, Sparkles, Trash2 } from 'lucide-react'
 
@@ -32,6 +32,7 @@ export function SkillCard({
   onDelete,
   onToggle,
   toggleBusy,
+  cloudAction,
 }: {
   skill: Skill
   /** Owners to show as tags; omit them on a page that is already scoped to one agent. */
@@ -45,6 +46,8 @@ export function SkillCard({
   onToggle?: (skill: Skill, enabled: boolean) => void
   /** Disables this card's switch while its own mutation is in flight. */
   toggleBusy?: boolean
+  /** The cloud state and actions of this skill, when the page offers them. */
+  cloudAction?: ReactNode
 }) {
   const { t } = useTranslation()
   const size = formatBytes(skill.sizeBytes)
@@ -173,6 +176,12 @@ export function SkillCard({
             ) : null}
           </div>
         </div>
+
+        {cloudAction ? (
+          <div className="border-border flex flex-wrap items-center justify-end gap-2 border-t px-4 py-2.5">
+            {cloudAction}
+          </div>
+        ) : null}
       </Card>
     </SkillContextMenu>
   )

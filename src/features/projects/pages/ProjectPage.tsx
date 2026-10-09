@@ -19,6 +19,7 @@ import { OtherTab } from '@/features/agents/components/OtherTab'
 import { ConfigsTab } from '@/features/configs/components/ConfigsTab'
 import { McpTab } from '@/features/mcp/components/McpTab'
 import { SkillsTab } from '@/features/skills/components/SkillsTab'
+import { CloudActionsProvider } from '@/features/sync/components/CloudActions'
 
 import { useProjects } from '../api/queries'
 import { RunInProjectDialog } from '../components/RunInProjectDialog'
@@ -111,51 +112,53 @@ export function ProjectPage() {
         </Card>
       ) : null}
 
-      <Tabs defaultValue="skills" className="flex flex-col">
-        <TabsList className="self-start">
-          <TabsTrigger value="skills">
-            {t('agent.tabs.skills')}
-            <TabCount value={project.skills.length} />
-          </TabsTrigger>
-          <TabsTrigger value="mcp">
-            {t('agent.tabs.mcp')}
-            <TabCount value={project.mcpServers.length} />
-          </TabsTrigger>
-          <TabsTrigger value="files">
-            {t('projects.files')}
-            <TabCount value={project.configs.length} />
-          </TabsTrigger>
-          <TabsTrigger value="other">
-            {t('agent.tabs.other')}
-            <TabCount value={project.other.length} />
-          </TabsTrigger>
-        </TabsList>
+      <CloudActionsProvider owner={projectOwner(project)}>
+        <Tabs defaultValue="skills" className="flex flex-col">
+          <TabsList className="self-start">
+            <TabsTrigger value="skills">
+              {t('agent.tabs.skills')}
+              <TabCount value={project.skills.length} />
+            </TabsTrigger>
+            <TabsTrigger value="mcp">
+              {t('agent.tabs.mcp')}
+              <TabCount value={project.mcpServers.length} />
+            </TabsTrigger>
+            <TabsTrigger value="files">
+              {t('projects.files')}
+              <TabCount value={project.configs.length} />
+            </TabsTrigger>
+            <TabsTrigger value="other">
+              {t('agent.tabs.other')}
+              <TabCount value={project.other.length} />
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="skills">
-          <SkillsTab agentId={project.id} skills={project.skills} owner={projectOwner(project)} />
-        </TabsContent>
+          <TabsContent value="skills">
+            <SkillsTab agentId={project.id} skills={project.skills} owner={projectOwner(project)} />
+          </TabsContent>
 
-        <TabsContent value="mcp">
-          <McpTab
-            agentId={project.id}
-            servers={project.mcpServers}
-            configs={project.configs}
-            owner={projectOwner(project)}
-          />
-        </TabsContent>
+          <TabsContent value="mcp">
+            <McpTab
+              agentId={project.id}
+              servers={project.mcpServers}
+              configs={project.configs}
+              owner={projectOwner(project)}
+            />
+          </TabsContent>
 
-        <TabsContent value="files">
-          <ConfigsTab
-            agentId={project.id}
-            configs={project.configs}
-            emptyHint={t('projects.filesEmpty')}
-          />
-        </TabsContent>
+          <TabsContent value="files">
+            <ConfigsTab
+              agentId={project.id}
+              configs={project.configs}
+              emptyHint={t('projects.filesEmpty')}
+            />
+          </TabsContent>
 
-        <TabsContent value="other">
-          <OtherTab resources={project.other} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="other">
+            <OtherTab resources={project.other} />
+          </TabsContent>
+        </Tabs>
+      </CloudActionsProvider>
 
       {runOpen ? <RunInProjectDialog project={project} onClose={() => setRunOpen(false)} /> : null}
     </div>

@@ -20,6 +20,7 @@ import { ConfigsTab } from '@/features/configs/components/ConfigsTab'
 import { ExtensionsTab } from '@/features/extensions/components/ExtensionsTab'
 import { McpTab } from '@/features/mcp/components/McpTab'
 import { SkillsTab } from '@/features/skills/components/SkillsTab'
+import { CloudActionsProvider } from '@/features/sync/components/CloudActions'
 
 import { useAgent, useFavoriteAgents, useToggleFavoriteAgent } from '../api/queries'
 import { OtherTab } from '../components/OtherTab'
@@ -62,6 +63,7 @@ export function AgentPage() {
 
   const installed = agent.status === 'installed'
   const favorite = favoriteIds.includes(agent.id)
+  const ownerRef = { id: agent.id, name: agent.name, icon: agent.icon ?? null }
 
   return (
     <div className="flex flex-col gap-6">
@@ -147,73 +149,75 @@ export function AgentPage() {
         </div>
       </PageHeader>
 
-      <Tabs defaultValue="overview" className="flex flex-col">
-        <TabsList>
-          <TabsTrigger value="overview">{t('agent.tabs.overview')}</TabsTrigger>
-          <TabsTrigger value="configs">
-            {t('agent.tabs.configs')}
-            {agent.configs.length > 0 ? (
-              <span className="text-faint ml-1.5">{agent.configs.length}</span>
-            ) : null}
-          </TabsTrigger>
-          <TabsTrigger value="skills">
-            {t('agent.tabs.skills')}
-            {agent.skills.length > 0 ? (
-              <span className="text-faint ml-1.5">{agent.skills.length}</span>
-            ) : null}
-          </TabsTrigger>
-          <TabsTrigger value="mcp">
-            {t('agent.tabs.mcp')}
-            {agent.mcpServers.length > 0 ? (
-              <span className="text-faint ml-1.5">{agent.mcpServers.length}</span>
-            ) : null}
-          </TabsTrigger>
-          <TabsTrigger value="extensions">
-            {t('agent.tabs.extensions')}
-            {agent.extensions.length > 0 ? (
-              <span className="text-faint ml-1.5">{agent.extensions.length}</span>
-            ) : null}
-          </TabsTrigger>
-          <TabsTrigger value="other">
-            {t('agent.tabs.other')}
-            {agent.other.length > 0 ? (
-              <span className="text-faint ml-1.5">{agent.other.length}</span>
-            ) : null}
-          </TabsTrigger>
-        </TabsList>
+      <CloudActionsProvider owner={ownerRef}>
+        <Tabs defaultValue="overview" className="flex flex-col">
+          <TabsList>
+            <TabsTrigger value="overview">{t('agent.tabs.overview')}</TabsTrigger>
+            <TabsTrigger value="configs">
+              {t('agent.tabs.configs')}
+              {agent.configs.length > 0 ? (
+                <span className="text-faint ml-1.5">{agent.configs.length}</span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="skills">
+              {t('agent.tabs.skills')}
+              {agent.skills.length > 0 ? (
+                <span className="text-faint ml-1.5">{agent.skills.length}</span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="mcp">
+              {t('agent.tabs.mcp')}
+              {agent.mcpServers.length > 0 ? (
+                <span className="text-faint ml-1.5">{agent.mcpServers.length}</span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="extensions">
+              {t('agent.tabs.extensions')}
+              {agent.extensions.length > 0 ? (
+                <span className="text-faint ml-1.5">{agent.extensions.length}</span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="other">
+              {t('agent.tabs.other')}
+              {agent.other.length > 0 ? (
+                <span className="text-faint ml-1.5">{agent.other.length}</span>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="overview">
-          <OverviewTab agent={agent} onInstall={(_, action) => setInstallAction(action)} />
-        </TabsContent>
-        <TabsContent value="configs">
-          <ConfigsTab agentId={agent.id} configs={agent.configs} />
-        </TabsContent>
-        <TabsContent value="skills">
-          <SkillsTab
-            agentId={agent.id}
-            skills={agent.skills}
-            owner={installed ? { id: agent.id, name: agent.name, icon: agent.icon } : null}
-          />
-        </TabsContent>
-        <TabsContent value="mcp">
-          <McpTab
-            agentId={agent.id}
-            servers={agent.mcpServers}
-            configs={agent.configs}
-            owner={installed ? { id: agent.id, name: agent.name, icon: agent.icon } : null}
-          />
-        </TabsContent>
-        <TabsContent value="extensions">
-          <ExtensionsTab
-            agentId={agent.id}
-            extensions={agent.extensions}
-            supported={agent.extensionsSupported}
-          />
-        </TabsContent>
-        <TabsContent value="other">
-          <OtherTab resources={agent.other} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="overview">
+            <OverviewTab agent={agent} onInstall={(_, action) => setInstallAction(action)} />
+          </TabsContent>
+          <TabsContent value="configs">
+            <ConfigsTab agentId={agent.id} configs={agent.configs} />
+          </TabsContent>
+          <TabsContent value="skills">
+            <SkillsTab
+              agentId={agent.id}
+              skills={agent.skills}
+              owner={installed ? { id: agent.id, name: agent.name, icon: agent.icon } : null}
+            />
+          </TabsContent>
+          <TabsContent value="mcp">
+            <McpTab
+              agentId={agent.id}
+              servers={agent.mcpServers}
+              configs={agent.configs}
+              owner={installed ? { id: agent.id, name: agent.name, icon: agent.icon } : null}
+            />
+          </TabsContent>
+          <TabsContent value="extensions">
+            <ExtensionsTab
+              agentId={agent.id}
+              extensions={agent.extensions}
+              supported={agent.extensionsSupported}
+            />
+          </TabsContent>
+          <TabsContent value="other">
+            <OtherTab resources={agent.other} />
+          </TabsContent>
+        </Tabs>
+      </CloudActionsProvider>
 
       {installAction !== null ? (
         <InstallDialog

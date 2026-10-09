@@ -10,7 +10,7 @@ use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::domain::{HiddenAgent, ProjectFolder, Proxy, ProxyMode};
+use crate::domain::{HiddenAgent, ProjectFolder, Proxy, ProxyMode, SyncKind, SyncSettings};
 use crate::error::{AppError, Result};
 use crate::platform::{self, PlatformContext};
 
@@ -203,6 +203,13 @@ pub struct Settings {
     /// install starts with [`Settings::default`]'s `false`.
     #[serde(default = "default_tour_completed")]
     pub tour_completed: bool,
+    /// Cloud sync: whether it is on, where copies are kept and what an automatic run covers.
+    ///
+    /// Non-secret by construction — the token lives in its own file (`sync/credentials.json`),
+    /// which the frontend never reads. A settings file written before the feature existed has no
+    /// `sync` key and deserializes as [`SyncSettings::default`] (off, manual).
+    #[serde(default)]
+    pub sync: SyncSettings,
 }
 
 /// Serde default for a missing `tourCompleted` key in an existing settings file.
@@ -280,6 +287,7 @@ impl Default for Settings {
             sidebar_collapsed: false,
             last_route: None,
             tour_completed: false,
+            sync: SyncSettings::default(),
         }
     }
 }
@@ -342,6 +350,32 @@ impl Settings {
             self.close_to_tray = false;
             self.start_minimized = false;
         }
+        // Cloud sync: the interval and the size cap are bounded, and the three lists are
+        // hand-editable file input like every other list here — blanks, duplicates and a kind the
+        // cloud no longer accepts go.
+        self.sync.auto_interval_minutes = self
+            .sync
+            .auto_interval_minutes
+            .clamp(SyncSettings::MIN_INTERVAL, SyncSettings::MAX_INTERVAL);
+        self.sync.max_file_bytes = self
+            .sync
+            .max_file_bytes
+            .clamp(1024, SyncSettings::MAX_MAX_BYTES);
+        let mut seen_kinds: HashSet<SyncKind> = HashSet::new();
+        self.sync
+            .auto_kinds
+            .retain(|kind| SyncKind::SYNCABLE.contains(kind) && seen_kinds.insert(*kind));
+        let mut seen_owners: HashSet<String> = HashSet::new();
+        self.sync.auto_owners = std::mem::take(&mut self.sync.auto_owners)
+            .into_iter()
+            .map(|owner| owner.trim().to_string())
+            .filter(|owner| !owner.is_empty() && seen_owners.insert(owner.clone()))
+            .collect();
+        self.sync.exclude_patterns = std::mem::take(&mut self.sync.exclude_patterns)
+            .into_iter()
+            .map(|pattern| pattern.trim().to_string())
+            .filter(|pattern| !pattern.is_empty())
+            .collect();
         self
     }
 
@@ -944,5 +978,69 @@ mod tests {
         .unwrap();
         let settings = SettingsService::load(dir.path()).get();
         assert_eq!(settings.favorite_agents, vec!["codex", "claude-code"]);
+    }
+
+    #[test]
+    fn a_settings_file_written_before_cloud_sync_still_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        // The document an older Ahabby wrote: no `sync` key at all.
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"language":"en","theme":"system","tourCompleted":true}"#,
+        )
+        .unwrap();
+
+        let settings = SettingsService::load(dir.path()).get();
+        // Sync is opt-in: an upgrade must not start uploading anything by itself.
+        assert!(!settings.sync.enabled);
+        assert_eq!(settings.sync.mode, crate::domain::SyncMode::Manual);
+        assert_eq!(settings.sync.provider, crate::domain::SyncProviderId::Gist);
+        assert!(!settings.sync.include_secrets);
+        assert_eq!(
+            settings.sync.max_file_bytes,
+            SyncSettings::DEFAULT_MAX_BYTES
+        );
+    }
+
+    #[test]
+    fn a_hand_edited_sync_block_is_clamped_and_deduplicated() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"sync":{"autoIntervalMinutes":1,"maxFileBytes":999999999999,
+                "autoKinds":["skill","skill","mcp"],"autoOwners":["claude-code"," ","claude-code"],
+                "excludePatterns":["  *.log  ",""]}}"#,
+        )
+        .unwrap();
+
+        let sync = SettingsService::load(dir.path()).get().sync;
+        // A hand edit cannot ask for a timer finer than the floor, nor for a file cap above the
+        // ceiling; the lists lose their blanks and their repeats.
+        assert_eq!(sync.auto_interval_minutes, SyncSettings::MIN_INTERVAL);
+        assert_eq!(sync.max_file_bytes, SyncSettings::MAX_MAX_BYTES);
+        assert_eq!(
+            sync.auto_kinds,
+            vec![crate::domain::SyncKind::Skill, crate::domain::SyncKind::Mcp]
+        );
+        assert_eq!(sync.auto_owners, vec!["claude-code"]);
+        assert_eq!(sync.exclude_patterns, vec!["*.log"]);
+    }
+
+    #[test]
+    fn an_interval_above_the_ceiling_is_pulled_back() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"sync":{"autoIntervalMinutes":100000}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            SettingsService::load(dir.path())
+                .get()
+                .sync
+                .auto_interval_minutes,
+            SyncSettings::MAX_INTERVAL
+        );
     }
 }

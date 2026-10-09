@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.49.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.51.2`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -43,8 +43,10 @@ commands → services → adapters → catalog → domain
 - `platform` — OS-specific: path expansion (`${VAR}`), binary lookup, package-manager detection, process
   execution with timeouts, atomic writes + backups, native window chrome (Windows: DWM).
 - `services` — scanner, config editor, installer + job runner, version checker, settings, library, terminal
-  sessions, `project` (project discovery + reading), and `hub` (reading the collections of skills and MCP
-  servers the Hub installs from, with its own in-memory cache).
+  sessions, `project` (project discovery + reading), `hub` (reading the collections of skills and MCP
+  servers the Hub installs from, with its own in-memory cache), and `sync` (cloud sync: reading the scan as
+  the source of truth for what exists and where a restore may land, uploading through a `SyncProvider`, and
+  writing a restore through the app's own checked paths).
 - `commands` — thin Tauri command surface; validates input, calls a service.
 - `desktop` — the three surfaces the OS draws _for_ Ahabby and no service can own, because each needs
   the live `AppHandle`: the tray icon and its menu (`desktop::tray`), the window's life cycle
@@ -62,6 +64,10 @@ manifests → AdapterRegistry → Scanner → ScanReport → commands → React 
 hub sources → services::hub (one request per source, cached) → HubEntry → install_hub_resource
                  └→ the *same* adapter as a manual create: install_skill / create_mcp_server → the owner's own
                     skills directory or MCP config file
+
+scan report → services::sync → SyncProvider (GitHub Gist: one gist per item) → sync://done
+                  └→ a restore writes through AppState::document_target / the adapter's install_skill, so a
+                     cloud payload can only land where the owner's manifest declares a place for it
 
 agent id ──→ AppState::agent (the scan's binary) ──→ services::terminal (PTY) ──→ terminal://output ──→ xterm
 
@@ -82,7 +88,8 @@ Frontend boundaries (enforce them):
 
 - **`src/shared/api/ipc.ts` is the only module that calls Tauri `invoke`.** No component or hook calls it.
 - **`src/shared/api/events.ts` is the only module that calls `listen`** (`job://output`, `job://done`,
-  `scan://…`, `terminal://output`, `terminal://exit`, `tray://navigate`, `tray://run-agent`).
+  `scan://…`, `terminal://output`, `terminal://exit`, `tray://navigate`, `tray://run-agent`,
+  `sync://done`).
 - Server state = React Query (per-feature `api/` hooks, keys in `src/shared/api/keys.ts`). Zustand is used in
   exactly three places: the install-job console store, the toast store and the terminal tab store.
 - Routing is hash-based (`createHashRouter` in `src/app/router.tsx`) because the packaged app has no server SPA
@@ -102,29 +109,32 @@ Type safety across the boundary: Rust types derive `TS` (`#[ts(export, export_to
 
 ## Key Directories
 
-| Path                               | Purpose                                                                                                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                                                 |
-| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, extensions, library, hub, browser, projects, install, settings, terminal |
-| `src/features/browser/`            | Ahabby's own browser: the one click listener, the modal window, the sanitizer and the image proxy                                                      |
-| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                                                |
-| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                                                    |
-| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                                                 |
-| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard, `links` (where a link leads)                                                                              |
-| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                                       |
-| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                                                    |
-| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                                                   |
-| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services                                    |
-| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                                      |
-| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                                                   |
-| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                                        |
-| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                                      |
-| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time                                    |
-| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                                             |
-| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, paging) + `parse.rs` (the three formats, pure) + `installed.rs` (what this machine already has)                                |
-| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its owners and installed state, the preview, the install dialog                            |
-| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                                           |
-| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                                                   |
+| Path                               | Purpose                                                                                                                                                                                                                    |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/`                         | Providers (React Query, tooltips, toasts, job event bridge), hash router, theme, shell                                                                                                                                     |
+| `src/features/<feature>/`          | `api/` hooks, `components/`, `pages/` — agents, configs, editor, skills, mcp, extensions, library, hub, browser, projects, install, settings, terminal                                                                     |
+| `src/features/browser/`            | Ahabby's own browser: the one click listener, the modal window, the sanitizer and the image proxy                                                                                                                          |
+| `src/shared/api/`                  | `ipc.ts` (typed `invoke` wrappers), `events.ts`, `keys.ts`, `errors.ts`                                                                                                                                                    |
+| `src/shared/bindings/`             | ts-rs generated types (do not edit)                                                                                                                                                                                        |
+| `src/shared/i18n/`                 | i18next init + `locales/{en,ru}.json` (single `translation` namespace)                                                                                                                                                     |
+| `src/shared/lib/`                  | `cn`, formatting, secret masking, clipboard, `links` (where a link leads)                                                                                                                                                  |
+| `src/shared/ui/`                   | Design system: Button, Badge, Card, Tabs, Dialog, Toast, CodeViewer, Markdown, …                                                                                                                                           |
+| `src/styles/globals.css`           | CSS variables, `@theme inline` token mapping, base layer, keyframes                                                                                                                                                        |
+| `src-tauri/src/`                   | Rust: `domain · catalog · adapters · platform · services · commands · desktop · state.rs · error.rs`                                                                                                                       |
+| `src-tauri/src/desktop/`           | Tray + its menu (`tray.rs`), window life cycle (`window.rs`), login item (`autostart.rs`) — app-level, not services                                                                                                        |
+| `src-tauri/catalog/builtin/*.toml` | One manifest per agent — the whole support matrix                                                                                                                                                                          |
+| `src-tauri/catalog/project.toml`   | The **project surface**: the relative locations a project keeps skills, MCP servers and documents in                                                                                                                       |
+| `src-tauri/catalog/shared.toml`    | The agent-neutral (`~/.agents/...`) surface the Library shows next to the agents' own resources                                                                                                                            |
+| `src-tauri/catalog/SCHEMA.md`      | Manifest reference (authoritative alongside `domain/manifest.rs`)                                                                                                                                                          |
+| `src-tauri/catalog/hub/*.toml`     | One **hub source** per collection the Hub reads — the whole support matrix of the library, embedded at compile time                                                                                                        |
+| `src-tauri/catalog/HUB.md`         | Hub source reference: the three kinds, the index document format, and what the Hub will and will not fetch                                                                                                                 |
+| `src-tauri/src/services/hub/`      | `mod.rs` (fetch, cache, paging) + `parse.rs` (the three formats, pure) + `installed.rs` (what this machine already has)                                                                                                    |
+| `src-tauri/src/services/sync/`     | `mod.rs` (the service, the `SyncProvider`/`SyncTarget` seams, the automatic loop) + `plan.rs` (item derivation, payload, description, pure) + `gist.rs` (the GitHub Gist provider) + `store.rs` (push state + credentials) |
+| `src-tauri/src/domain/sync.rs`     | Every cloud sync model, the payload document included                                                                                                                                                                      |
+| `src/features/sync/`               | The cloud library: hooks, the item/remote rows, the restore preview, and the per-card surface (`CloudActions`) an agent's and a project's tabs wear                                                                        |
+| `src/features/hub/`                | The Hub screen: one section per source, the entry card with its owners and installed state, the preview, the install dialog                                                                                                |
+| `src-tauri/tests/pipeline.rs`      | End-to-end backend read/write pipeline tests                                                                                                                                                                               |
+| `.github/workflows/ci.yml`         | The only CI workflow                                                                                                                                                                                                       |
 
 ## Development Commands
 
@@ -150,6 +160,7 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 npm run bindings                  # regenerate src/shared/bindings (cargo test export_bindings)
 cargo run --manifest-path src-tauri/Cargo.toml --example scan         # validate catalog vs this machine
 cargo run --manifest-path src-tauri/Cargo.toml --example scan -- --json
+cargo run --manifest-path src-tauri/Cargo.toml --example scan -- --sync-items   # what cloud sync would offer to save
 cargo run --manifest-path src-tauri/Cargo.toml --example hub          # validate the hub sources vs the live APIs
 cargo run --manifest-path src-tauri/Cargo.toml --example hub -- --query pdf --payload
 ```
@@ -207,6 +218,14 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   `*-primary`. A `Select` option may carry an `icon` (the agent tile of a picker) and a `description`
   (a dimmed trailing note such as a count) — see the Icons bullet. Every screen needs loading
   (skeleton), empty (hint) and error (code + retry) states.
+- **A tab row inside another tab row is a `secondary` `TabsList`.** The two appearances are not
+  interchangeable: `primary` is a page's own tabs (a bottom rule with an accent underline gliding under the
+  active tab), `secondary` is a segmented control on an inset surface whose active tab is a raised pill —
+  and the secondary list carries that pill on the trigger itself, so a row that scrolls or wraps can never
+  clip it. Nested tabs are `secondary`: the owner-kind sub-tabs of Settings → Cloud sync. A level that is
+  _not_ tabs — the labelled chip groups and `Select`s of the Library and Hub toolbars, the enabled/disabled
+  chips of a list — is a filter and stays a chip row. `shadow-popover` belongs to overlays (dialogs,
+  menus, tooltips); a selected pill uses `bg-surface` + `border-border`, never it.
 - **Dialogs** are conditionally mounted with a `key` for state reset and an `onOpenChange` that unmounts —
   not always-present with an `open` prop. A dialog that stays mounted while `open` flips (e.g. `ConfirmDialog`)
   plays the exit animation; an unmounting one only animates in.
@@ -325,6 +344,41 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   `useState` that survives its component (the test setup clears it per case, so one case's filters cannot
   leak into the next). Navigating away and back, or from one agent's skills tab to another agent's, finds the
   list as it was left; nothing goes to disk, because a filter is a way of looking at a list, not a preference.
+- **Cloud sync has two surfaces and one library, grouped by owner.** `features/sync/api/hooks.ts` is the
+  only place the sync commands are called from; `SyncLibrary` (a two-tab list of what this machine holds and
+  what the account holds) is rendered by Settings → Cloud sync and owns the full set of rows
+  (`SyncItemRow` / `RemoteItemRow`), the owner groups (`SyncOwnerGroup`) and the restore preview
+  (`SyncPreviewDialog`). An agent's and a project's page carry the **per-card** surface instead:
+  `CloudActionsProvider` — mounted once around their tabs — runs the owner's one status, item and listing
+  query and owns the one set of dialogs, `CloudItemAction` is the chip a config, skill or MCP card wears in
+  its footer — the state, View, Compare, Save, Restore, where Compare needs a copy to exist and an MCP card
+  acts on the file its entry lives in, since the sync unit is the file — `CloudOnlyCard` is a copy this
+  machine has no file for — shown on its own tab, Restore being all there is to do with it — and
+  `CloudSummaryCard` is the Overview's counts, a "save all", the copy list, and behind `sync.showFiles` a
+  disclosure listing what can be uploaded and what can be restored as `SyncItemRow` / `RemoteItemRow` rows
+  with checkboxes, each group with a select-all and a bulk action (`RemoteItemRow` grew the optional
+  selection for it; a bulk restore goes through one `ConfirmDialog` and then the same `pull`).
+  A restore is still always a preview, on every path. The library's each half is cut
+  twice: the main tabs say _where_ a copy lives, the **owner-kind sub-tabs** say _whose_ it is (`agents` /
+  `projects` / `shared`, from `ownerFacetMatches` — a kind that half holds none of is not offered, and
+  picking one the other half lacks falls back to "all"), and inside one it is one foldable group per owner —
+  the brand tile and name come from `useSyncOwners` (`lib/owners.ts`), which orders agents favourite-first
+  exactly like the agent list — with its own counts ("2 not saved", "2 changed"), a session fold
+  (`sync.collapsed.<tab>.<owner>`) and the quick actions that apply to the whole group: select it, save it,
+  restore it (behind a `ConfirmDialog` naming the owner and how many copies it covers). A row carries
+  the two things its own width has no room for in a `SyncItemContextMenu` / `SyncRemoteContextMenu` —
+  preview, open on GitHub, copy path, reveal in the file manager, delete the cloud copy — so both surfaces
+  offer the same actions, and `useRefreshRemoteSync` is the one control that asks the provider again
+  instead of taking the listing's minute of cache. A row also opens the **reader** (`SyncContentDialog`:
+  the item's files, one shown with `CodeViewer` and `lib/fileFormat`, the two sides behind a secondary tab
+  switch when both exist) and, when a copy exists, the **comparison** (`SyncCompareDialog`: the per-file
+  verdicts and `BackupDiff` from `features/editor`, with Restore in the footer — the diff _is_ its review,
+  the way the editor's backup comparison works, so no second dialog). Saving is per item, per group or everything at once;
+  restoring always goes through
+  the preview or a confirmation, never straight from a click. The tab, search box and kind filter (chips with
+  per-kind counts) live in the session store like every other filter. A run that finishes on its own is
+  painted from `sync://done` (`app/providers.tsx` invalidates the status, item and library keys), so an
+  automatic save is on screen without a refresh.
 
 ### Backend patterns
 
@@ -477,6 +531,38 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
 - `services::hub` is rebuilt on a settings save (`HubService::set_proxy`) the way the version checker is: a
   proxy change is about the connection, not the cached data. Its HTTP client follows `Settings::proxy` exactly
   like the version checker's (`None` → `no_proxy`, `System` → environment, `Manual` → one URL).
+- **Cloud sync reads the scan and writes through it.** `services::sync` derives its items from the last
+  `ScanReport` (`plan::items_of`) — only the kinds an agent page shows as a file (`SyncKind::SYNCABLE`: a
+  config, a `.env`, a skill and an MCP config file), so the documents a manifest declares (instructions,
+  commands, sub-agents, hooks, rules, prompts, memory) and a local extension never leave the machine; an MCP
+  config file a manifest also declares as a config is one item, and `SyncSettings::default().auto_kinds` is
+  exactly that set. The frontend addresses an item by `(ownerId, itemId)` only; a path is never accepted from
+  it. A **push** builds one document per item (`SyncPayload`: metadata plus every file, text as text and
+  anything else base64) and stores it as the single file of one gist, whose **description** carries the same
+  facts in a parseable form, so a listing costs one request per page instead of one per item. A **pull** is
+  always manual, always `confirm`-guarded, resolves its destination from the _current_ scan
+  (`AppState::document_target` for a file, `AgentAdapter::install_skill` for a skill) and refuses a copy whose
+  name the target owner does not declare — a cloud payload can never invent a path.
+- **Automatic saving is a content-hash reconciliation, not a change feed.** `SyncService::run_auto` re-derives
+  the items, hashes what is on disk and uploads only what differs from `<app data>/sync/state.json`, which is
+  also why a file edited outside Ahabby is picked up. It runs on a timer (`autoIntervalMinutes`) and, when
+  `autoOnScan` is on, right after a scan (`TauriScanSink::finished` → `observe` + `request_auto`). An
+  `AtomicBool` keeps two runs apart, an item carrying secrets is never touched unless `includeSecrets` says
+  so, and a failure is recorded as `lastError` and reported on `sync://done` — an automatic run is never a
+  failed command. The provider is rebuilt from the settings on every run, so a proxy change is one client.
+- **Reading is a third command family, and it never takes a path.** `read_sync_item(ownerId, itemId)`
+  resolves an item out of the last scan (the frontend sends ids, exactly as it does for a push),
+  `read_remote_sync_item(remoteId)` reads the stored document back, and `compare_sync_item(remoteId, ownerId)`
+  answers both sides plus, per file, whether it is the same, changed, only here or only in the cloud. Both
+  sides are read into the _same_ shape (`SyncFileContent`: text within `plan::MAX_VIEW_BYTES`, the file's real
+  size, and the sha256 of the whole thing) — which is what makes "identical" a claim and not a guess, binary
+  files included. A file above `MAX_READ_FILE_BYTES` is reported by size with no hash and the comparison calls
+  it uncomparable instead of inventing an answer; a file whose read cut a multi-byte character in half is
+  still text (`plan::text_of` drops that one character rather than the file).
+- **The token is the one thing the settings document does not hold.** `Settings::sync` is non-secret by
+  construction; the token lives in `<app config>/sync/credentials.json`, written only by `set_sync_token` and
+  never read back to the frontend, which sees `SyncStatus::token_hint` instead. That is what keeps a
+  whole-document `save_settings` from ever touching a credential.
 - New Tauri command = 4 edits: service fn → thin `#[tauri::command]` → add to the `handlers!()` macro in
   `src-tauri/src/lib.rs` → typed wrapper in `src/shared/api/ipc.ts` (+ a feature hook). Arg names are
   camelCase on the TS side.
@@ -561,8 +647,14 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   with, and that a remount shows the session's own emulator again rather than a fresh, blank one), the animated
   list (the row order it renders, and a removed row staying in
   the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
-  composed within one tick, and one key not leaking into another), the Settings areas (appearance, and
-  window & tray: what the document says, and that a hidden window needs the tray icon), and Ahabby's own
+  composed within one tick, and one key not leaking into another), the Settings areas (appearance,
+  window & tray: what the document says, and that a hidden window needs the tray icon, and Cloud sync:
+  a token that connects without touching the settings file, the account a verification names, the sync
+  block carried through the one Save button, and a restore that previews before it confirms), the per-card
+  cloud surface (`CloudActions`: a chip's Save addressing an item by id, its View and Compare reaching the
+  reader and the diff, a cloud-only card that restores through its preview, and a chip that renders nothing
+  before sync is on; `CloudSummaryCard`: the disclosure listing what can be uploaded and restored, and a
+  ticked row reaching its bulk action), and Ahabby's own
   browser: what an href means (`shared/lib/links.ts` — opened, completed, refused, or left to the router), what
   the markdown renderer keeps as a link and what it turns into text, the reader's sanitizer (the article it
   takes, the chrome it drops, the ids it renames, the images it hands to the proxy), the image proxy's
@@ -590,6 +682,15 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   a name is found for (a project and the shared surface included), a skill compared by the hash of a real
   `SKILL.md` written into a `tempdir`, a server by its recipe, and that a different name or a different kind
   matches nothing.
+  `services::sync` is proven end to end in `src-tauri/tests/pipeline.rs` against the fixture agent: items are
+  derived from a real scan, a push into an in-memory `SyncProvider` records what a listing then reports, a
+  second push of unchanged content uploads nothing, an item holding a token is refused until `includeSecrets`
+  is on, an automatic run uploads only what changed, and a restore — refused without `confirm` — writes back
+  through a fake `SyncTarget` while a copy whose name the owner does not declare is skipped before any write.
+  The readers are exercised there too: a file's text and hash, a skill directory read as it is now (a binary
+  asset added after the scan included), the same item read back from the cloud as identical, an edited file
+  coming back `changed` with both texts for the diff, and a copy this machine has nowhere to put reported as
+  cloud-only.
   `desktop::tray` plans its menu as plain data and asserts the plan (the status line, the two submenus, that
   only installed agents are offered), including a test that reads `src/shared/i18n/locales/*.json` and fails
   when the tray's screen names drift from the sidebar's — the same trick `platform::chrome_tokens` uses on

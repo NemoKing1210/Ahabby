@@ -15,6 +15,7 @@ import { renderWithProviders } from '@/test/render'
 import { ScanRefreshProvider } from '@/features/agents/api/scan'
 
 import { HomePage } from './HomePage'
+import { emptySyncSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -185,6 +186,7 @@ const SETTINGS: Settings = {
   sidebarCollapsed: false,
   lastRoute: null,
   tourCompleted: true,
+  sync: emptySyncSettings,
 }
 
 function renderPage() {

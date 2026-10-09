@@ -3,7 +3,13 @@ import { MotionConfig } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 import { ipc } from '@/shared/api/ipc'
-import { onJobDone, onJobOutput, onTerminalExit, onTerminalOutput } from '@/shared/api/events'
+import {
+  onJobDone,
+  onJobOutput,
+  onSyncDone,
+  onTerminalExit,
+  onTerminalOutput,
+} from '@/shared/api/events'
 import { queryKeys } from '@/shared/api/keys'
 import { Toaster } from '@/shared/ui/Toast'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
@@ -63,6 +69,36 @@ function JobEventBridge() {
 let reconciled = false
 
 /**
+ * Bridges a finished cloud sync run into the query cache.
+ *
+ * An automatic run has no button behind it, so this is how the Sync screen and an agent's Cloud
+ * tab learn that something was saved or restored: the status, the items and the cloud library are
+ * re-read, and a restore also drops the library so a newly written resource appears there.
+ */
+function SyncEventBridge() {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const listeners = [
+      onSyncDone(() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus() })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.syncItemsAll() })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.syncRemote() })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.library() })
+      }),
+    ]
+
+    return () => {
+      void Promise.all(listeners).then((unlisten) => {
+        for (const off of unlisten) off()
+      })
+    }
+  }, [queryClient])
+
+  return null
+}
+
+/**
  * Bridges the backend's terminal sessions into the tab store.
  *
  * Output has to be routed even for a tab that is not on screen, which is why the subscription
@@ -116,6 +152,7 @@ export function AppProviders({ children, client }: { children: ReactNode; client
       <MotionConfig reducedMotion="user">
         <TooltipProvider delayDuration={250}>
           <JobEventBridge />
+          <SyncEventBridge />
           <TerminalEventBridge />
           <ScanRefreshProvider>
             {/* Ahabby's own browser sits above every screen: one click listener catches the

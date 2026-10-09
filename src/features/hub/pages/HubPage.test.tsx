@@ -15,6 +15,7 @@ import { tagHue } from '@/shared/lib/tagColor'
 import { renderWithProviders } from '@/test/render'
 
 import { HubPage } from './HubPage'
+import { emptySyncSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -245,6 +246,7 @@ const SETTINGS: Settings = {
   sidebarCollapsed: false,
   lastRoute: null,
   tourCompleted: true,
+  sync: emptySyncSettings,
 }
 
 function skillDetail(): HubEntryDetail {

@@ -13,6 +13,7 @@ pub mod mcp;
 pub mod projects;
 pub mod settings;
 pub mod skills;
+pub mod sync;
 pub mod terminal;
 pub mod web;
 

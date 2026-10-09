@@ -16,6 +16,8 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { configDocument, type EditorDocument } from '@/features/editor/model'
+import { CloudItemAction, useCloudActions } from '@/features/sync/components/CloudActions'
+import { CloudOnlyCard } from '@/features/sync/components/CloudOnlyCard'
 
 import { useDeleteMcpServer, useSetMcpServerEnabled } from '../api/hooks'
 import { CreateMcpServerDialog } from './CreateMcpServerDialog'
@@ -46,6 +48,10 @@ export function McpTab({
   const { t } = useTranslation()
   const remove = useDeleteMcpServer()
   const toggle = useSetMcpServerEnabled()
+  // The cloud half, when the page mounted a provider — the tab is the same list without one.
+  const cloud = useCloudActions()
+  // Copies of an MCP config file this machine does not hold at all.
+  const cloudServers = cloud?.cloudOnly(['mcp']) ?? []
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null)
   const [open, setOpen] = useState<EditorDocument | null>(null)
   // Kept for the session like the skills tab's: the switch is a way of looking at the list, not a
@@ -80,7 +86,7 @@ export function McpTab({
     return config ? configDocument(config) : null
   }
 
-  if (servers.length === 0) {
+  if (servers.length === 0 && cloudServers.length === 0) {
     return (
       <>
         <EmptyState
@@ -103,7 +109,7 @@ export function McpTab({
           <ActivityChips items={servers} value={activity} onChange={setActivity} />
           {createButton}
         </div>
-        {visible.length === 0 ? (
+        {visible.length === 0 && cloudServers.length === 0 ? (
           <EmptyState
             title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}
             hint={t('activity.noneHint')}
@@ -111,16 +117,23 @@ export function McpTab({
           />
         ) : (
           <AnimatedList>
-            {visible.map((server) => (
-              <McpCard
-                key={server.id}
-                server={server}
-                sourceDocument={documentFor(server)}
-                onOpen={setOpen}
-                onDelete={setDeleteTarget}
-                onToggle={toggleServer}
-                toggleBusy={toggle.isPending && toggle.variables?.serverId === server.id}
-              />
+            {visible.map((server) => {
+              const item = cloud?.itemAt(server.sourceConfig)
+              return (
+                <McpCard
+                  key={server.id}
+                  server={server}
+                  sourceDocument={documentFor(server)}
+                  onOpen={setOpen}
+                  onDelete={setDeleteTarget}
+                  onToggle={toggleServer}
+                  toggleBusy={toggle.isPending && toggle.variables?.serverId === server.id}
+                  cloudAction={item ? <CloudItemAction item={item} /> : undefined}
+                />
+              )
+            })}
+            {cloudServers.map((copy) => (
+              <CloudOnlyCard key={copy.remoteId} remote={copy} />
             ))}
           </AnimatedList>
         )}

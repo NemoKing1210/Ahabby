@@ -14,6 +14,8 @@ import { EmptyState } from '@/shared/ui/EmptyState'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
+import { CloudItemAction, useCloudActions } from '@/features/sync/components/CloudActions'
+import { CloudOnlyCard } from '@/features/sync/components/CloudOnlyCard'
 
 import { useDeleteSkill, useSetSkillEnabled } from '../api/hooks'
 import { CreateSkillDialog } from './CreateSkillDialog'
@@ -38,6 +40,12 @@ export function SkillsTab({
   const { t } = useTranslation()
   const remove = useDeleteSkill()
   const toggle = useSetSkillEnabled()
+  // The cloud actions of this owner, when the page mounted a provider: null on a page that did
+  // not (the tab then shows the skills exactly as it always did).
+  const cloud = useCloudActions()
+  // Copies the account holds and this machine does not: still shown, so a fresh machine can pull
+  // a skill it never had.
+  const cloudSkills = cloud?.cloudOnly(['skill']) ?? []
   // The dialog carries a switch, so it keeps the id and reads the live skill out of the list
   // the mutation refreshes: a snapshot would leave that switch showing a stale state.
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -73,7 +81,7 @@ export function SkillsTab({
     )
   }
 
-  if (skills.length === 0) {
+  if (skills.length === 0 && cloudSkills.length === 0) {
     return (
       <>
         <EmptyState
@@ -96,7 +104,7 @@ export function SkillsTab({
           <ActivityChips items={skills} value={activity} onChange={setActivity} />
           {createButton}
         </div>
-        {visible.length === 0 ? (
+        {visible.length === 0 && cloudSkills.length === 0 ? (
           <EmptyState
             title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}
             hint={t('activity.noneHint')}
@@ -104,16 +112,23 @@ export function SkillsTab({
           />
         ) : (
           <AnimatedList>
-            {visible.map((skill) => (
-              <SkillCard
-                key={skill.id}
-                skill={skill}
-                onOpen={(skill) => setDetailId(skill.id)}
-                onEdit={setEditTarget}
-                onDelete={setDeleteTarget}
-                onToggle={toggleSkill}
-                toggleBusy={toggle.isPending && toggle.variables?.skillId === skill.id}
-              />
+            {visible.map((skill) => {
+              const item = cloud?.itemAt(skill.path)
+              return (
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  onOpen={(skill) => setDetailId(skill.id)}
+                  onEdit={setEditTarget}
+                  onDelete={setDeleteTarget}
+                  onToggle={toggleSkill}
+                  toggleBusy={toggle.isPending && toggle.variables?.skillId === skill.id}
+                  cloudAction={item ? <CloudItemAction item={item} /> : undefined}
+                />
+              )
+            })}
+            {cloudSkills.map((copy) => (
+              <CloudOnlyCard key={copy.remoteId} remote={copy} />
             ))}
           </AnimatedList>
         )}

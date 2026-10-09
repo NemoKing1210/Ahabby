@@ -11,17 +11,18 @@ use tracing::warn;
 
 use crate::adapters::AgentAdapter;
 use crate::catalog::{self, Catalog};
+use crate::domain::SyncRun;
 use crate::domain::{
     is_project_owner, Agent, AgentManifest, AgentRemoval, ConfigFile, ConfigFormat, Extension,
     HiddenAgent, ManifestSource, McpServer, OtherResource, Project, ProjectFolder, Proxy,
-    RemovalKind, RemovalMode, Skill, TerminalExit, TerminalOutput, SHARED_OWNER_ID,
+    RemovalKind, RemovalMode, Skill, SkillInstall, TerminalExit, TerminalOutput, SHARED_OWNER_ID,
 };
 use crate::error::{AppError, Result};
 use crate::platform::PlatformContext;
 use crate::services::{
     self, HubService, JobOutcome, JobOutputEvent, JobRunner, JobSink, ScanCache, ScanReport,
-    ScanSink, Scanner, Settings, SettingsService, TerminalManager, TerminalSink, VersionChecker,
-    WebService,
+    ScanSink, Scanner, Settings, SettingsService, SyncService, SyncSink, SyncTarget,
+    TerminalManager, TerminalSink, VersionChecker, WebService,
 };
 
 /// Event names the frontend listens to. Kept in one place so both sides cannot drift.
@@ -44,6 +45,8 @@ pub mod events {
     pub const TRAY_NAVIGATE: &str = "tray://navigate";
     /// The tray asked to start an agent: the payload is its id.
     pub const TRAY_RUN_AGENT: &str = "tray://run-agent";
+    /// A cloud sync run finished (manual or automatic): the payload is the [`SyncRun`].
+    pub const SYNC_DONE: &str = "sync://done";
 }
 
 /// Emits job progress to the webview.
@@ -83,6 +86,32 @@ impl ScanSink for TauriScanSink {
         // The tray menu is built out of this report — the counts and the agents it can start —
         // so it is rebuilt for the scan that just landed, whoever asked for it.
         crate::desktop::sync(&self.app);
+        // Cloud sync reads the same report: an automatic run is asked for with the freshly
+        // scanned picture of what exists, so it never works from a stale one.
+        let state = self.app.state::<AppState>();
+        let sync = state.sync();
+        sync.observe(report);
+        sync.request_auto();
+    }
+}
+
+/// Streams the outcome of a cloud sync run to the webview.
+///
+/// An automatic run has no button behind it, so this is how the screen learns that something was
+/// uploaded without asking: the status query would otherwise only be as fresh as its last fetch.
+pub struct TauriSyncSink {
+    app: AppHandle,
+}
+
+impl SyncSink for TauriSyncSink {
+    fn finished(&self, run: &SyncRun, error: Option<&str>) {
+        let _ = self.app.emit(
+            events::SYNC_DONE,
+            crate::domain::SyncEvent {
+                run: Some(run.clone()),
+                error: error.map(str::to_string),
+            },
+        );
     }
 }
 
@@ -216,6 +245,7 @@ pub struct AppState {
     versions: RwLock<Arc<VersionChecker>>,
     hub: RwLock<Arc<HubService>>,
     web: WebService,
+    sync: Arc<SyncService>,
 }
 
 impl AppState {
@@ -260,6 +290,12 @@ impl AppState {
             ))),
             hub: RwLock::new(Arc::new(HubService::new(&proxy, &app_data))),
             web: WebService::new(&proxy),
+            sync: {
+                let sync = Arc::new(SyncService::new(&app_data, &app_config, &proxy));
+                sync.set_settings(&current.sync);
+                sync.set_sink(Arc::new(TauriSyncSink { app: app.clone() }));
+                sync
+            },
             scan_sink: Arc::new(TauriScanSink { app: app.clone() }),
             scanner,
             scan_cache,
@@ -298,6 +334,10 @@ impl AppState {
             hub.set_proxy(&proxy);
         }
         self.web.set_proxy(&proxy);
+        // Sync follows the same rule: the new configuration decides what an automatic run covers,
+        // and the proxy decides how it leaves the machine. What was uploaded stays uploaded.
+        self.sync.set_settings(&saved.sync);
+        self.sync.set_proxy(&proxy);
         Ok(saved)
     }
 
@@ -365,6 +405,11 @@ impl AppState {
             Ok(hub) => Arc::clone(&hub),
             Err(poisoned) => Arc::clone(&poisoned.into_inner()),
         }
+    }
+
+    /// Cloud sync: the last scan's resources, the connection and the state store.
+    pub fn sync(&self) -> Arc<SyncService> {
+        Arc::clone(&self.sync)
     }
 
     /// The hub's sources: the builtin ones merged with the user's own from `<config>/hub`.
@@ -628,6 +673,83 @@ impl AppState {
     pub fn read_config(&self, agent_id: &str, path: &str) -> Result<crate::domain::ConfigSnapshot> {
         let target = self.document_target(agent_id, path)?;
         services::read_snapshot(&target.path, target.format, target.editable)
+    }
+
+    /// The skills the scan reported for any owner, whichever surface it is.
+    fn owner_skills(&self, owner_id: &str) -> Vec<Skill> {
+        if owner_id == SHARED_OWNER_ID {
+            return self
+                .report()
+                .map(|report| report.shared.skills)
+                .unwrap_or_default();
+        }
+        if is_project_owner(owner_id) {
+            return self
+                .project(owner_id)
+                .map(|project| project.skills)
+                .unwrap_or_default();
+        }
+        self.report()
+            .ok()
+            .and_then(|report| report.agent(owner_id).map(|agent| agent.skills.clone()))
+            .unwrap_or_default()
+    }
+}
+
+/// How cloud sync writes a restore back into this machine.
+///
+/// Both writes are the app's own checked paths — an edit and a skill install — so a payload that
+/// arrived from a cloud can only ever land where the target owner's manifest declares a place for
+/// it: [`AppState::document_target`] refuses a path no manifest described, and
+/// `AgentAdapter::install_skill` derives the skill directory itself.
+#[async_trait::async_trait]
+impl SyncTarget for AppState {
+    async fn write_file(&self, owner_id: &str, path: &str, bytes: &[u8]) -> Result<()> {
+        let target = self.document_target(owner_id, path)?;
+        if !target.editable {
+            return Err(AppError::CommandNotAllowed(format!("{path} is read-only")));
+        }
+        crate::platform::write_atomic_bytes(&target.path, bytes, Some(&self.backup_root()))?;
+        Ok(())
+    }
+
+    async fn install_skill(&self, owner_id: &str, install: SkillInstall) -> Result<String> {
+        let adapter = self.adapter(owner_id)?;
+        let context = self.platform_context();
+        let skill = adapter.install_skill(&context, &install).await?;
+        Ok(skill.path)
+    }
+
+    fn skills_root(&self, owner_id: &str) -> Option<String> {
+        let skill = self.owner_skills(owner_id).into_iter().next()?;
+        Path::new(&skill.path)
+            .parent()
+            .map(|parent| parent.to_string_lossy().to_string())
+    }
+
+    fn owner_name(&self, owner_id: &str) -> Option<String> {
+        if owner_id == SHARED_OWNER_ID {
+            return Some("Shared".to_string());
+        }
+        if is_project_owner(owner_id) {
+            return self.project(owner_id).ok().map(|project| project.name);
+        }
+        self.report()
+            .ok()?
+            .agent(owner_id)
+            .map(|agent| agent.name.clone())
+    }
+
+    fn owner_exists(&self, owner_id: &str) -> bool {
+        if owner_id == SHARED_OWNER_ID {
+            return true;
+        }
+        if is_project_owner(owner_id) {
+            return self.project(owner_id).is_ok();
+        }
+        self.report()
+            .map(|report| report.agent(owner_id).is_some())
+            .unwrap_or(false)
     }
 }
 

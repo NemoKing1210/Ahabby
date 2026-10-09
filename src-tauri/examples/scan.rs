@@ -3,7 +3,11 @@
 //! ```bash
 //! cargo run --manifest-path src-tauri/Cargo.toml --example scan
 //! cargo run --manifest-path src-tauri/Cargo.toml --example scan -- --json
+//! cargo run --manifest-path src-tauri/Cargo.toml --example scan -- --sync-items
 //! ```
+//!
+//! `--sync-items` prints what cloud sync would offer to save on this machine — the same
+//! derivation the Sync screen and an automatic run use, without a token or a network request.
 //!
 //! Maintainers use it to check a new manifest against a real installation without launching the
 //! desktop app (which needs a window and a webview).
@@ -13,6 +17,7 @@ use std::path::PathBuf;
 use ahabby_lib::catalog;
 use ahabby_lib::domain::{Agent, AgentStatus};
 use ahabby_lib::platform::PlatformContext;
+use ahabby_lib::services::sync::plan;
 use ahabby_lib::services::{aggregate, Scanner};
 
 fn data_dir(name: &str) -> PathBuf {
@@ -66,6 +71,7 @@ fn describe(agent: &Agent) -> String {
 #[tokio::main]
 async fn main() {
     let as_json = std::env::args().any(|argument| argument == "--json");
+    let sync_items = std::env::args().any(|argument| argument == "--sync-items");
     let app_data = data_dir("ahabby");
     let app_config = config_dir("ahabby");
 
@@ -81,6 +87,43 @@ async fn main() {
     let scanner = Scanner::new(&catalog);
     let report = scanner.scan(&context, None, &[], &[], None).await;
     let library = aggregate(&report);
+
+    if sync_items {
+        let items = plan::items_of(&report, Some(&context.home), None);
+        if as_json {
+            match serde_json::to_string_pretty(&items) {
+                Ok(json) => println!("{json}"),
+                Err(error) => eprintln!("cannot serialize the items: {error}"),
+            }
+            return;
+        }
+        println!(
+            "sync items: {} (owners={})",
+            items.len(),
+            items
+                .iter()
+                .map(|item| item.owner_id.as_str())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+        );
+        for item in &items {
+            println!(
+                "{:>10} | {:>9} | {:>12} | {} | {} | {} | secrets={}",
+                item.owner_id,
+                item.kind.name(),
+                item.key,
+                item.label,
+                item.relative_path,
+                match item.is_directory {
+                    true => "dir",
+                    false => "file",
+                },
+                item.has_secrets,
+            );
+        }
+        println!();
+        return;
+    }
 
     if as_json {
         match serde_json::to_string_pretty(&report) {

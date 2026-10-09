@@ -12,6 +12,7 @@ import { initI18n } from '@/shared/i18n'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { TourProvider } from './TourProvider'
+import { emptySyncSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -57,6 +58,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     lastRoute: null,
     tourCompleted: false,
     ...overrides,
+    sync: overrides.sync ?? emptySyncSettings,
   }
 }
 

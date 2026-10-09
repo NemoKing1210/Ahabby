@@ -14,6 +14,7 @@ import { SHARED_OWNER_ID } from '@/shared/lib/owners'
 import { renderWithProviders } from '@/test/render'
 
 import { LibraryPage } from './LibraryPage'
+import { emptySyncSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: { listLibrary: vi.fn(), getSettings: vi.fn() },
@@ -161,6 +162,7 @@ const SETTINGS: Settings = {
   sidebarCollapsed: false,
   lastRoute: null,
   tourCompleted: true,
+  sync: emptySyncSettings,
 }
 
 /**

@@ -6,6 +6,7 @@ import type { Language } from "./Language";
 import type { MonoFont } from "./MonoFont";
 import type { ProjectFolder } from "./ProjectFolder";
 import type { ProxyMode } from "./ProxyMode";
+import type { SyncSettings } from "./SyncSettings";
 import type { TerminalTheme } from "./TerminalTheme";
 import type { Theme } from "./Theme";
 
@@ -131,4 +132,12 @@ lastRoute: string | null,
  * omit the key deserialize as completed so an upgrade does not re-show the tour; a brand-new
  * install starts with [`Settings::default`]'s `false`.
  */
-tourCompleted: boolean, };
+tourCompleted: boolean, 
+/**
+ * Cloud sync: whether it is on, where copies are kept and what an automatic run covers.
+ *
+ * Non-secret by construction — the token lives in its own file (`sync/credentials.json`),
+ * which the frontend never reads. A settings file written before the feature existed has no
+ * `sync` key and deserializes as [`SyncSettings::default`] (off, manual).
+ */
+sync: SyncSettings, };

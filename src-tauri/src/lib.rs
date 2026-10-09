@@ -92,6 +92,19 @@ macro_rules! handlers {
             commands::settings::set_tour_completed,
             commands::settings::save_settings,
             commands::settings::set_window_theme,
+            commands::sync::get_sync_status,
+            commands::sync::verify_sync_connection,
+            commands::sync::set_sync_token,
+            commands::sync::list_sync_items,
+            commands::sync::list_remote_sync_items,
+            commands::sync::preview_sync_pull,
+            commands::sync::push_sync_items,
+            commands::sync::push_all_sync_items,
+            commands::sync::pull_sync_items,
+            commands::sync::read_sync_item,
+            commands::sync::read_remote_sync_item,
+            commands::sync::compare_sync_item,
+            commands::sync::delete_remote_sync_item,
             commands::terminal::list_terminals,
             commands::terminal::launch_terminal,
             commands::terminal::write_terminal,
@@ -154,6 +167,9 @@ pub fn run() {
             // The tray exists before the window is shown, because the window may never be shown:
             // it is also what makes `start_minimized` safe to honour.
             desktop::sync(app.handle());
+            // Cloud sync's timer starts with the app: an automatic run is what makes saving
+            // automatic at all, and it is a no-op until the user turns the feature on.
+            app.state::<state::AppState>().sync().spawn_auto();
 
             // The window is created hidden (`"visible": false` in `tauri.conf.json`) and is shown
             // below, once its caption is painted: the webview cannot colour it — the splash is on

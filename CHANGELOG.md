@@ -5,6 +5,90 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.51.2] - 2026-10-09
+
+### Added
+
+- **Read and compare from an agent's own tabs.** Every config, skill and MCP card carries View and
+  Compare beside Save and Restore: the reader shows the file as this machine holds it and lets the
+  cloud side be switched to, and Compare is the per-file diff against the copy the account holds —
+  offered only once a copy exists, because there is nothing to compare with before that.
+- **A file list with checkboxes in Overview.** The cloud card opens onto the files behind its two
+  buttons: what can be saved (on this machine, not the cloud's copy yet) and what can be restored
+  (the account's copies, cloud-only ones included). Every row is a checkbox, each group has a
+  select-all and its own bulk action, and restoring a selection is still one confirmation.
+
+## [0.51.1] - 2026-10-09
+
+### Changed
+
+- **Cloud sync keeps the working set.** Only the files an agent page shows — its configs (a `.env`
+  included), its skills and its MCP config files — are saved. The documents a manifest declares
+  (instructions, commands, sub-agents, hooks, rules, prompts, memory) and local extensions stay on
+  the machine, so the cloud no longer fills with things nobody asked it to carry; a hand-edited
+  setting asking for one of them is dropped on the next save.
+- **The cloud lives on the cards, not in a tab.** An agent's own Cloud tab is gone. Every config,
+  skill and MCP card carries its cloud state and the two actions that go with it — save it, or
+  restore it — and a file that exists only in the cloud appears on its tab as a card of its own,
+  ready to restore. An MCP card acts on the config file its entry lives in. The Overview gains a
+  cloud card: what is not saved yet, a "save all" and the account's copies, each restoring through
+  its preview as always.
+
+## [0.51.0] - 2026-10-09
+
+### Added
+
+- **Settings open on an index.** Every area of Ahabby in one column: what the area is for, and what it
+  currently says — the accent and theme, whether the tray icon and the login item are on, the terminal
+  and its colour scheme, the extra scan paths, version checks and the proxy, automatic saving, where
+  backups go, hidden agents. The line is read from the draft, so an edit you have not saved yet is
+  described there too.
+
+- **Read any file, and compare it with the cloud.** Every item of the cloud library — an agent's
+  config, a skill, an MCP file — opens read-only, file by file, with syntax highlighting; a binary
+  file is named by its size instead of being decoded into nonsense, and a file too large to show says
+  so. The comparison puts this machine and the cloud side by side: a real diff per file (unified or
+  split), what changed, what is only here, what is only in the cloud, and what is identical. Restore
+  sits inside that comparison, because the diff on screen is exactly what it writes back.
+
+### Changed
+
+- **An area is opened from the index and left through "All settings".** The rail that sat beside the
+  settings content is gone, so the whole width belongs to the area — and leaving one does not throw
+  away the changes you were still making: the Save button follows you back to the index.
+
+## [0.50.0] - 2026-10-09
+
+### Added
+
+- **Cloud sync.** Keep an agent's configs, env files, skills, MCP servers, instructions, commands,
+  hooks and rules in a GitHub Gist and put them back on any machine: GitHub Gist is the first
+  provider, behind a `SyncProvider` seam a second one plugs into. One gist per item, holding the
+  metadata and the bytes together, so restoring needs nothing but the file itself.
+- **Manual or automatic saving.** Manual saving uploads exactly what you pick — one item, a group,
+  or everything — from Settings → Cloud sync or from an agent's own Cloud tab. Automatic saving
+  keeps the kinds and owners you choose up to date on its own: right after every scan and on a
+  timer, and only for items whose content actually changed. Secrets are never uploaded unless you
+  explicitly turn that on.
+- **Restoring is always deliberate.** Nothing is ever downloaded on its own: every copy is listed
+  with what it holds, previewing it shows the destination and a per-file diff resolved against the
+  scan, and a restore writes through the same backed-up, path-checked writes as an edit.
+- **Settings → Cloud sync.** Connection (token, verification, disconnect), the saving mode and its
+  scope, exclusions, a size cap, the last save/restore and a "save everything now" action, next to
+  a two-sided library: what this machine holds, and what the account already has.
+- **Sub-tabs now look like sub-tabs.** A tab row inside another tab row is drawn as a compact segmented
+  control on an inset surface, with the active tab a raised pill — instead of wearing the same underline as
+  the page's own tabs. That is the owner-kind sub-tabs of Settings → Cloud sync and the local/cloud tabs
+  inside an agent's Cloud tab; filter rows (chip groups, selects) keep their own look.
+- **A cloud library grouped by owner, cut by sub-tabs.** Agents, projects and the shared surface each get
+  their own sub-tab under "On this machine" and "In the cloud" — with how much each holds, and no tab for a
+  kind this machine has none of — and inside one they are one foldable group per owner: the owner's own
+  tile, how much of it is outstanding ("2 not saved", "2 changed"), a fold that is remembered, and
+  one-click actions for the whole group — select it, save it, restore it (with a confirmation that names the
+  owner and how many copies it covers). Every row also has a right-click menu with the actions a row has no
+  room for: preview, open on GitHub, copy the path, show it in the file manager, or delete the cloud copy —
+  and the cloud half has a refresh that ignores the cached listing.
+
 ## [0.49.0] - 2026-10-09
 
 ### Added

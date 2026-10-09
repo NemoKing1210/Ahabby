@@ -12,6 +12,7 @@ import type { Agent } from '@/shared/bindings/Agent'
 import type { JobOutcome } from '@/shared/bindings/JobOutcome'
 import type { JobOutputEvent } from '@/shared/bindings/JobOutputEvent'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
+import type { SyncEvent } from '@/shared/bindings/SyncEvent'
 import type { TerminalExit } from '@/shared/bindings/TerminalExit'
 import type { TerminalOutput } from '@/shared/bindings/TerminalOutput'
 
@@ -24,6 +25,7 @@ export const TERMINAL_OUTPUT_EVENT = 'terminal://output'
 export const TERMINAL_EXIT_EVENT = 'terminal://exit'
 export const TRAY_NAVIGATE_EVENT = 'tray://navigate'
 export const TRAY_RUN_AGENT_EVENT = 'tray://run-agent'
+export const SYNC_DONE_EVENT = 'sync://done'
 
 export function onJobOutput(handler: (event: JobOutputEvent) => void): Promise<UnlistenFn> {
   return listen<JobOutputEvent>(JOB_OUTPUT_EVENT, (event) => {
@@ -85,6 +87,18 @@ export function onTrayNavigate(handler: (route: string) => void): Promise<Unlist
 /** The tray asked to start an agent in the terminal; the payload is its id. */
 export function onTrayRunAgent(handler: (agentId: string) => void): Promise<UnlistenFn> {
   return listen<string>(TRAY_RUN_AGENT_EVENT, (event) => {
+    handler(event.payload)
+  })
+}
+
+/**
+ * A cloud sync run finished.
+ *
+ * This is how the screen learns about an *automatic* run, which no button asked for: the run's
+ * counters and per-item results, or the error that stopped it before it began.
+ */
+export function onSyncDone(handler: (event: SyncEvent) => void): Promise<UnlistenFn> {
+  return listen<SyncEvent>(SYNC_DONE_EVENT, (event) => {
     handler(event.payload)
   })
 }

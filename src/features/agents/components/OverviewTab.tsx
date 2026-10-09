@@ -13,6 +13,7 @@ import { ManagerBadge, ManagerIcon } from '@/shared/ui/ManagerIcon'
 import { toastAppError } from '@/shared/ui/Toast'
 
 import { useBrowser } from '@/features/browser/context'
+import { CloudSummaryCard } from '@/features/sync/components/CloudSummaryCard'
 
 import { AgentFactsCard } from './AgentFactsCard'
 
@@ -108,6 +109,8 @@ export function OverviewTab({
             </div>
           ) : null}
         </Card>
+
+        <CloudSummaryCard />
 
         <AgentFactsCard agent={agent} />
 

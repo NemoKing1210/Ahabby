@@ -5,19 +5,26 @@
 //! proof that "adding an agent needs only a manifest" holds for the real pipeline, because
 //! the agent used here exists nowhere in the shipped catalog.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use ahabby_lib::adapters::doc_edit;
 use ahabby_lib::adapters::AgentAdapter;
 use ahabby_lib::catalog;
 use ahabby_lib::domain::{
     AgentStatus, ConfigFormat, ExtensionAction, ExtensionKind, ExtensionManager, InstallAction,
-    Manager, McpDraftTransport, McpKeyValue, McpServerDraft, Os, Severity, SkillDraft,
-    SkillInstall, SkillInstallFile,
+    Manager, McpDraftTransport, McpKeyValue, McpServerDraft, Os, Proxy, RemoteItem, Severity,
+    SkillDraft, SkillInstall, SkillInstallFile, SyncAccount, SyncContentSide, SyncFileAction,
+    SyncFileStatus, SyncItem, SyncItemRef, SyncItemStatus, SyncKind, SyncPayload, SyncProviderId,
+    SyncPullTarget, SyncRunKind, SyncSettings,
 };
+use ahabby_lib::error::{AppError, Result};
 use ahabby_lib::platform::PlatformContext;
-use ahabby_lib::services::{self, aggregate, Scanner};
+use ahabby_lib::services::sync::plan;
+use ahabby_lib::services::{self, aggregate, Scanner, SyncProvider, SyncService, SyncTarget};
 use ahabby_lib::state::resolve_document;
 
 const MANIFEST: &str = r#"
@@ -46,6 +53,12 @@ id = "settings"
 label = "Settings"
 format = "json"
 path = { windows = "${HOME}/.pipeline/settings.json", macos = "${HOME}/.pipeline/settings.json", linux = "${HOME}/.pipeline/settings.json" }
+
+[[configs]]
+id = "prefs"
+label = "Preferences"
+format = "json"
+path = { windows = "${HOME}/.pipeline/prefs.json", macos = "${HOME}/.pipeline/prefs.json", linux = "${HOME}/.pipeline/prefs.json" }
 
 [skills]
 format = "skillMd"
@@ -186,6 +199,11 @@ impl Fixture {
             "# Agent rules\n\nBe careful.\n",
         )
         .unwrap();
+        fs::write(
+            agent_dir.join("prefs.json"),
+            "{\n  \"theme\": \"dark\"\n}\n",
+        )
+        .unwrap();
 
         // Extensions: one module the user dropped in, and one package the settings declare.
         fs::create_dir_all(agent_dir.join("extensions")).unwrap();
@@ -246,8 +264,8 @@ async fn full_read_pipeline_from_a_user_manifest() {
     assert!(agent.warnings.is_empty(), "warnings: {:?}", agent.warnings);
 
     // Configs
-    assert_eq!(agent.configs.len(), 1);
-    assert!(agent.configs[0].exists);
+    assert_eq!(agent.configs.len(), 2);
+    assert!(agent.configs.iter().all(|config| config.exists));
 
     // Skills
     assert_eq!(agent.skills.len(), 1);
@@ -1901,4 +1919,642 @@ async fn a_hub_entry_is_found_installed_in_the_scan_report() {
         Some(true),
         "renaming the file does not change what it says"
     );
+}
+
+// --- cloud sync -------------------------------------------------------------------------------
+
+/// An in-memory cloud: one "gist" per payload, keyed by the id it minted.
+#[derive(Default)]
+struct FakeProvider {
+    gists: Mutex<HashMap<String, SyncPayload>>,
+    next: AtomicUsize,
+}
+
+impl FakeProvider {
+    fn count(&self) -> usize {
+        self.gists.lock().unwrap().len()
+    }
+
+    /// Id of the copy whose item key is `key`.
+    fn remote_of(&self, key: &str) -> Option<String> {
+        self.gists
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(_, payload)| payload.key == key)
+            .map(|(id, _)| id.clone())
+    }
+
+    /// Put a document into the cloud without going through a push.
+    fn seed(&self, payload: SyncPayload) -> String {
+        let id = format!("seed-{}", self.next.fetch_add(1, Ordering::SeqCst));
+        self.gists.lock().unwrap().insert(id.clone(), payload);
+        id
+    }
+
+    fn remote_item(&self, id: &str, payload: &SyncPayload) -> RemoteItem {
+        RemoteItem {
+            remote_id: id.to_string(),
+            key: payload.key.clone(),
+            owner_id: payload.owner_id.clone(),
+            owner_name: payload.owner_name.clone(),
+            owner_kind: payload.owner_kind,
+            kind: payload.kind,
+            name: payload.name.clone(),
+            label: payload.label.clone(),
+            relative_path: payload.relative_path.clone(),
+            is_directory: payload.is_directory,
+            files: payload.files.len(),
+            size_bytes: plan::payload_size(&payload.files),
+            hash: payload.hash.clone(),
+            description: plan::gist_description(payload),
+            uri: format!("https://gist.invalid/{id}"),
+            updated_at_ms: payload.pushed_at_ms,
+            has_secrets: payload.has_secrets,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl SyncProvider for FakeProvider {
+    fn id(&self) -> SyncProviderId {
+        SyncProviderId::Gist
+    }
+
+    async fn verify(&self) -> Result<SyncAccount> {
+        Ok(SyncAccount {
+            provider: SyncProviderId::Gist,
+            login: "tester".to_string(),
+            name: None,
+            avatar: None,
+            gists: self.count(),
+        })
+    }
+
+    async fn list(&self) -> Result<Vec<RemoteItem>> {
+        let gists = self.gists.lock().unwrap();
+        Ok(gists
+            .iter()
+            .map(|(id, payload)| self.remote_item(id, payload))
+            .collect())
+    }
+
+    async fn upload(&self, payload: &SyncPayload, existing: Option<&str>) -> Result<RemoteItem> {
+        let id = match existing {
+            Some(id) => id.to_string(),
+            None => format!("gist-{}", self.next.fetch_add(1, Ordering::SeqCst)),
+        };
+        self.gists
+            .lock()
+            .unwrap()
+            .insert(id.clone(), payload.clone());
+        Ok(self.remote_item(&id, payload))
+    }
+
+    async fn download(&self, remote_id: &str) -> Result<SyncPayload> {
+        self.gists
+            .lock()
+            .unwrap()
+            .get(remote_id)
+            .cloned()
+            .ok_or_else(|| AppError::NotFound(format!("gist {remote_id}")))
+    }
+
+    async fn delete(&self, remote_id: &str) -> Result<()> {
+        self.gists.lock().unwrap().remove(remote_id);
+        Ok(())
+    }
+}
+
+/// A stand-in for the app: it writes where the payload says, into the fixture's own home, and
+/// records every call so a test can prove that a refused restore wrote nothing.
+struct FakeTarget {
+    skills_root: PathBuf,
+    writes: Mutex<Vec<PathBuf>>,
+    installs: Mutex<Vec<PathBuf>>,
+}
+
+impl FakeTarget {
+    fn new(skills_root: PathBuf) -> Self {
+        Self {
+            skills_root,
+            writes: Mutex::new(Vec::new()),
+            installs: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn write_count(&self) -> usize {
+        self.writes.lock().unwrap().len()
+    }
+}
+
+#[async_trait::async_trait]
+impl SyncTarget for FakeTarget {
+    async fn write_file(&self, _owner_id: &str, path: &str, bytes: &[u8]) -> Result<()> {
+        let path = PathBuf::from(path);
+        fs::write(&path, bytes).map_err(|error| AppError::io(&path, error))?;
+        self.writes.lock().unwrap().push(path);
+        Ok(())
+    }
+
+    async fn install_skill(&self, _owner_id: &str, install: SkillInstall) -> Result<String> {
+        let dir = self.skills_root.join(&install.name);
+        fs::create_dir_all(&dir).unwrap();
+        for file in &install.files {
+            let target = dir.join(&file.path);
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(&target, &file.bytes).unwrap();
+        }
+        self.installs.lock().unwrap().push(dir.clone());
+        Ok(dir.to_string_lossy().to_string())
+    }
+
+    fn skills_root(&self, _owner_id: &str) -> Option<String> {
+        Some(self.skills_root.to_string_lossy().to_string())
+    }
+
+    fn owner_name(&self, _owner_id: &str) -> Option<String> {
+        Some("Pipeline Demo".to_string())
+    }
+
+    fn owner_exists(&self, _owner_id: &str) -> bool {
+        true
+    }
+}
+
+/// The fixture's report, its service and the two fakes, wired the way the app wires them.
+async fn sync_fixture() -> (
+    Fixture,
+    ahabby_lib::services::ScanReport,
+    Arc<SyncService>,
+    Arc<FakeProvider>,
+    FakeTarget,
+) {
+    let fixture = Fixture::new();
+    fixture.write_manifest();
+    fixture.write_binary("4.2.1");
+    fixture.write_agent_files();
+
+    let catalog = catalog_for(&fixture);
+    let report = Scanner::new(&catalog)
+        .scan(&fixture.context(), None, &[], &[], None)
+        .await;
+
+    let provider = Arc::new(FakeProvider::default());
+    let target = FakeTarget::new(fixture.home.join(".pipeline").join("skills"));
+    let service = Arc::new(SyncService::new(
+        &fixture.app_data,
+        &fixture.app_config,
+        &Proxy::none(),
+    ));
+    service.set_provider(provider.clone());
+    service.set_settings(&SyncSettings {
+        enabled: true,
+        include_secrets: false,
+        ..SyncSettings::default()
+    });
+    service
+        .set_token(SyncProviderId::Gist, "test-token")
+        .expect("the token is stored");
+    (fixture, report, service, provider, target)
+}
+
+fn refs(items: &[SyncItem]) -> Vec<SyncItemRef> {
+    items
+        .iter()
+        .map(|item| SyncItemRef {
+            owner_id: item.owner_id.clone(),
+            item_id: item.id.clone(),
+        })
+        .collect()
+}
+
+fn target_of(item: &SyncItem) -> SyncPullTarget {
+    SyncPullTarget {
+        remote_id: String::new(),
+        owner_id: item.owner_id.clone(),
+    }
+}
+
+#[tokio::test]
+async fn cloud_sync_saves_only_what_changed_and_refuses_secrets_by_default() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let kinds: Vec<SyncKind> = list.items.iter().map(|item| item.kind).collect();
+    // `settings.json` is both a declared config and the MCP source; the MCP kind wins.
+    assert!(kinds.contains(&SyncKind::Mcp), "kinds: {kinds:?}");
+    assert!(kinds.contains(&SyncKind::Skill));
+    assert!(kinds.contains(&SyncKind::Config));
+    // A manifest's documents are never derived: the cloud holds the working set only.
+    assert!(!kinds.contains(&SyncKind::Instruction), "kinds: {kinds:?}");
+    assert!(!kinds.contains(&SyncKind::Extension));
+    assert!(list
+        .items
+        .iter()
+        .all(|item| item.status == SyncItemStatus::Unsynced));
+    assert_eq!(list.unsynced, list.items.len());
+
+    let secret = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Mcp)
+        .expect("the MCP file holds a token")
+        .clone();
+    assert!(secret.has_secrets, "the token in settings.json is a secret");
+    let plain: Vec<SyncItem> = list
+        .items
+        .iter()
+        .filter(|item| !item.has_secrets)
+        .cloned()
+        .collect();
+    assert!(!plain.is_empty());
+
+    // A manual save uploads what the user picked.
+    let run = service.push(&report, &refs(&plain)).await.unwrap();
+    assert_eq!(run.kind, SyncRunKind::Push);
+    assert_eq!(run.uploaded, plain.len());
+    assert_eq!(run.failed, 0);
+    assert_eq!(provider.count(), plain.len());
+
+    // The secret-bearing file is skipped until the user opts in.
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&secret)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 0);
+    assert_eq!(run.skipped, 1);
+    assert_eq!(provider.count(), plain.len());
+
+    service.set_settings(&SyncSettings {
+        enabled: true,
+        include_secrets: true,
+        ..SyncSettings::default()
+    });
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&secret)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1);
+    assert_eq!(provider.count(), plain.len() + 1);
+
+    // Nothing changed since: a second save spends no request at all.
+    let run = service.push(&report, &refs(&plain)).await.unwrap();
+    assert_eq!(run.uploaded, 0);
+    assert_eq!(run.failed, 0);
+    assert!(run
+        .results
+        .iter()
+        .any(|result| result.message.as_deref() == Some("already up to date")));
+
+    // The local picture now says what is uploaded and what is not.
+    let list = service.local_items(&report, Some(agent_id));
+    assert_eq!(list.unsynced, 0);
+    assert_eq!(list.modified, 0);
+    assert!(list
+        .items
+        .iter()
+        .all(|item| item.status == SyncItemStatus::Synced));
+
+    // Editing a file makes exactly that one item differ again.
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .expect("prefs.json is a sync item")
+        .clone();
+    fs::write(&config.path, "{\n  \"theme\": \"light\"\n}\n").unwrap();
+    let list = service.local_items(&report, Some(agent_id));
+    assert_eq!(list.modified, 1);
+
+    // An automatic run uploads the changed item and nothing else.
+    service.observe(&report);
+    service.set_settings(&SyncSettings {
+        enabled: true,
+        mode: ahabby_lib::domain::SyncMode::Automatic,
+        auto_owners: vec![agent_id.to_string()],
+        ..SyncSettings::default()
+    });
+    let run = service.run_auto().await.expect("a run happened");
+    assert_eq!(run.kind, SyncRunKind::Automatic);
+    assert_eq!(run.uploaded, 1);
+    assert_eq!(run.results.len(), 1, "only the changed item is reported");
+    let run = service.run_auto().await.expect("the loop still runs");
+    assert_eq!(run.uploaded, 0, "an unchanged tree uploads nothing");
+    assert!(run.results.is_empty());
+}
+
+#[tokio::test]
+async fn cloud_sync_restores_only_into_declared_surfaces() {
+    let (_fixture, report, service, provider, target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1);
+    let remote = provider.remote_of(&config.key).expect("a copy exists");
+
+    // Something else changed the file on disk.
+    fs::write(&config.path, "{\n  \"theme\": \"light\"\n}\n").unwrap();
+
+    let preview = service
+        .preview(&report, &target, &remote, agent_id)
+        .await
+        .unwrap();
+    assert!(preview.can_apply);
+    assert_eq!(preview.destination, config.path);
+    assert_eq!(preview.files.len(), 1);
+    assert_eq!(preview.files[0].action, SyncFileAction::Replace);
+    assert!(preview.files[0]
+        .unified
+        .as_deref()
+        .is_some_and(|text| text.contains("\"theme\": \"dark\"")));
+    assert_eq!(target.write_count(), 0, "a preview writes nothing");
+
+    // Restoring without the user's confirmation is refused, and writes nothing.
+    let mut request = target_of(&config);
+    request.remote_id = remote.clone();
+    assert!(service
+        .pull(&report, &target, std::slice::from_ref(&request), false)
+        .await
+        .is_err());
+    assert_eq!(target.write_count(), 0);
+
+    let run = service
+        .pull(&report, &target, std::slice::from_ref(&request), true)
+        .await
+        .unwrap();
+    assert_eq!(run.downloaded, 1);
+    assert_eq!(target.write_count(), 1);
+    assert_eq!(
+        fs::read_to_string(&config.path).unwrap(),
+        "{\n  \"theme\": \"dark\"\n}\n"
+    );
+    assert!(service.status().last_pull_ms.is_some());
+
+    // A copy whose name this owner declares nowhere is refused before any write.
+    let mut orphan = config.clone();
+    orphan.key = plan::item_key(SyncKind::Config, "nope.json");
+    orphan.name = "nope.json".to_string();
+    orphan.relative_path = "~/.pipeline/nope.json".to_string();
+    let payload = SyncPayload {
+        key: orphan.key.clone(),
+        name: orphan.name.clone(),
+        relative_path: orphan.relative_path.clone(),
+        files: vec![plan::payload_file("nope.json", b"{\n  \"nope\": true\n}\n")],
+        hash: String::new(),
+        kind: SyncKind::Config,
+        pushed_at_ms: 1,
+        ..remote_payload(&config, b"{\n  \"nope\": true\n}\n")
+    };
+    let orphan_id = provider.seed(payload);
+    let mut request = target_of(&config);
+    request.remote_id = orphan_id;
+    let run = service
+        .pull(&report, &target, std::slice::from_ref(&request), true)
+        .await
+        .unwrap();
+    assert_eq!(run.downloaded, 0);
+    assert_eq!(run.skipped, 1);
+    assert_eq!(run.failed, 0);
+    assert_eq!(
+        target.write_count(),
+        1,
+        "a refused restore writes nothing new"
+    );
+
+    // A cloud copy that is not there is a failure, not a silent skip.
+    let mut request = target_of(&config);
+    request.remote_id = "no-such-gist".to_string();
+    let run = service
+        .pull(&report, &target, std::slice::from_ref(&request), true)
+        .await
+        .unwrap();
+    assert_eq!(run.failed, 1);
+
+    // A skill whose directory is gone is created again, from the cloud copy.
+    let list = service.local_items(&report, Some(agent_id));
+    let skill = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .unwrap()
+        .clone();
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&skill)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1);
+    let remote = provider.remote_of(&skill.key).unwrap();
+
+    // While the directory is there, the same restore is refused rather than merged into.
+    let preview = service
+        .preview(&report, &target, &remote, agent_id)
+        .await
+        .unwrap();
+    assert!(!preview.can_apply);
+    assert!(preview.blocked_reason.is_some());
+    assert!(preview
+        .files
+        .iter()
+        .all(|file| file.action == SyncFileAction::Same));
+
+    fs::remove_dir_all(&skill.path).unwrap();
+    let preview = service
+        .preview(&report, &target, &remote, agent_id)
+        .await
+        .unwrap();
+    assert!(preview.can_apply);
+    assert_eq!(preview.files[0].action, SyncFileAction::Add);
+    assert!(preview.destination.ends_with("pdf"));
+
+    let mut request = target_of(&skill);
+    request.remote_id = remote;
+    let run = service
+        .pull(&report, &target, std::slice::from_ref(&request), true)
+        .await
+        .unwrap();
+    assert_eq!(run.downloaded, 1);
+    assert_eq!(target.installs.lock().unwrap().len(), 1);
+    assert_eq!(
+        fs::read_to_string(Path::new(&skill.path).join("SKILL.md")).unwrap(),
+        "---\nname: pdf\ndescription: Read and fill PDF forms\n---\n\n# PDF\n\nUse pdftotext.\n"
+    );
+}
+
+#[tokio::test]
+async fn cloud_sync_reads_content_and_compares_it_with_the_cloud() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    let skill = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .unwrap()
+        .clone();
+
+    // One file of this machine: its text, its size and the hash the cloud stores.
+    let local = service
+        .local_content(&report, agent_id, &config.id)
+        .unwrap();
+    assert_eq!(local.side, SyncContentSide::Local);
+    assert!(local.exists);
+    assert_eq!(local.files.len(), 1);
+    assert_eq!(
+        local.files[0].text.as_deref(),
+        Some("{\n  \"theme\": \"dark\"\n}\n")
+    );
+    assert!(!local.files[0].binary);
+    assert!(!local.files[0].truncated);
+    assert!(local.hash.is_some());
+
+    // A skill is a directory: every file it holds, read from the directory as it is *now* — a file
+    // added after the scan is here.
+    let asset = Path::new(&skill.path).join("logo.bin");
+    fs::write(&asset, [0u8, 159, 146, 150, 255]).unwrap();
+    let skill_content = service.local_content(&report, agent_id, &skill.id).unwrap();
+    assert!(skill_content.is_directory);
+    assert_eq!(
+        skill_content
+            .files
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect::<Vec<_>>(),
+        vec!["SKILL.md", "logo.bin"]
+    );
+    let binary = skill_content
+        .files
+        .iter()
+        .find(|file| file.path == "logo.bin")
+        .unwrap();
+    assert!(binary.binary);
+    assert!(binary.text.is_none(), "a binary file carries no text");
+    assert_eq!(binary.size_bytes, 5);
+
+    // Read the same two items back from the cloud after a push.
+    let run = service
+        .push(&report, &refs(&[config.clone(), skill.clone()]))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 2);
+    let config_remote = provider.remote_of(&config.key).unwrap();
+    let skill_remote = provider.remote_of(&skill.key).unwrap();
+
+    let cloud = service.remote_content(&config_remote).await.unwrap();
+    assert_eq!(cloud.side, SyncContentSide::Remote);
+    assert_eq!(cloud.files[0].text, local.files[0].text);
+    assert_eq!(cloud.hash, local.hash);
+
+    // Unchanged: identical, file by file.
+    let comparison = service
+        .compare(&report, &config_remote, agent_id)
+        .await
+        .unwrap();
+    assert!(comparison.identical);
+    assert_eq!(comparison.changed, 0);
+    assert_eq!(comparison.files.len(), 1);
+    assert_eq!(comparison.files[0].status, SyncFileStatus::Same);
+
+    // A skill with a binary asset: identical too, and the asset is known to be identical by its
+    // hash rather than by a diff nobody could read.
+    let comparison = service
+        .compare(&report, &skill_remote, agent_id)
+        .await
+        .unwrap();
+    assert!(comparison.identical, "files: {:#?}", comparison.files);
+    assert_eq!(comparison.files.len(), 2);
+    let compared_binary = comparison
+        .files
+        .iter()
+        .find(|file| file.path == "logo.bin")
+        .unwrap();
+    assert!(compared_binary.binary);
+    assert_eq!(compared_binary.status, SyncFileStatus::Same);
+    assert!(compared_binary.left.is_none() && compared_binary.right.is_none());
+
+    // Edited here: the comparison says so, and carries both texts for the diff.
+    fs::write(&config.path, "{\n  \"theme\": \"light\"\n}\n").unwrap();
+    let comparison = service
+        .compare(&report, &config_remote, agent_id)
+        .await
+        .unwrap();
+    assert!(!comparison.identical);
+    assert_eq!(comparison.changed, 1);
+    assert_eq!(comparison.files[0].status, SyncFileStatus::Changed);
+    assert_eq!(
+        comparison.files[0].left.as_deref(),
+        Some("{\n  \"theme\": \"light\"\n}\n")
+    );
+    assert_eq!(
+        comparison.files[0].right.as_deref(),
+        Some("{\n  \"theme\": \"dark\"\n}\n")
+    );
+
+    // A copy this machine has nowhere to put is a comparison too, not an error.
+    let mut orphan = remote_payload(&config, b"{ \"nope\": true }\n");
+    orphan.key = plan::item_key(SyncKind::Config, "nowhere.json");
+    orphan.name = "nowhere.json".to_string();
+    orphan.relative_path = "~/.pipeline/nowhere.json".to_string();
+    let orphan_id = provider.seed(orphan);
+    let comparison = service
+        .compare(&report, &orphan_id, agent_id)
+        .await
+        .unwrap();
+    assert!(!comparison.local.exists);
+    assert_eq!(comparison.files.len(), 1);
+    assert_eq!(comparison.files[0].status, SyncFileStatus::CloudOnly);
+    assert!(comparison.files[0].left.is_none());
+    assert_eq!(
+        comparison.files[0].right.as_deref(),
+        Some("{ \"nope\": true }\n")
+    );
+
+    // An item the scan does not know is refused rather than guessed at.
+    assert!(service
+        .local_content(&report, agent_id, "config|nope.json#x")
+        .is_err());
+}
+
+/// A payload for one item, used to seed the cloud by hand.
+fn remote_payload(item: &SyncItem, bytes: &[u8]) -> SyncPayload {
+    SyncPayload {
+        schema: ahabby_lib::domain::SYNC_SCHEMA,
+        app: "ahabby".to_string(),
+        kind: item.kind,
+        key: item.key.clone(),
+        owner_kind: item.owner_kind,
+        owner_id: item.owner_id.clone(),
+        owner_name: item.owner_name.clone(),
+        name: item.name.clone(),
+        label: item.label.clone(),
+        relative_path: item.relative_path.clone(),
+        is_directory: item.is_directory,
+        files: vec![plan::payload_file(&item.name, bytes)],
+        hash: plan::payload_hash(&[plan::payload_file(&item.name, bytes)]),
+        pushed_at_ms: 1,
+        source_path: item.path.clone(),
+        app_version: "0.50.0".to_string(),
+        os: "linux".to_string(),
+        has_secrets: false,
+    }
 }

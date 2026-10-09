@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, FileCode2, Trash2 } from 'lucide-react'
 
@@ -40,6 +40,7 @@ export function McpCard({
   onDelete,
   onToggle,
   toggleBusy,
+  cloudAction,
 }: {
   server: McpServer
   /** Every agent that declares a server with this name; defaults to this server's owner. */
@@ -52,6 +53,8 @@ export function McpCard({
   onToggle?: (server: McpServer, enabled: boolean) => void
   /** Disables this card's switch while its own mutation is in flight. */
   toggleBusy?: boolean
+  /** The cloud state and actions of the file this entry lives in, when the page offers them. */
+  cloudAction?: ReactNode
 }) {
   const { t } = useTranslation()
   const [showRaw, setShowRaw] = useState(false)
@@ -229,6 +232,12 @@ export function McpCard({
             <CodeViewer value={server.raw} format="json" height="40vh" className="mt-2" />
           </Reveal>
         </div>
+
+        {cloudAction ? (
+          <div className="border-border flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+            {cloudAction}
+          </div>
+        ) : null}
       </Card>
     </McpContextMenu>
   )

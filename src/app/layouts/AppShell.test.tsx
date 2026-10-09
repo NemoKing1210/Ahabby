@@ -15,6 +15,7 @@ import { TooltipProvider } from '@/shared/ui/Tooltip'
 import { ScanRefreshProvider } from '@/features/agents/api/scan'
 
 import { AppShell } from './AppShell'
+import { emptySyncSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -75,6 +76,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     lastRoute: null,
     tourCompleted: true,
     ...overrides,
+    sync: overrides.sync ?? emptySyncSettings,
   }
 }
 

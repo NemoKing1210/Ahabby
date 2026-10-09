@@ -35,6 +35,7 @@ import type { McpToggle } from '@/shared/bindings/McpToggle'
 import type { MutationResult } from '@/shared/bindings/MutationResult'
 import type { PackageManagerInfo } from '@/shared/bindings/PackageManagerInfo'
 import type { ProjectFolder } from '@/shared/bindings/ProjectFolder'
+import type { RemoteList } from '@/shared/bindings/RemoteList'
 import type { RemovalMode } from '@/shared/bindings/RemovalMode'
 import type { SaveResult } from '@/shared/bindings/SaveResult'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
@@ -43,6 +44,16 @@ import type { Skill } from '@/shared/bindings/Skill'
 import type { SkillDraft } from '@/shared/bindings/SkillDraft'
 import type { SkillRemoval } from '@/shared/bindings/SkillRemoval'
 import type { SkillToggle } from '@/shared/bindings/SkillToggle'
+import type { SyncAccount } from '@/shared/bindings/SyncAccount'
+import type { SyncComparison } from '@/shared/bindings/SyncComparison'
+import type { SyncContent } from '@/shared/bindings/SyncContent'
+import type { SyncItemList } from '@/shared/bindings/SyncItemList'
+import type { SyncItemRef } from '@/shared/bindings/SyncItemRef'
+import type { SyncPreview } from '@/shared/bindings/SyncPreview'
+import type { SyncProviderId } from '@/shared/bindings/SyncProviderId'
+import type { SyncPullTarget } from '@/shared/bindings/SyncPullTarget'
+import type { SyncRun } from '@/shared/bindings/SyncRun'
+import type { SyncStatus } from '@/shared/bindings/SyncStatus'
 import type { TerminalCatalog } from '@/shared/bindings/TerminalCatalog'
 import type { TerminalSession } from '@/shared/bindings/TerminalSession'
 import type { Theme } from '@/shared/bindings/Theme'
@@ -233,6 +244,44 @@ export const ipc = {
   setTourCompleted: (completed: boolean) => invoke<Settings>('set_tour_completed', { completed }),
   setWindowTheme: (theme: Theme, dark: boolean, caption: string, text: string) =>
     invoke<void>('set_window_theme', { theme, dark, caption, text }),
+
+  // --- cloud sync ---------------------------------------------------------------------
+  /** The connection, the last runs and the last error. */
+  syncStatus: () => invoke<SyncStatus>('get_sync_status'),
+  /** Check the stored token against the provider; answers who the account is. */
+  verifySyncConnection: () => invoke<SyncAccount>('verify_sync_connection'),
+  /** Store the token in its own file, or clear it with an empty string. Never read back. */
+  setSyncToken: (provider: SyncProviderId, token: string) =>
+    invoke<SyncStatus>('set_sync_token', { provider, token }),
+  /** Every item of this machine that cloud sync knows about, with what is already uploaded. */
+  listSyncItems: (ownerId: string | null = null) =>
+    invoke<SyncItemList>('list_sync_items', { ownerId }),
+  /** The copies the connected account holds. `refresh` bypasses the backend's minute of cache. */
+  listRemoteSyncItems: (refresh = false) =>
+    invoke<RemoteList>('list_remote_sync_items', { refresh }),
+  /** What restoring one copy would do — nothing is written. */
+  previewSyncPull: (remoteId: string, ownerId: string) =>
+    invoke<SyncPreview>('preview_sync_pull', { remoteId, ownerId }),
+  /** One item of this machine, as a reader shows it: text, sizes, binary by its size alone. */
+  readSyncItem: (ownerId: string, itemId: string) =>
+    invoke<SyncContent>('read_sync_item', { ownerId, itemId }),
+  /** One cloud copy, as a reader shows it. */
+  readRemoteSyncItem: (remoteId: string) =>
+    invoke<SyncContent>('read_remote_sync_item', { remoteId }),
+  /** One item against its cloud copy, file by file, with both texts for a diff. */
+  compareSyncItem: (remoteId: string, ownerId: string) =>
+    invoke<SyncComparison>('compare_sync_item', { remoteId, ownerId }),
+  /** Upload the selected items. */
+  pushSyncItems: (items: SyncItemRef[]) =>
+    invoke<MutationResult<SyncRun>>('push_sync_items', { items }),
+  /** Upload everything automatic saving covers — the "save everything now" action. */
+  pushAllSyncItems: () => invoke<MutationResult<SyncRun>>('push_all_sync_items'),
+  /** Restore the selected copies; the backend refuses a call without `confirm`. */
+  pullSyncItems: (targets: SyncPullTarget[], confirm: boolean) =>
+    invoke<MutationResult<SyncRun>>('pull_sync_items', { targets, confirm }),
+  /** Remove one cloud copy; the local files are left alone. */
+  deleteRemoteSyncItem: (remoteId: string, confirm: boolean) =>
+    invoke<SyncRun>('delete_remote_sync_item', { remoteId, confirm }),
 
   // --- terminals ----------------------------------------------------------------------
   /** Built-in terminal first, then every terminal installed on this machine. */

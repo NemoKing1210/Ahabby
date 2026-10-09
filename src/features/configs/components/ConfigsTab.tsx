@@ -15,6 +15,8 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { configDocument } from '@/features/editor/model'
+import { CloudItemAction, useCloudActions } from '@/features/sync/components/CloudActions'
+import { CloudOnlyCard } from '@/features/sync/components/CloudOnlyCard'
 
 export function ConfigsTab({
   agentId,
@@ -28,8 +30,11 @@ export function ConfigsTab({
 }) {
   const { t, i18n } = useTranslation()
   const [target, setTarget] = useState<{ config: ConfigFile; editable: boolean } | null>(null)
+  // The cloud half, when the page mounted a provider: a config file's save/restore state.
+  const cloud = useCloudActions()
+  const cloudConfigs = cloud?.cloudOnly(['config', 'env']) ?? []
 
-  if (configs.length === 0) {
+  if (configs.length === 0 && cloudConfigs.length === 0) {
     return <EmptyState title={t('configs.none')} hint={emptyHint ?? t('configs.noneHint')} />
   }
 
@@ -121,8 +126,14 @@ export function ConfigsTab({
                   </span>
                 )}
               </div>
+
+              <ConfigCloudAction path={config.path} />
             </div>
           </Card>
+        ))}
+
+        {cloudConfigs.map((copy) => (
+          <CloudOnlyCard key={copy.remoteId} remote={copy} />
         ))}
       </AnimatedList>
 
@@ -135,5 +146,19 @@ export function ConfigsTab({
         />
       ) : null}
     </>
+  )
+}
+
+/** The cloud row of one config card, or nothing when the page has no cloud surface. */
+function ConfigCloudAction({ path }: { path: string }) {
+  const cloud = useCloudActions()
+  const item = cloud?.itemAt(path)
+  // A declared file that is neither on disk nor in the cloud leaves no row: the card already says
+  // it is missing, and there is nothing either action could do.
+  if (!item || (!item.exists && !item.remoteId)) return null
+  return (
+    <div className="border-border flex items-center justify-end border-t pt-3">
+      <CloudItemAction item={item} />
+    </div>
   )
 }

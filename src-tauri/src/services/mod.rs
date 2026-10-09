@@ -11,6 +11,7 @@ pub mod scan_cache;
 pub mod scanner;
 pub mod settings;
 pub mod shared;
+pub mod sync;
 pub mod terminal;
 pub mod version_checker;
 pub mod web;
@@ -27,6 +28,7 @@ pub use scanner::{ScanReport, ScanSink, Scanner};
 pub use settings::{
     AccentColor, FontFamily, Language, MonoFont, Settings, SettingsService, TerminalTheme, Theme,
 };
+pub use sync::{SyncProvider, SyncService, SyncSink, SyncTarget};
 pub use terminal::{TerminalManager, TerminalRequest, TerminalSink};
 pub use version_checker::{ReleaseSource, VersionChecker};
 pub use web::WebService;

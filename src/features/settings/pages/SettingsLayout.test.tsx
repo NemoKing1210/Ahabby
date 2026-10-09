@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { initI18n } from '@/shared/i18n'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { settingsRoutes } from '../routes'
+import { testSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -25,45 +26,14 @@ vi.mock('@/shared/api/ipc', () => ({
   },
 }))
 
-function settings(overrides: Partial<Settings> = {}): Settings {
-  return {
-    language: 'en',
-    theme: 'system',
-    accent: 'clay',
-    accentCustom: null,
-    interfaceScale: 100,
-    textScale: 100,
-    fontFamily: 'inter',
-    monoFont: 'jetbrains',
-    extraScanPaths: [],
-    networkVersionChecks: true,
-    backupDir: null,
-    versionCacheMinutes: 60,
-    proxyMode: 'none',
-    proxyUrl: null,
-    terminal: 'builtin',
-    terminalTheme: 'auto',
-    hiddenAgents: [],
-    favoriteAgents: [],
-    projectFolders: [],
-    launchAtLogin: false,
-    trayIcon: true,
-    closeToTray: true,
-    startMinimized: false,
-    sidebarCollapsed: false,
-    lastRoute: null,
-    tourCompleted: true,
-    ...overrides,
-  }
-}
-
 /** The stylesheet `appearanceApplier` installs for a non-default accent. */
 const accentStyles = () => document.getElementById('ah-accent-styles')?.textContent ?? ''
 
 async function openSettings(
-  data = settings(),
+  data = testSettings(),
   route = '/settings/appearance',
-  heading = 'Appearance',
+  /** The area heading to wait for; `null` for the index, which has no area of its own. */
+  heading: string | null = 'Appearance',
 ) {
   vi.mocked(ipc.getSettings).mockResolvedValue(data)
   vi.mocked(ipc.listPackageManagers).mockResolvedValue([])
@@ -86,7 +56,7 @@ async function openSettings(
   await screen.findByRole('heading', { level: 1, name: 'Settings' })
   // The subpage paints through its own transition, so a bare `getBy*` right after this would be
   // a race — wait for the area that was asked for before touching its fields.
-  await screen.findByRole('heading', { level: 2, name: heading })
+  if (heading) await screen.findByRole('heading', { level: 2, name: heading })
   return data
 }
 
@@ -107,24 +77,29 @@ afterEach(() => {
 })
 
 describe('Settings layout', () => {
-  it('opens the first area when the settings path is bare', async () => {
-    await openSettings(settings(), '/settings')
+  it('opens the index of the areas when the settings path is bare', async () => {
+    await openSettings(testSettings(), '/settings', null)
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Appearance' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Terminal' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Terminal/ })).toHaveAttribute(
       'href',
       '/settings/terminal',
     )
+    // The index is the only way into an area, so it does not offer the way back to itself.
+    expect(screen.queryByRole('link', { name: 'All settings' })).not.toBeInTheDocument()
   })
 
   it('moves between areas and keeps the unsaved draft', async () => {
     await openSettings()
 
     await userEvent.click(screen.getByRole('button', { name: 'Violet' }))
-    await userEvent.click(screen.getByRole('link', { name: 'Network' }))
+    await userEvent.click(screen.getByRole('link', { name: 'All settings' }))
+    expect(await screen.findByText('Accent: Violet · Theme: System')).toBeInTheDocument()
+
+    await userEvent.click(await screen.findByRole('link', { name: /^Network/ }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Network' })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('link', { name: 'Appearance' }))
+    await userEvent.click(screen.getByRole('link', { name: 'All settings' }))
+    await userEvent.click(await screen.findByRole('link', { name: /^Appearance/ }))
     expect(await screen.findByRole('button', { name: 'Violet', pressed: true })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -134,7 +109,7 @@ describe('Settings layout', () => {
   })
 
   it('drops the draft when the changes are discarded', async () => {
-    await openSettings(settings({ accent: 'violet' }))
+    await openSettings(testSettings({ accent: 'violet' }))
 
     await userEvent.click(screen.getByRole('button', { name: 'Teal' }))
     expect(screen.getByRole('button', { name: 'Teal', pressed: true })).toBeInTheDocument()
@@ -145,9 +120,46 @@ describe('Settings layout', () => {
   })
 })
 
+describe('Settings index', () => {
+  it('describes what every area currently says', async () => {
+    await openSettings(
+      testSettings({
+        accent: 'violet',
+        launchAtLogin: true,
+        extraScanPaths: ['/opt/ai/bin', '/usr/local/agents'],
+        networkVersionChecks: false,
+        backupDir: '/mnt/backups',
+      }),
+      '/settings',
+      null,
+    )
+
+    const card = (name: RegExp) => within(screen.getByRole('link', { name }))
+
+    expect(card(/^Appearance/).getByText('Accent: Violet · Theme: System')).toBeInTheDocument()
+    expect(
+      card(/^Window & tray/).getByText('Tray icon: on · Launch at login: on'),
+    ).toBeInTheDocument()
+    expect(card(/^Search & catalog/).getByText('2 extra scan paths')).toBeInTheDocument()
+    expect(card(/^Network/).getByText('Version checks: off · Proxy: No proxy')).toBeInTheDocument()
+    expect(card(/^Safety/).getByText('Backups: /mnt/backups')).toBeInTheDocument()
+  })
+
+  it('opens an area and comes back to the index', async () => {
+    await openSettings(testSettings(), '/settings', null)
+
+    await userEvent.click(screen.getByRole('link', { name: /^Safety/ }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Safety' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('link', { name: 'All settings' }))
+    expect(await screen.findByRole('link', { name: /^Safety/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
+  })
+})
+
 describe('Settings appearance', () => {
   it('shows the saved choices', async () => {
-    await openSettings(settings({ accent: 'violet', interfaceScale: 110, fontFamily: 'serif' }))
+    await openSettings(testSettings({ accent: 'violet', interfaceScale: 110, fontFamily: 'serif' }))
 
     expect(screen.getByRole('button', { name: 'Violet', pressed: true })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Interface size' })).toHaveTextContent(
@@ -199,7 +211,7 @@ describe('Settings appearance', () => {
 
   it('puts accent, sizes and fonts back to their defaults and leaves the rest alone', async () => {
     await openSettings(
-      settings({
+      testSettings({
         accent: 'violet',
         interfaceScale: 110,
         textScale: 125,
@@ -232,7 +244,7 @@ describe('Settings appearance', () => {
 describe('Settings window & tray', () => {
   it('shows what the document says', async () => {
     await openSettings(
-      settings({ launchAtLogin: true, startMinimized: true, closeToTray: false }),
+      testSettings({ launchAtLogin: true, startMinimized: true, closeToTray: false }),
       '/settings/window',
       'Window & tray',
     )
@@ -246,7 +258,7 @@ describe('Settings window & tray', () => {
   })
 
   it('refuses to spend the way back: no tray icon, no hidden window', async () => {
-    await openSettings(settings({ trayIcon: false }), '/settings/window', 'Window & tray')
+    await openSettings(testSettings({ trayIcon: false }), '/settings/window', 'Window & tray')
 
     const closeToTray = screen.getByRole('switch', {
       name: 'Keep running when the window is closed',
@@ -258,7 +270,7 @@ describe('Settings window & tray', () => {
   })
 
   it('saves the switches and drops the ones the tray icon takes with it', async () => {
-    await openSettings(settings(), '/settings/window', 'Window & tray')
+    await openSettings(testSettings(), '/settings/window', 'Window & tray')
 
     await userEvent.click(screen.getByRole('switch', { name: 'Launch at login' }))
     await userEvent.click(screen.getByRole('switch', { name: 'Start in the tray' }))

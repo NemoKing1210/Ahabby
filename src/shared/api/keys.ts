@@ -22,6 +22,24 @@ export const queryKeys = {
   hubSkillCompare: (entryId: string, ownerId: string) =>
     ['hub-skill-compare', entryId, ownerId] as const,
   settings: () => ['settings'] as const,
+  /** The cloud sync connection and the last runs. */
+  syncStatus: () => ['sync-status'] as const,
+  /** The syncable items of this machine, optionally one owner's. */
+  syncItems: (ownerId: string | null) => ['sync-items', ownerId] as const,
+  /** Every local item read, whichever owner asked. */
+  syncItemsAll: () => ['sync-items'] as const,
+  /** The copies the connected account holds. */
+  syncRemote: () => ['sync-remote'] as const,
+  /** What restoring one copy would do, for one owner. */
+  syncPreview: (remoteId: string, ownerId: string) => ['sync-preview', remoteId, ownerId] as const,
+  /** The content of one item of this machine, for the viewer. */
+  syncItemContent: (ownerId: string, itemId: string) =>
+    ['sync-item-content', ownerId, itemId] as const,
+  /** The content of one cloud copy, for the viewer. */
+  syncRemoteContent: (remoteId: string) => ['sync-remote-content', remoteId] as const,
+  /** One item against its cloud copy, for the compare dialog. */
+  syncComparison: (remoteId: string, ownerId: string) =>
+    ['sync-comparison', remoteId, ownerId] as const,
   packageManagers: () => ['package-managers'] as const,
   config: (agentId: string, path: string) => ['config', agentId, path] as const,
   /** Editors installed on this machine — a machine-level list, so one key is enough. */
