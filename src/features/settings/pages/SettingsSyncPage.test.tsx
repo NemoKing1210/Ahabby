@@ -6,6 +6,7 @@ import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipc } from '@/shared/api/ipc'
+import { queryKeys } from '@/shared/api/keys'
 import type { RemoteItem } from '@/shared/bindings/RemoteItem'
 import type { Settings } from '@/shared/bindings/Settings'
 import type { SyncItem } from '@/shared/bindings/SyncItem'
@@ -51,6 +52,12 @@ vi.mock('@/shared/api/ipc', () => ({
     pushAllSyncItems: vi.fn(),
     pullSyncItems: vi.fn(),
     deleteRemoteSyncItem: vi.fn(),
+    consolidateSyncLibrary: vi.fn(),
+    setSyncPassword: vi.fn(),
+    unlockSyncEncryption: vi.fn(),
+    clearSyncEncryption: vi.fn(),
+    reencryptSync: vi.fn(),
+    deleteRemoteSyncLibrary: vi.fn(),
   },
 }))
 
@@ -214,6 +221,7 @@ async function openSync(
     status?: SyncStatus
     items?: SyncItem[]
     remote?: RemoteItem[]
+    remoteLocked?: boolean
   } = {},
 ) {
   const data = options.settings ?? testSettings({ sync: { ...emptySyncSettings, enabled: true } })
@@ -235,11 +243,17 @@ async function openSync(
     items: options.remote ?? [],
     fetchedAtMs: 0,
     fromCache: false,
-    locked: false,
+    locked: options.remoteLocked ?? false,
   })
   vi.mocked(ipc.pushSyncItems).mockResolvedValue({ data: run(), report: emptyScanReport })
   vi.mocked(ipc.pushAllSyncItems).mockResolvedValue({ data: run(), report: emptyScanReport })
   vi.mocked(ipc.pullSyncItems).mockResolvedValue({ data: run(), report: emptyScanReport })
+  vi.mocked(ipc.consolidateSyncLibrary).mockResolvedValue(run())
+  vi.mocked(ipc.setSyncPassword).mockResolvedValue(run())
+  vi.mocked(ipc.unlockSyncEncryption).mockResolvedValue(options.status ?? status())
+  vi.mocked(ipc.clearSyncEncryption).mockResolvedValue(run())
+  vi.mocked(ipc.reencryptSync).mockResolvedValue(run())
+  vi.mocked(ipc.deleteRemoteSyncLibrary).mockResolvedValue(run())
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(settingsRoutes, { initialEntries: ['/settings/sync'] })
@@ -257,6 +271,7 @@ async function openSync(
     </QueryClientProvider>,
   )
   await screen.findByRole('heading', { level: 2, name: 'Cloud sync' })
+  return { client }
 }
 
 function run() {
@@ -734,5 +749,131 @@ describe('Settings → cloud sync', () => {
         { ownerId: 'claude-code', itemId: 'instruction|agents.md#abc' },
       ]),
     )
+  })
+
+  it('the_migration_banner_names_what_it_will_collect', async () => {
+    await openSync({
+      status: status({ connected: true, migration: { gists: 3, items: 12 } }),
+    })
+    const user = userEvent.setup()
+
+    expect(
+      await screen.findByText('12 copies in 3 gists are in the old format'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Collect them into one library' }))
+
+    const dialog = await screen.findByRole('dialog')
+    // The confirmation names both numbers — what is collected and what is deleted.
+    expect(within(dialog).getByText(/12 copies/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/3 gists/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/deleted once the new library is written/)).toBeInTheDocument()
+    expect(ipc.consolidateSyncLibrary).not.toHaveBeenCalled()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Collect them into one library' }))
+    await waitFor(() => expect(ipc.consolidateSyncLibrary).toHaveBeenCalledWith(true))
+  })
+
+  it('the_migration_banner_names_only_the_gists_while_the_copies_are_uncounted', async () => {
+    // The listing counts gists; the copies inside them are only known once the migration read
+    // them (`SyncMigration.items` is the migration's to fill in), so the banner must not say zero.
+    await openSync({ status: status({ connected: true, migration: { gists: 3, items: 0 } }) })
+
+    expect(await screen.findByText('3 gists are in the old format')).toBeInTheDocument()
+    expect(screen.queryByText(/0 copies/)).not.toBeInTheDocument()
+  })
+
+  it('the_password_leaves_once_and_is_never_cached', async () => {
+    const { client } = await openSync()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Encrypt the cloud' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Password'), 'a long enough password')
+    await user.click(within(dialog).getByRole('button', { name: 'Encrypt the cloud' }))
+
+    await waitFor(() => expect(ipc.setSyncPassword).toHaveBeenCalledWith('a long enough password'))
+    // The password is a command argument and nothing else: it is in no answer, and in no cache.
+    expect(JSON.stringify(client.getQueryData(queryKeys.syncStatus()))).not.toContain('long enough')
+
+    // And the dialog keeps nothing between mounts: reopening it finds the field empty again.
+    await screen.findByRole('button', { name: 'Encrypt the cloud' })
+    await user.click(screen.getByRole('button', { name: 'Encrypt the cloud' }))
+    expect(within(await screen.findByRole('dialog')).getByLabelText('Password')).toHaveValue('')
+  })
+
+  it('a_locked_library_is_offered_to_unlock', async () => {
+    await openSync({
+      status: status({ connected: true }),
+      remote: [REMOTE],
+      remoteLocked: true,
+    })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('tab', { name: /In the cloud/ }))
+
+    // The settings section says the same sentence about the same state, so the library's own
+    // answer is looked for inside its own half.
+    const panels = await screen.findAllByRole('tabpanel')
+    const library = panels[panels.length - 1] as HTMLElement
+    expect(
+      within(library).getByText(
+        'The cloud library is encrypted. Enter the password to read it on this machine.',
+      ),
+    ).toBeInTheDocument()
+    // Not a list it cannot read: the copy the listing carried is not rendered at all.
+    expect(within(library).queryByText('AGENTS.md')).not.toBeInTheDocument()
+
+    await user.click(within(library).getByRole('button', { name: 'Unlock this machine' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText('Password')).toBeInTheDocument()
+  })
+
+  it('a_locked_library_asks_for_the_password_before_saving', async () => {
+    vi.mocked(ipc.unlockSyncEncryption).mockResolvedValue(
+      status({ connected: true, encryption: { enabled: true, kid: '9f3a1c02' } }),
+    )
+    await openSync({
+      status: status({ connected: true }),
+      items: [INSTRUCTION],
+      remoteLocked: true,
+    })
+    const user = userEvent.setup()
+
+    const row = (await screen.findByRole('checkbox', { name: 'AGENTS.md' })).closest('li')
+    await user.click(within(row as HTMLElement).getByRole('button', { name: 'Save again' }))
+
+    // Saving into a library this machine cannot read would fail in the backend; the screen asks
+    // for the password first and runs what was asked for once it has it.
+    expect(ipc.pushSyncItems).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Password'), 'a long enough password')
+    await user.click(within(dialog).getByRole('button', { name: 'Unlock this machine' }))
+
+    await waitFor(() =>
+      expect(ipc.unlockSyncEncryption).toHaveBeenCalledWith('a long enough password'),
+    )
+    await waitFor(() => expect(ipc.pushSyncItems).toHaveBeenCalled())
+  })
+
+  it('a_key_held_names_it_and_offers_the_three_actions', async () => {
+    await openSync({
+      status: status({ connected: true, encryption: { enabled: true, kid: '9f3a1c02' } }),
+    })
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('Encrypted · 9f3a1c02')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Re-encrypt' }))
+    await waitFor(() => expect(ipc.reencryptSync).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Turn off encryption' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(ipc.clearSyncEncryption).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Turn off encryption' }))
+    await waitFor(() => expect(ipc.clearSyncEncryption).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Change the password' }))
+    expect(within(await screen.findByRole('dialog')).getByLabelText('Password')).toBeInTheDocument()
   })
 })

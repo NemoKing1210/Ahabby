@@ -226,3 +226,105 @@ export function useDeleteRemoteSync() {
     onError: (error) => toastAppError(error),
   })
 }
+
+/**
+ * Everything a write of the library itself has to refresh.
+ *
+ * `afterRun` follows the run's counters, which say what happened to items; an encryption flow or a
+ * migration moves the library whichever way they went, so the listing is re-read whatever they
+ * say — and a migration or a delete leaves this machine's own records (the remote ids it keeps of
+ * the old gists) behind, which is the one thing counters cannot express.
+ */
+function afterLibraryRun(client: QueryClient, run: SyncRun, forgetsItems = false) {
+  afterRun(client, run)
+  void client.invalidateQueries({ queryKey: queryKeys.syncRemote() })
+  if (forgetsItems) void client.invalidateQueries({ queryKey: queryKeys.syncItemsAll() })
+}
+
+/** Collect the gists written in the old layout into the one library. Always confirmed. */
+export function useConsolidateSyncLibrary() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (confirm: boolean) => ipc.consolidateSyncLibrary(confirm),
+    onSuccess: (run) => {
+      afterLibraryRun(client, run, true)
+      reportSyncRun(run, toastAppError)
+    },
+    onError: (error) => toastAppError(error),
+  })
+}
+
+/**
+ * Seal the library with a password. The same call changes one: the library moves to a fresh gist
+ * either way.
+ */
+export function useSetSyncPassword() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (password: string) => ipc.setSyncPassword(password),
+    onSuccess: (run) => {
+      afterLibraryRun(client, run)
+      reportSyncRun(run, toastAppError)
+    },
+    onError: (error) => toastAppError(error),
+  })
+}
+
+/**
+ * Unlock this machine with the password the library was sealed under.
+ *
+ * Nothing moved in the cloud, so the answered status is the whole of it — written straight into
+ * the cache the way `useSetSyncToken` does — and the listing is read again, because the rows a
+ * locked answer could not carry are the ones the screen wanted.
+ */
+export function useUnlockSyncEncryption() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (password: string) => ipc.unlockSyncEncryption(password),
+    onSuccess: (status) => {
+      client.setQueryData(queryKeys.syncStatus(), status)
+      void client.invalidateQueries({ queryKey: queryKeys.syncRemote() })
+      toast.success(i18n.t('sync.encryptionDone'))
+    },
+    onError: (error) => toastAppError(error),
+  })
+}
+
+/** Write the library plain again and forget the key. Always confirmed. */
+export function useClearSyncEncryption() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ipc.clearSyncEncryption,
+    onSuccess: (run) => {
+      afterLibraryRun(client, run)
+      reportSyncRun(run, toastAppError)
+    },
+    onError: (error) => toastAppError(error),
+  })
+}
+
+/** Write the document again with the key already held — the older build's document, re-sealed. */
+export function useReencryptSync() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ipc.reencryptSync,
+    onSuccess: (run) => {
+      afterLibraryRun(client, run)
+      reportSyncRun(run, toastAppError)
+    },
+    onError: (error) => toastAppError(error),
+  })
+}
+
+/** Delete the whole cloud library and forget every item. Always confirmed. */
+export function useDeleteRemoteSyncLibrary() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (confirm: boolean) => ipc.deleteRemoteSyncLibrary(confirm),
+    onSuccess: (run) => {
+      afterLibraryRun(client, run, true)
+      reportSyncRun(run, toastAppError)
+    },
+    onError: (error) => toastAppError(error),
+  })
+}

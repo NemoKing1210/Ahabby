@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CloudUpload, Download, RefreshCw, UploadCloud } from 'lucide-react'
+import { CloudUpload, Download, KeyRound, Lock, RefreshCw, UploadCloud } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { RemoteItem } from '@/shared/bindings/RemoteItem'
@@ -36,6 +36,7 @@ import {
 } from '../lib/targets'
 import { SyncCompareDialog } from './SyncCompareDialog'
 import { SyncContentDialog } from './SyncContentDialog'
+import { SyncEncryptionDialog, type SyncEncryptionMode } from './SyncEncryptionDialog'
 import { RemoteItemRow, SyncItemRow } from './SyncRows'
 import { SyncItemContextMenu } from './SyncItemContextMenu'
 import { SyncOwnerGroup } from './SyncOwnerGroup'
@@ -165,6 +166,29 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
   const [comparing, setComparing] = useState<SyncCompareTarget | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null)
+  /** The encryption dialog this half owns, with what a locked library interrupted. */
+  const [encryption, setEncryption] = useState<{
+    mode: SyncEncryptionMode
+    after?: () => void
+  } | null>(null)
+
+  // The cloud holds a sealed library this machine has no key for: there is nothing to list, and
+  // every write would be refused by the backend with the same sentence the row shows.
+  const locked = remote.data?.locked ?? false
+
+  /**
+   * An action the cloud cannot run yet, held until the password lands.
+   *
+   * The local half is shown whatever the lock says — its items are on this machine — so every
+   * action of it that would reach the cloud goes through here, and the screen asks for the way in
+   * instead of sending a write the backend refuses. The action asked for then runs by itself once
+   * the password lands, which is the "one password and everything works" path. The cloud half has
+   * nothing to wrap: while locked it renders the one row and none of the copies.
+   */
+  const whenUnlocked = (action: () => void) => () => {
+    if (locked) setEncryption({ mode: 'unlock', after: action })
+    else action()
+  }
 
   const needle = query.trim().toLowerCase()
   // The search covers the item, its path and the owner it belongs to, so typing an agent's name
@@ -265,7 +289,7 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
               variant="secondary"
               size="sm"
               loading={push.isPending}
-              onClick={() => push.mutate(items.map(itemRef))}
+              onClick={whenUnlocked(() => push.mutate(items.map(itemRef)))}
             >
               <UploadCloud className="size-3.5" aria-hidden />
               {t('sync.saveAll')}
@@ -279,14 +303,14 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
         {byPresence(items).map((item) => {
           const copy = item.remoteId
           const compare = copy
-            ? () => setComparing(compareOf(copy, item.ownerId, owner, item.label))
+            ? whenUnlocked(() => setComparing(compareOf(copy, item.ownerId, owner, item.label)))
             : undefined
           return (
             <SyncItemContextMenu
               key={item.id}
               item={item}
               busy={push.isPending}
-              onSave={() => push.mutate([itemRef(item)])}
+              onSave={whenUnlocked(() => push.mutate([itemRef(item)]))}
               onView={() => setViewing(viewOfLocal(item, owner))}
               onCompare={compare}
               onDeleteRemote={(remoteId) => setPendingDelete({ remoteId, name: item.label })}
@@ -303,7 +327,7 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
                   })
                 }
                 busy={push.isPending}
-                onSave={() => push.mutate([itemRef(item)])}
+                onSave={whenUnlocked(() => push.mutate([itemRef(item)]))}
                 onView={() => setViewing(viewOfLocal(item, owner))}
                 onCompare={compare}
               />
@@ -421,9 +445,9 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
             size="sm"
             disabled={selectedItems.length === 0}
             loading={push.isPending}
-            onClick={() =>
-              push.mutate(selectedItems.map(itemRef), { onSuccess: () => setSelected(new Set()) })
-            }
+            onClick={whenUnlocked(() =>
+              push.mutate(selectedItems.map(itemRef), { onSuccess: () => setSelected(new Set()) }),
+            )}
           >
             <UploadCloud className="size-3.5" aria-hidden />
             {t('sync.saveSelected', { count: selectedItems.length })}
@@ -513,6 +537,22 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
             <SkeletonList rows={4} />
           ) : remote.error ? (
             <ErrorState error={remote.error} onRetry={() => void remote.refetch()} />
+          ) : locked ? (
+            /* One row, and none of the copies it cannot read: the answer the listing gave. */
+            <EmptyState
+              icon={Lock}
+              title={t('sync.encryptionLockedLibrary')}
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setEncryption({ mode: 'unlock' })}
+                >
+                  <KeyRound className="size-3.5" aria-hidden />
+                  {t('sync.encryptionUnlock')}
+                </Button>
+              }
+            />
           ) : remoteItems.length === 0 ? (
             <EmptyState
               icon={UploadCloud}
@@ -625,6 +665,20 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
               { onSuccess: () => setPendingDelete(null) },
             )
           }
+        />
+      ) : null}
+
+      {encryption ? (
+        <SyncEncryptionDialog
+          key={encryption.mode}
+          mode={encryption.mode}
+          onClose={() => setEncryption(null)}
+          onUnlocked={() => {
+            // The action the locked library refused, run now that the password landed.
+            const after = encryption.after
+            setEncryption(null)
+            after?.()
+          }}
         />
       ) : null}
     </>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CloudCog, CloudUpload, KeyRound, Link2Off, RefreshCw } from 'lucide-react'
+import { CloudCog, CloudUpload, KeyRound, Link2Off, RefreshCw, TriangleAlert } from 'lucide-react'
 
 import type { SyncKind } from '@/shared/bindings/SyncKind'
 import type { SyncSettings } from '@/shared/bindings/SyncSettings'
@@ -11,17 +11,26 @@ import { formatRelative } from '@/shared/lib/format'
 import { SHARED_OWNER_ID } from '@/shared/lib/owners'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
+import { Card } from '@/shared/ui/Card'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
 import { SwitchField } from '@/shared/ui/Switch'
 import { Textarea } from '@/shared/ui/Textarea'
 
 import {
+  useConsolidateSyncLibrary,
   usePushAllSync,
+  useReencryptSync,
+  useRemoteSyncItems,
   useSetSyncToken,
   useSyncStatus,
   useVerifySync,
 } from '@/features/sync/api/hooks'
+import {
+  SyncEncryptionDialog,
+  type SyncEncryptionMode,
+} from '@/features/sync/components/SyncEncryptionDialog'
 import { SyncLibrary } from '@/features/sync/components/SyncLibrary'
 import { SYNC_KINDS } from '@/features/sync/lib/labels'
 
@@ -411,6 +420,169 @@ function SavingSection() {
 }
 
 /**
+ * What the cloud still holds in the layout this version replaced, and the one button that
+ * collects it.
+ *
+ * Only shown while the status reports something to collect (`SyncMigration` is set by every
+ * reading of the account that finds old gists). The counts come from that listing: how many gists
+ * there are is known, how many copies they hold is not until the migration has read them — the
+ * item count is the migration's to fill in — so a zero is "not counted yet" and the sentence then
+ * names the gists alone rather than claiming an empty cloud.
+ */
+function MigrationBanner() {
+  const { t } = useTranslation()
+  const status = useSyncStatus()
+  const consolidate = useConsolidateSyncLibrary()
+  const [confirming, setConfirming] = useState(false)
+
+  const migration = status.data?.migration
+  if (!migration) return null
+
+  const sentence =
+    migration.items > 0
+      ? t('sync.migration', { items: migration.items, gists: migration.gists })
+      : t('sync.migrationGists', { count: migration.gists })
+
+  return (
+    <Card className="border-warning/40 bg-warning/5 flex flex-col gap-3 p-5">
+      <div className="flex items-start gap-2">
+        <TriangleAlert className="text-warning-fg mt-0.5 size-4 shrink-0" aria-hidden />
+        <div className="flex flex-col gap-1">
+          <p className="text-foreground text-[0.8125rem]">{sentence}</p>
+          <p className="text-muted max-w-prose text-[0.75rem]">{t('sync.migrationHint')}</p>
+        </div>
+      </div>
+      <div>
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={consolidate.isPending}
+          onClick={() => setConfirming(true)}
+        >
+          {t('sync.migrationAction')}
+        </Button>
+      </div>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          tone="primary"
+          onOpenChange={(open) => (open ? undefined : setConfirming(false))}
+          title={t('sync.migrationAction')}
+          // The sentence carries the numbers, so the confirmation names what is collected and
+          // what is deleted without a second source for either count.
+          description={
+            <>
+              {sentence}
+              <span className="block pt-2">{t('sync.migrationConfirm')}</span>
+            </>
+          }
+          confirmLabel={t('sync.migrationAction')}
+          busy={consolidate.isPending}
+          onConfirm={() => consolidate.mutate(true, { onSuccess: () => setConfirming(false) })}
+        />
+      ) : null}
+    </Card>
+  )
+}
+
+/**
+ * The password: sealing the library, unlocking this machine, changing it and turning it off.
+ *
+ * Which of the three shapes the section takes comes from two answers, neither of which is the
+ * other's substitute: whether this machine holds a key (`SyncStatus.encryption.enabled`) and
+ * whether the cloud holds a sealed library it cannot read (`RemoteList.locked`). A key held is
+ * encryption on — there is no separate switch — and a locked listing is the one state no field of
+ * the status can carry.
+ */
+function EncryptionSection() {
+  const { t } = useTranslation()
+  const status = useSyncStatus()
+  const remote = useRemoteSyncItems(status.data?.connected ?? false)
+  const reencrypt = useReencryptSync()
+  const [dialog, setDialog] = useState<SyncEncryptionMode | null>(null)
+  const [forgotShown, setForgotShown] = useState(false)
+
+  const encryption = status.data?.encryption
+  const enabled = encryption?.enabled ?? false
+  const locked = !enabled && (remote.data?.locked ?? false)
+
+  return (
+    <SettingsSection title={t('sync.encryption')} hint={t('sync.encryptionHint')}>
+      {enabled ? (
+        <div className="flex flex-col gap-3 py-3">
+          <div>
+            <Badge tone="success" dot="success">
+              {t('sync.encryptionKey', { kid: encryption?.kid ?? '' })}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setDialog('rotate')}>
+              {t('sync.encryptionRotate')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={reencrypt.isPending}
+              onClick={() => reencrypt.mutate()}
+            >
+              {t('sync.encryptionReencrypt')}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setDialog('disable')}>
+              {t('sync.encryptionDisable')}
+            </Button>
+          </div>
+        </div>
+      ) : locked ? (
+        <div className="flex flex-col gap-3 py-3">
+          <p className="text-muted max-w-prose text-[0.8125rem]">
+            {t('sync.encryptionLockedLibrary')}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" size="sm" onClick={() => setDialog('unlock')}>
+              <KeyRound className="size-3.5" aria-hidden />
+              {t('sync.encryptionUnlock')}
+            </Button>
+            {/* The forgotten password is behind one click: it names the only way out before the
+                button that takes it does anything. */}
+            {forgotShown ? (
+              <Button variant="danger" size="sm" onClick={() => setDialog('forgot')}>
+                {t('sync.encryptionForgot')}
+              </Button>
+            ) : (
+              <Button variant="link" size="sm" onClick={() => setForgotShown(true)}>
+                {t('sync.encryptionForgot')}
+              </Button>
+            )}
+          </div>
+          {forgotShown ? (
+            <p className="text-faint max-w-prose text-[0.75rem]">
+              {t('sync.encryptionForgotHint')}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 py-3">
+          <p className="text-muted max-w-prose text-[0.8125rem]">
+            {t('sync.encryptionPasswordHint')}
+          </p>
+          <p className="text-faint max-w-prose text-[0.75rem]">{t('sync.encryptionMovedHint')}</p>
+          <div>
+            <Button variant="secondary" size="sm" onClick={() => setDialog('set')}>
+              {t('sync.encryptionSet')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {dialog ? (
+        <SyncEncryptionDialog key={dialog} mode={dialog} onClose={() => setDialog(null)} />
+      ) : null}
+    </SettingsSection>
+  )
+}
+
+/**
  * The Sync area of Settings: the connection, when saving happens, and the library of what can be
  * saved and what already is.
  */
@@ -427,8 +599,10 @@ export function SettingsSyncPage() {
       />
 
       <SettingsSections>
+        <MigrationBanner />
         <ConnectionSection />
         <SavingSection />
+        <EncryptionSection />
       </SettingsSections>
 
       <div className="mt-1 flex flex-col gap-3">
