@@ -1936,6 +1936,9 @@ struct FakeProvider {
     document: Mutex<Option<(String, String, String, i64)>>,
     /// Old-layout gists the migration must find: id → the marker file's text.
     legacy: Mutex<Vec<(String, String)>>,
+    /// Gists the account holds that Ahabby does not own: a listing never counts them, and nothing
+    /// this app does may touch them.
+    foreign: Mutex<Vec<String>>,
     reads: AtomicUsize,
     writes: AtomicUsize,
     next: AtomicUsize,
@@ -1990,10 +1993,36 @@ impl FakeProvider {
         self.set_text(&plan::encode_document(&document).unwrap());
     }
 
-    /// One gist written in the layout this version replaced: its marker file's text.
-    fn add_legacy(&self, text: &str) {
+    /// One gist written in the layout this version replaced: its marker file's text. Answers the
+    /// id, which is what a record in the push state was addressed to.
+    fn add_legacy(&self, text: &str) -> String {
         let id = self.mint("old");
-        self.legacy.lock().unwrap().push((id, text.to_string()));
+        self.legacy
+            .lock()
+            .unwrap()
+            .push((id.clone(), text.to_string()));
+        id
+    }
+
+    /// One gist of someone else's, sitting beside the library: no part of this app may touch it.
+    fn add_foreign(&self, id: &str) {
+        self.foreign.lock().unwrap().push(id.to_string());
+    }
+
+    /// Whether the account still holds that gist at all.
+    fn holds(&self, id: &str) -> bool {
+        self.document
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|(held, _, _, _)| held == id)
+            || self
+                .legacy
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(held, _)| held == id)
+            || self.foreign.lock().unwrap().iter().any(|held| held == id)
     }
 
     fn reads(&self) -> usize {
@@ -2227,6 +2256,63 @@ fn store_sync_key(fixture: &Fixture, password: &str) {
     .unwrap();
 }
 
+/// Put the push state where a machine that wrote the layout this version replaced left it: one
+/// record per uploaded copy, each addressed to the gist that held it — which is how many copies
+/// those gists hold, as far as this machine can say without reading them.
+fn seed_state(fixture: &Fixture, records: &[(&str, &str)]) {
+    let mut items = serde_json::Map::new();
+    for (key, remote_id) in records {
+        items.insert(
+            (*key).to_string(),
+            serde_json::json!({
+                "remoteId": remote_id,
+                "hash": "sha256:the-old-layout",
+                "syncedAtMs": 1,
+                "files": 1,
+            }),
+        );
+    }
+    let dir = fixture.app_data.join("sync");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("state.json"),
+        serde_json::to_string_pretty(&serde_json::json!({ "items": items })).unwrap(),
+    )
+    .unwrap();
+}
+
+/// One gist of the layout this version replaced, as GitHub holds it: the marker file's text,
+/// carrying the payload that was pushed when it was written.
+fn legacy_marker(item: &SyncItem, bytes: &[u8], pushed_at_ms: i64) -> String {
+    let mut payload = remote_payload(item, bytes);
+    payload.pushed_at_ms = pushed_at_ms;
+    plan::encode_marker(&payload)
+        .expect("a payload encodes")
+        .to_string()
+}
+
+/// The two items every encryption flow works with: a config that carries no secret and a skill
+/// directory, so a push of both succeeds.
+fn plain_items(
+    service: &SyncService,
+    report: &ahabby_lib::services::ScanReport,
+) -> (SyncItem, SyncItem) {
+    let list = service.local_items(report, Some("pipeline-demo"));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.name == "prefs.json")
+        .expect("prefs.json is a sync item")
+        .clone();
+    let skill = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .expect("the fixture holds a skill")
+        .clone();
+    (config, skill)
+}
+
 /// The fixture's report, its service and the two fakes, wired the way the app wires them.
 async fn sync_fixture() -> (
     Fixture,
@@ -2250,6 +2336,15 @@ async fn sync_setup(
     Arc<FakeProvider>,
     FakeTarget,
 ) {
+    let fixture = fixture_on_disk(extra_skills, password).await;
+    let provider = Arc::new(FakeProvider::default());
+    let (report, service, target) = sync_over(&fixture, provider.clone()).await;
+    (fixture, report, service, provider, target)
+}
+
+/// A fixture with the files every sync test works from, the extra skills, and — when `password` is
+/// given — the key a password set on this machine leaves in the credentials file.
+async fn fixture_on_disk(extra_skills: &[&str], password: Option<&str>) -> Fixture {
     let fixture = Fixture::new();
     fixture.write_manifest();
     fixture.write_binary("4.2.1");
@@ -2260,20 +2355,31 @@ async fn sync_setup(
     if let Some(password) = password {
         store_sync_key(&fixture, password);
     }
+    fixture
+}
 
-    let catalog = catalog_for(&fixture);
+/// The scan, the service and the target over a cloud the caller already holds — the wiring
+/// [`sync_setup`] builds, split out for a test that has to seed the cloud or the push state before
+/// the service is built.
+async fn sync_over(
+    fixture: &Fixture,
+    provider: Arc<FakeProvider>,
+) -> (
+    ahabby_lib::services::ScanReport,
+    Arc<SyncService>,
+    FakeTarget,
+) {
+    let catalog = catalog_for(fixture);
     let report = Scanner::new(&catalog)
         .scan(&fixture.context(), None, &[], &[], None)
         .await;
-
-    let provider = Arc::new(FakeProvider::default());
     let target = FakeTarget::new(fixture.home.join(".pipeline").join("skills"));
     let service = Arc::new(SyncService::new(
         &fixture.app_data,
         &fixture.app_config,
         &Proxy::none(),
     ));
-    service.set_provider(provider.clone());
+    service.set_provider(provider);
     service.set_settings(&SyncSettings {
         enabled: true,
         include_secrets: false,
@@ -2282,7 +2388,7 @@ async fn sync_setup(
     service
         .set_token(SyncProviderId::Gist, "test-token")
         .expect("the token is stored");
-    (fixture, report, service, provider, target)
+    (report, service, target)
 }
 
 /// A second machine over the same cloud and the same state store, with an `app_config` of its own
@@ -3248,6 +3354,449 @@ async fn a_document_sealed_with_another_key_is_refused() {
         service.remote_items(false).await,
         Err(AppError::InvalidInput(_))
     ));
+}
+
+/// Setting a password seals the library and moves it to a fresh gist: the plaintext revisions stay
+/// with the gist that is deleted, and the screen then names the key.
+#[tokio::test]
+async fn setting_a_password_moves_the_library_to_a_sealed_document() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let (config, skill) = plain_items(&service, &report);
+    let run = service
+        .push(&report, &refs(&[config, skill]))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 2);
+    let plain_id = provider.id();
+    let pushed_at = service.status().last_push_ms;
+
+    let run = service
+        .set_password("a long enough password")
+        .await
+        .unwrap();
+    assert_eq!(run.kind, SyncRunKind::Encrypt);
+    assert_eq!(run.failed, 0);
+    assert_ne!(provider.id(), plain_id, "the library moved to a fresh gist");
+    assert!(
+        !provider.holds(&plain_id),
+        "the gist that held the plaintext is gone with its revisions"
+    );
+
+    let sealed = provider.text();
+    assert!(sealed.contains("\"encrypted\": true"));
+    assert!(
+        !sealed.contains("prefs.json"),
+        "no item name reaches the cloud"
+    );
+    assert!(!sealed.contains(".pipeline"), "no path reaches the cloud");
+
+    let status = service.status();
+    assert!(status.encryption.enabled);
+    assert!(status.encryption.kid.is_some());
+    assert_eq!(
+        status.last_push_ms, pushed_at,
+        "setting a password is not a push"
+    );
+
+    // The sealed library is still the library: this machine opens it and finds both entries.
+    let rows = service.remote_items(true).await.unwrap();
+    assert!(!rows.locked);
+    assert_eq!(rows.items.len(), 2);
+}
+
+/// A second machine over the same cloud holds no key: the library reads as locked, a wrong password
+/// stores nothing, and the right one opens it and keeps writing with the key that sealed it.
+#[tokio::test]
+async fn another_machine_unlocks_the_same_library_and_keeps_writing_with_the_same_key() {
+    let (fixture, report, service, provider, _target) = sync_fixture().await;
+    let (config, skill) = plain_items(&service, &report);
+    service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    service
+        .set_password("a long enough password")
+        .await
+        .unwrap();
+    let kid = service.status().encryption.kid.expect("a key");
+
+    let second = second_service(&fixture, &provider);
+    let rows = second.remote_items(false).await.unwrap();
+    assert!(rows.locked, "no key here: the library is locked");
+    assert!(rows.items.is_empty());
+
+    // Sealed and unreadable here: setting a password would write over a library it cannot read.
+    let held = provider.text();
+    assert!(matches!(
+        second.set_password("another long password").await,
+        Err(AppError::InvalidInput(_))
+    ));
+    assert_eq!(
+        provider.text(),
+        held,
+        "nothing was written over the locked library"
+    );
+    assert!(!second.status().encryption.enabled);
+
+    assert!(matches!(
+        second.unlock("the wrong password").await,
+        Err(AppError::InvalidInput(_))
+    ));
+    assert!(
+        !second.status().encryption.enabled,
+        "a wrong password stores nothing"
+    );
+
+    let status = second.unlock("a long enough password").await.unwrap();
+    assert!(status.encryption.enabled);
+    assert_eq!(status.encryption.kid.as_deref(), Some(kid.as_str()));
+
+    let rows = second.remote_items(true).await.unwrap();
+    assert!(!rows.locked);
+    assert_eq!(rows.items.len(), 1);
+    let remote_id = rows.items[0].remote_id.clone();
+    assert!(second.remote_content(&remote_id).await.is_ok());
+
+    // What the second machine writes, the first reads: one key, two machines.
+    let run = second
+        .push(&report, &refs(std::slice::from_ref(&skill)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1);
+    let rows = service.remote_items(true).await.unwrap();
+    assert_eq!(
+        rows.items.len(),
+        2,
+        "the first machine reads what the second wrote"
+    );
+    let row = rows
+        .items
+        .iter()
+        .find(|row| row.key == skill.key)
+        .expect("the skill the second machine pushed");
+    assert!(service.remote_content(&row.remote_id).await.is_ok());
+}
+
+/// Turning encryption off writes the plain document where the library already is — the revisions it
+/// is written over are ciphertext — and drops the key only once the write landed.
+#[tokio::test]
+async fn turning_encryption_off_rewrites_the_document_plain_and_drops_the_key() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let (config, _skill) = plain_items(&service, &report);
+    service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    service
+        .set_password("a long enough password")
+        .await
+        .unwrap();
+    let id = provider.id();
+    assert!(provider.text().contains("\"encrypted\": true"));
+
+    let run = service.clear_encryption().await.unwrap();
+    assert_eq!(run.kind, SyncRunKind::Encrypt);
+    assert_eq!(run.failed, 0);
+    assert_eq!(
+        provider.id(),
+        id,
+        "written in place, not moved to a fresh gist"
+    );
+
+    let text = provider.text();
+    assert!(
+        !text.contains("\"encrypted\": true"),
+        "the document is plain again"
+    );
+    assert!(text.contains("prefs.json"), "and readable");
+    assert_eq!(entries(&provider).len(), 1, "the entries it held are back");
+
+    let status = service.status();
+    assert!(!status.encryption.enabled);
+    assert!(status.encryption.kid.is_none(), "the key is forgotten");
+}
+
+/// Changing the password is the same call with a fresh salt: a new gist, a new key, and only the
+/// new password opens what the new key sealed.
+#[tokio::test]
+async fn rotating_the_password_moves_the_library_again() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let (config, _skill) = plain_items(&service, &report);
+    service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    service.set_password("the first password").await.unwrap();
+    let first_id = provider.id();
+    let first_kid = service.status().encryption.kid.expect("a key");
+
+    let run = service.set_password("the second password").await.unwrap();
+    assert_eq!(run.failed, 0);
+    assert_ne!(provider.id(), first_id, "a rotation moves the library too");
+    assert!(!provider.holds(&first_id));
+    let kid = service.status().encryption.kid.expect("a key");
+    assert_ne!(kid, first_kid, "a fresh salt is a new key");
+
+    assert!(crypto::open_with_password("the second password", &provider.text()).is_ok());
+    assert!(matches!(
+        crypto::open_with_password("the first password", &provider.text()),
+        Err(AppError::InvalidInput(_))
+    ));
+
+    // The entries came across the move: the new key opens the entry the old one held.
+    let remote_id = remote_id_of(&service, &config.key).await;
+    assert!(service.remote_content(&remote_id).await.is_ok());
+}
+
+/// Re-sealing a document that is already sealed with the key this machine holds writes nothing, and
+/// says so rather than pretending it did.
+#[tokio::test]
+async fn reencrypting_an_already_sealed_document_changes_nothing() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let (config, _skill) = plain_items(&service, &report);
+    service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    service
+        .set_password("a long enough password")
+        .await
+        .unwrap();
+    let writes = provider.writes();
+    let text = provider.text();
+
+    let run = service.reencrypt().await.unwrap();
+    assert_eq!(run.kind, SyncRunKind::Encrypt);
+    assert_eq!(run.uploaded, 0);
+    assert_eq!(run.failed, 0);
+    assert_eq!(provider.writes(), writes, "nothing was written");
+    assert_eq!(provider.text(), text);
+    assert!(
+        run.results.iter().any(|result| result
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("already sealed"))),
+        "the run names the state it found: {:?}",
+        run.results
+    );
+}
+
+/// A password too short to be one is refused before anything is derived, stored or written.
+#[tokio::test]
+async fn a_short_password_is_refused_before_anything_happens() {
+    let (fixture, report, service, provider, _target) = sync_fixture().await;
+    let (config, _skill) = plain_items(&service, &report);
+    service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    let writes = provider.writes();
+    let text = provider.text();
+
+    assert!(matches!(
+        service.set_password("seven77").await,
+        Err(AppError::InvalidInput(_))
+    ));
+    assert_eq!(provider.writes(), writes);
+    assert_eq!(provider.text(), text);
+    assert!(!service.status().encryption.enabled);
+
+    let raw = fs::read_to_string(fixture.app_config.join("sync").join("credentials.json")).unwrap();
+    assert!(!raw.contains("encryption"), "no key was stored: {raw}");
+}
+
+/// The old per-item gists are read once, merged into the one document — the newest copy of a key
+/// winning — and removed only after the document was written and read back. A gist that is not
+/// Ahabby's is not touched at all.
+#[tokio::test]
+async fn the_old_gists_are_collected_into_one_document_and_removed() {
+    let fixture = fixture_on_disk(&[], None).await;
+    let catalog = catalog_for(&fixture);
+    let report = Scanner::new(&catalog)
+        .scan(&fixture.context(), None, &[], &[], None)
+        .await;
+    let local = plan::items_of(&report, None, Some("pipeline-demo"));
+    let config = local
+        .iter()
+        .find(|item| item.name == "prefs.json")
+        .unwrap()
+        .clone();
+    let skill = local
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .unwrap()
+        .clone();
+
+    // Three copies in the old layout — two of them the same key, one written after the other — and
+    // one gist of someone else's beside them.
+    let provider = Arc::new(FakeProvider::default());
+    let older = provider.add_legacy(&legacy_marker(&config, b"{\"theme\":\"light\"}\n", 10));
+    let newer = provider.add_legacy(&legacy_marker(&config, b"{\"theme\":\"dark\"}\n", 20));
+    let skill_gist = provider.add_legacy(&legacy_marker(&skill, b"# PDF\n", 10));
+    provider.add_foreign("someone-elses");
+
+    // What the machine that wrote them recorded: one copy per item key, addressed to the gist that
+    // last held it — the second copy of the config overwrote the first one's record.
+    seed_state(
+        &fixture,
+        &[
+            (
+                &format!("{}|{}", config.owner_id, config.key),
+                newer.as_str(),
+            ),
+            (
+                &format!("{}|{}", skill.owner_id, skill.key),
+                skill_gist.as_str(),
+            ),
+        ],
+    );
+
+    let (report, service, _target) = sync_over(&fixture, provider.clone()).await;
+    let rows = service.remote_items(true).await.unwrap();
+    assert!(rows.items.is_empty(), "the cloud holds no library yet");
+    assert_eq!(
+        service.status().migration,
+        Some(SyncMigration { gists: 3, items: 2 }),
+        "three gists, and the two copies this machine recorded in them"
+    );
+
+    let run = service.migrate(true).await.unwrap();
+    assert_eq!(run.kind, SyncRunKind::Migrate);
+    assert_eq!(run.failed, 0);
+    assert_eq!(run.uploaded, 3, "every copy the old layout held was read");
+    assert_eq!(run.deleted, 3, "and every old gist is gone");
+
+    let library = entries(&provider);
+    assert_eq!(library.len(), 2, "two keys, three copies");
+    let entry = library
+        .iter()
+        .find(|entry| entry.key == config.key)
+        .expect("the config came across");
+    assert_eq!(
+        plan::decode_file(&entry.files[0]).unwrap(),
+        b"{\"theme\":\"dark\"}\n",
+        "the newer copy of the same key won"
+    );
+    assert!(library.iter().any(|entry| entry.key == skill.key));
+
+    assert!(!provider.holds(&older) && !provider.holds(&newer) && !provider.holds(&skill_gist));
+    assert!(
+        provider.holds("someone-elses"),
+        "a gist that is not Ahabby's is left exactly as it was"
+    );
+    assert!(
+        service.status().migration.is_none(),
+        "nothing is left to collect"
+    );
+
+    // What the machine had recorded now points into the library, and reading it back agrees.
+    let list = service.local_items(&report, Some("pipeline-demo"));
+    for item in list
+        .items
+        .iter()
+        .filter(|item| item.key == config.key || item.key == skill.key)
+    {
+        assert!(
+            item.remote_id
+                .as_deref()
+                .is_some_and(|id| id.starts_with(&format!("{}|", provider.id()))),
+            "the record follows the gist that holds the copy now: {:?}",
+            item.remote_id
+        );
+        assert_eq!(item.status, SyncItemStatus::Modified);
+    }
+}
+
+/// An old gist whose marker file is not a payload is reported by name and left alone, while the
+/// readable ones are collected and removed.
+#[tokio::test]
+async fn an_unreadable_old_gist_is_reported_and_left_alone() {
+    let fixture = fixture_on_disk(&[], None).await;
+    let catalog = catalog_for(&fixture);
+    let report = Scanner::new(&catalog)
+        .scan(&fixture.context(), None, &[], &[], None)
+        .await;
+    let local = plan::items_of(&report, None, Some("pipeline-demo"));
+    let config = local
+        .iter()
+        .find(|item| item.name == "prefs.json")
+        .unwrap()
+        .clone();
+    let skill = local
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .unwrap()
+        .clone();
+
+    let provider = Arc::new(FakeProvider::default());
+    let broken = provider.add_legacy("{not a payload at all");
+    let readable = provider.add_legacy(&legacy_marker(&skill, b"# PDF\n", 10));
+    seed_state(
+        &fixture,
+        &[
+            (
+                &format!("{}|{}", config.owner_id, config.key),
+                broken.as_str(),
+            ),
+            (
+                &format!("{}|{}", skill.owner_id, skill.key),
+                readable.as_str(),
+            ),
+        ],
+    );
+
+    let (_report, service, _target) = sync_over(&fixture, provider.clone()).await;
+    let run = service.migrate(true).await.unwrap();
+    assert_eq!(run.kind, SyncRunKind::Migrate);
+    assert_eq!(run.failed, 1, "the unreadable copy is a failure");
+    assert_eq!(run.uploaded, 1);
+    assert_eq!(run.deleted, 1);
+    assert!(
+        run.results
+            .iter()
+            .any(|result| !result.ok && result.name == broken),
+        "the failure names the gist it could not read: {:?}",
+        run.results
+    );
+
+    assert!(provider.holds(&broken), "an unreadable copy is left alone");
+    assert!(!provider.holds(&readable));
+    let library = entries(&provider);
+    assert_eq!(library.len(), 1);
+    assert_eq!(library[0].key, skill.key);
+    assert_eq!(
+        service.status().migration,
+        Some(SyncMigration { gists: 1, items: 1 }),
+        "the gist left behind, and the copy recorded in it"
+    );
+}
+
+/// A migration that was not confirmed writes nothing at all.
+#[tokio::test]
+async fn a_migration_without_confirm_writes_nothing() {
+    let fixture = fixture_on_disk(&[], None).await;
+    let catalog = catalog_for(&fixture);
+    let report = Scanner::new(&catalog)
+        .scan(&fixture.context(), None, &[], &[], None)
+        .await;
+    let local = plan::items_of(&report, None, Some("pipeline-demo"));
+    let config = local
+        .iter()
+        .find(|item| item.name == "prefs.json")
+        .unwrap()
+        .clone();
+
+    let provider = Arc::new(FakeProvider::default());
+    let old = provider.add_legacy(&legacy_marker(&config, b"{\"theme\":\"light\"}\n", 10));
+
+    let (_report, service, _target) = sync_over(&fixture, provider.clone()).await;
+    assert!(matches!(
+        service.migrate(false).await,
+        Err(AppError::InvalidInput(_))
+    ));
+    assert_eq!(provider.writes(), 0, "nothing was written");
+    assert!(provider.text().is_empty(), "no library was created");
+    assert!(provider.holds(&old), "the old gist is untouched");
 }
 
 /// A payload for one item, used to seed the cloud by hand.

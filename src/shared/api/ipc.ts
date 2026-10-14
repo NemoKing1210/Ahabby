@@ -285,6 +285,21 @@ export const ipc = {
   /** Remove one cloud copy; the local files are left alone. */
   deleteRemoteSyncItem: (remoteId: string, confirm: boolean) =>
     invoke<SyncRun>('delete_remote_sync_item', { remoteId, confirm }),
+  /** Collect the gists written in the old layout into the one library; requires `confirm`. */
+  consolidateSyncLibrary: (confirm: boolean) =>
+    invoke<SyncRun>('consolidate_sync_library', { confirm }),
+  /** Set the sync password: the library moves to a fresh gist, sealed with the derived key. */
+  setSyncPassword: (password: string) => invoke<SyncRun>('set_sync_password', { password }),
+  /** Unlock this machine with the password the library was sealed under. */
+  unlockSyncEncryption: (password: string) =>
+    invoke<SyncStatus>('unlock_sync_encryption', { password }),
+  /** Write the library plain again and forget the key. */
+  clearSyncEncryption: () => invoke<SyncRun>('clear_sync_encryption'),
+  /** Re-seal the library with the key already held. */
+  reencryptSync: () => invoke<SyncRun>('reencrypt_sync_items'),
+  /** Delete the whole cloud library — the forgotten-password path. Requires `confirm`. */
+  deleteRemoteSyncLibrary: (confirm: boolean) =>
+    invoke<SyncRun>('delete_remote_sync_library', { confirm }),
 
   // --- terminals ----------------------------------------------------------------------
   /** Built-in terminal first, then every terminal installed on this machine. */

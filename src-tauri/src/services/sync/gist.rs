@@ -6,8 +6,9 @@
 //! off GitHub without the document's own bytes.
 //!
 //! Gists written when a library was one gist per item are still readable:
-//! [`GistProvider::legacy_text`] hands their marker file over for the migration that collects them.
-//! That is the only compatibility this module keeps.
+//! [`GistProvider::legacy_text`] hands their marker file over and [`legacy_document`] turns it into
+//! the copy it holds, for the migration that collects them. That is the only compatibility this
+//! module keeps.
 //!
 //! The network mapping lives in pure functions ([`parse_account`], [`parse_basics`],
 //! [`remote_document`], the request bodies) so the request and response shapes are tested without a
@@ -20,7 +21,9 @@ use serde_json::Value;
 
 use super::plan;
 use super::{RemoteDocument, RemoteRead, SyncProvider};
-use crate::domain::{SyncAccount, SyncProviderId, SYNC_DESCRIPTION_MARKER, SYNC_MARKER_FILE};
+use crate::domain::{
+    SyncAccount, SyncPayload, SyncProviderId, SYNC_DESCRIPTION_MARKER, SYNC_MARKER_FILE,
+};
 use crate::error::{AppError, Result};
 use crate::platform::sha256_hex;
 use crate::services::http;
@@ -376,6 +379,16 @@ pub fn remote_document(basics: &GistBasics, text: String) -> RemoteDocument {
         text,
         hash,
     }
+}
+
+/// The copy one gist written in the layout before this one holds.
+///
+/// The reader of the old layout, and the only compatibility code this design keeps: one function,
+/// used by the migration alone, which reads each per-item gist once and then removes it. `None` is
+/// a gist whose marker file is not a payload this app wrote — a copy that was damaged, or something
+/// else wearing the marker file's name.
+pub fn legacy_document(value: &Value) -> Option<SyncPayload> {
+    plan::decode_marker(value).ok()
 }
 
 /// The body of a request that creates the library.

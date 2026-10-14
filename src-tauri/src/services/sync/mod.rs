@@ -751,13 +751,45 @@ impl SyncService {
         }
     }
 
+    /// Point the state store at where the entries live now.
+    ///
+    /// Two flows move a copy without changing it: a password set or changed writes the library to a
+    /// fresh gist, and the migration collects entries out of gists that are then deleted. Both leave
+    /// records addressed to a gist that no longer exists, which is what the local list shows and
+    /// what `already up to date` is answered from, so both re-record what they moved.
+    fn record_entries(&self, remote_id: &str, entries: &[SyncPayload]) {
+        for entry in entries {
+            self.store.record(
+                state_key(&entry.owner_id, &entry.key),
+                StoredItem {
+                    remote_id: entry_id(remote_id, &entry.key),
+                    hash: entry.hash.clone(),
+                    synced_at_ms: now_ms(),
+                    files: entry.files.len(),
+                },
+            );
+        }
+    }
+
     /// Remember what a reading found in the layout this version replaced, so a screen can offer to
-    /// collect it without a request of its own. The item count is the migration's to fill in.
+    /// collect it without a request of its own.
+    ///
+    /// The listing sees the old gists but not what is inside them, and reading each one on *every*
+    /// listing is the request the migration spends once. What this machine can say for free is how
+    /// many copies it recorded pushing into them — one record per uploaded item, each addressed to
+    /// the gist that held it — and that is the banner's item count.
     fn remember_legacy(&self, legacy: &[String]) {
+        let copies = self
+            .store
+            .snapshot()
+            .items
+            .values()
+            .filter(|stored| legacy.contains(&stored.remote_id))
+            .count();
         if let Ok(mut guard) = self.legacy.lock() {
             *guard = (!legacy.is_empty()).then_some(SyncMigration {
                 gists: legacy.len(),
-                items: 0,
+                items: copies,
             });
         }
     }
@@ -1401,6 +1433,404 @@ impl SyncService {
         Ok(run.build())
     }
 
+    // --- encryption -------------------------------------------------------------------------
+
+    /// Set the library password, or change it.
+    ///
+    /// The sealed document goes to a **fresh** gist and the previous one is deleted with it: every
+    /// write creates a revision and GitHub keeps every revision, so re-sealing in place would leave
+    /// the earlier plaintext readable forever. The cost, and the reason the UI says it out loud: the
+    /// gist's URL changes. Changing the password is this same call with a fresh salt.
+    ///
+    /// The key is stored **before** the write and never after. A key with no sealed library costs
+    /// nothing — a plaintext document stays readable while a key is held, and the next run seals it
+    /// — while a sealed library with no key is a library nobody can read.
+    pub async fn set_password(&self, password: &str) -> Result<SyncRun> {
+        if password.chars().count() < crypto::SyncCipher::MIN_PASSWORD {
+            return Err(AppError::InvalidInput(format!(
+                "the sync password must be at least {} characters",
+                crypto::SyncCipher::MIN_PASSWORD
+            )));
+        }
+        self.require_enabled()?;
+        if !self.begin_run() {
+            return Err(AppError::InvalidInput(
+                "another sync run is already in progress".to_string(),
+            ));
+        }
+        let outcome = self.set_password_inner(password).await;
+        self.finish_run(Some(&outcome));
+        outcome
+    }
+
+    async fn set_password_inner(&self, password: &str) -> Result<SyncRun> {
+        let mut run = Run::new(SyncRunKind::Encrypt);
+        // Read with the key this machine holds *now*: what the library is, is settled before
+        // anything about it changes.
+        let (previous, mut library) = match self.read_document().await? {
+            Some(RemoteLibrary {
+                document,
+                library: Some(library),
+            }) => (Some(document.remote_id), library),
+            // Sealed, and this machine holds no key for it. The password it was sealed with is the
+            // one that opens it, and a new one would write over a library it cannot read.
+            Some(RemoteLibrary { library: None, .. }) => {
+                return Err(AppError::InvalidInput(
+                    "the cloud library belongs to another password — unlock it first".to_string(),
+                ))
+            }
+            None => (None, self.empty_document()),
+        };
+
+        let cipher = crypto::SyncCipher::derive(password)?;
+        // Before the write, never after: see this method's own note.
+        self.credentials.set_encryption(&cipher)?;
+        self.stamp(&mut library);
+        let text = self.document_text(&library)?;
+        match self.provider()?.replace(&text, previous.as_deref()).await {
+            Ok(written) => {
+                // Every record this machine had was addressed to the gist that just went away.
+                self.record_entries(&written.remote_id, &library.items);
+                run.uploaded += 1;
+                run.result(library_result(
+                    true,
+                    Some("sealed, in a fresh gist"),
+                    Some(&written.remote_id),
+                ));
+                self.invalidate_cache();
+            }
+            // The library is where it was, plaintext and readable, and the key is held: the next
+            // run seals it in place. Losing the key here would be the one unrecoverable outcome.
+            Err(error) => {
+                run.failed += 1;
+                run.result(library_result(
+                    false,
+                    Some(&error.to_string()),
+                    previous.as_deref(),
+                ));
+            }
+        }
+        Ok(run.build())
+    }
+
+    /// Unlock this machine with the password the library was sealed under.
+    ///
+    /// [`crypto::open_with_password`] reads the document's **own** header and derives the key from
+    /// its salt and parameters, which is what makes the key here byte-for-byte the key that sealed
+    /// the library: the second machine's way in, and one password entered once per machine. A text
+    /// that is not an envelope is refused as such; a wrong password opens nothing and stores
+    /// nothing.
+    pub async fn unlock(&self, password: &str) -> Result<SyncStatus> {
+        let reading = self
+            .read_document()
+            .await?
+            .ok_or_else(|| AppError::NotFound("the cloud holds no library yet".to_string()))?;
+        let (_, cipher) = crypto::open_with_password(password, &reading.document.text)?;
+        self.credentials.set_encryption(&cipher)?;
+        self.invalidate_cache();
+        Ok(self.status())
+    }
+
+    /// Write the library plain again, where it already is, and forget the key.
+    ///
+    /// No fresh gist here, unlike a password change: the revisions this write lands on top of are
+    /// ciphertext, and a ciphertext revision exposes nothing. The key goes only once the plain write
+    /// landed — a write that failed leaves the library sealed and this machine able to seal it.
+    pub async fn clear_encryption(&self) -> Result<SyncRun> {
+        if self.cipher().is_none() {
+            return Err(AppError::InvalidInput(
+                "no sync password is set on this machine".to_string(),
+            ));
+        }
+        self.require_enabled()?;
+        if !self.begin_run() {
+            return Err(AppError::InvalidInput(
+                "another sync run is already in progress".to_string(),
+            ));
+        }
+        let outcome = self.clear_encryption_inner().await;
+        self.finish_run(Some(&outcome));
+        outcome
+    }
+
+    async fn clear_encryption_inner(&self) -> Result<SyncRun> {
+        let mut run = Run::new(SyncRunKind::Encrypt);
+        let reading = self
+            .read_document()
+            .await?
+            .ok_or_else(|| AppError::NotFound("the cloud holds no library yet".to_string()))?;
+        let document = reading.document;
+        let library = match reading.library {
+            Some(library) => library,
+            // Sealed with a key this machine does not hold: there is nothing here to turn off.
+            None => return Err(AppError::InvalidInput(LOCKED_LIBRARY.to_string())),
+        };
+
+        // Plain on purpose, and through `write_text`: this is the one write that must *not* go
+        // through the sealing path everything else uses.
+        let text = plan::encode_document(&library)?;
+        let entries: Vec<&SyncPayload> = library.items.iter().collect();
+        match self.write_text(&text, &entries, Some(&document)).await {
+            Ok(_) => {
+                self.credentials.clear_encryption()?;
+                run.uploaded += 1;
+                run.result(library_result(
+                    true,
+                    Some("written plain, in place"),
+                    Some(&document.remote_id),
+                ));
+                self.invalidate_cache();
+            }
+            Err(error) => {
+                run.failed += 1;
+                run.result(library_result(
+                    false,
+                    Some(&error.to_string()),
+                    Some(&document.remote_id),
+                ));
+            }
+        }
+        Ok(run.build())
+    }
+
+    /// Write the library sealed with the key this machine already holds.
+    ///
+    /// The one thing this is for is a document that is not sealed while a key is held — a library
+    /// pushed before the password was stored, or one an older Ahabby wrote. A document already
+    /// sealed with this key is nothing to do, and the run says so instead of writing it again.
+    pub async fn reencrypt(&self) -> Result<SyncRun> {
+        let cipher = self.cipher().ok_or_else(|| {
+            AppError::InvalidInput("no sync password is set on this machine".to_string())
+        })?;
+        self.require_enabled()?;
+        if !self.begin_run() {
+            return Err(AppError::InvalidInput(
+                "another sync run is already in progress".to_string(),
+            ));
+        }
+        let outcome = self.reencrypt_inner(&cipher).await;
+        self.finish_run(Some(&outcome));
+        outcome
+    }
+
+    async fn reencrypt_inner(&self, cipher: &crypto::SyncCipher) -> Result<SyncRun> {
+        let mut run = Run::new(SyncRunKind::Encrypt);
+        let reading = self
+            .read_document()
+            .await?
+            .ok_or_else(|| AppError::NotFound("the cloud holds no library yet".to_string()))?;
+        let document = reading.document;
+        let mut library = match reading.library {
+            Some(library) => library,
+            None => return Err(AppError::InvalidInput(LOCKED_LIBRARY.to_string())),
+        };
+
+        // What the text is sealed *with* is in its header, which needs no key to read — and a text
+        // that is not an envelope at all is what this pass exists to seal.
+        let ours = crypto::header_of(&document.text)
+            .map(|header| header.kid == cipher.kid())
+            .unwrap_or(false);
+        if ours {
+            run.result(library_result(
+                true,
+                Some("already sealed with this key"),
+                Some(&document.remote_id),
+            ));
+            return Ok(run.build());
+        }
+
+        self.stamp(&mut library);
+        match self.write_document(&library, Some(&document)).await {
+            Ok(_) => {
+                run.uploaded += 1;
+                run.result(library_result(
+                    true,
+                    Some("sealed with the key this machine holds"),
+                    Some(&document.remote_id),
+                ));
+                self.invalidate_cache();
+            }
+            Err(error) => {
+                run.failed += 1;
+                run.result(library_result(
+                    false,
+                    Some(&error.to_string()),
+                    Some(&document.remote_id),
+                ));
+            }
+        }
+        Ok(run.build())
+    }
+
+    // --- migration --------------------------------------------------------------------------
+
+    /// Collect the gists the layout before this one wrote into the single document, and remove them
+    /// — the one pass that ever touches them.
+    ///
+    /// Ordered so that nothing can be lost: read every old gist, lay the copies over the library by
+    /// `(owner_id, key)` with the newest `pushed_at_ms` winning, write it once, read it back and
+    /// check that it holds what was written, and only then delete the old gists. A gist whose marker
+    /// file is not a payload is a failure of its own and is left exactly where it is — the copies
+    /// that could be read are still collected — and a gist Ahabby does not own is never read,
+    /// written or deleted at all.
+    pub async fn migrate(&self, confirm: bool) -> Result<SyncRun> {
+        if !confirm {
+            return Err(AppError::InvalidInput(
+                "collecting the old sync copies must be confirmed".to_string(),
+            ));
+        }
+        self.require_enabled()?;
+        if !self.begin_run() {
+            return Err(AppError::InvalidInput(
+                "another sync run is already in progress".to_string(),
+            ));
+        }
+        let outcome = self.migrate_inner().await;
+        self.finish_run(Some(&outcome));
+        outcome
+    }
+
+    async fn migrate_inner(&self) -> Result<SyncRun> {
+        let mut run = Run::new(SyncRunKind::Migrate);
+        let provider = self.provider()?;
+        let read = provider.read().await?;
+        let previous = read.document;
+
+        // What the copies are laid over: the library the cloud already holds when this machine can
+        // read it, and an empty document when there is none. A document this machine cannot read is
+        // refused rather than written over — that would lose whatever it holds.
+        let mut library = match &previous {
+            Some(document) => self.open_document(&document.text)?,
+            None => self.empty_document(),
+        };
+
+        // One gist, one copy: what the per-item layout wrote. A gist whose marker file is missing
+        // or unreadable is recorded as a failure and left where it is.
+        let mut collected: Vec<(String, SyncPayload)> = Vec::new();
+        let mut unreadable: Vec<(String, String)> = Vec::new();
+        for gist_id in &read.legacy {
+            match self.legacy_copy(provider.as_ref(), gist_id).await {
+                Ok(payload) => collected.push((gist_id.clone(), payload)),
+                Err(error) => unreadable.push((gist_id.clone(), error.to_string())),
+            }
+        }
+        if collected.is_empty() {
+            for (gist_id, message) in &unreadable {
+                run.failed += 1;
+                run.result(legacy_result(gist_id, None, false, Some(message)));
+            }
+            return Ok(run.build());
+        }
+
+        // Oldest first, so that laying each copy over the library leaves the newest one of a key in
+        // it — the rule a conflict follows too: the later write is the one that was meant.
+        collected.sort_by_key(|(_, payload)| payload.pushed_at_ms);
+        for (_, payload) in &collected {
+            merge_entry(&mut library.items, payload);
+        }
+        self.stamp(&mut library);
+
+        let written = match self.write_document(&library, previous.as_ref()).await {
+            Ok(written) => written,
+            Err(error) => {
+                let message = error.to_string();
+                for (gist_id, payload) in &collected {
+                    run.failed += 1;
+                    run.result(legacy_result(gist_id, Some(payload), false, Some(&message)));
+                }
+                return Ok(run.build());
+            }
+        };
+
+        // What the cloud holds now, before anything is removed: a library that does not hold what
+        // this run collected is a reason to keep the copies, never to delete them.
+        let expected = self.open_document(&written.text)?.items.len();
+        let read_back = self
+            .read_document()
+            .await?
+            .and_then(|reading| reading.library)
+            .map(|library| library.items.len());
+        if read_back != Some(expected) {
+            let message = format!(
+                "the library read back holds {} entries, not the {expected} this run wrote",
+                read_back.map_or("no".to_string(), |held| held.to_string())
+            );
+            for (gist_id, payload) in &collected {
+                run.failed += 1;
+                run.result(legacy_result(gist_id, Some(payload), false, Some(&message)));
+            }
+            return Ok(run.build());
+        }
+
+        // Every copy is in the library and the library is what the cloud holds, so the gists can go.
+        // A delete that failed leaves a copy to be collected again — never a lost one.
+        let mut left: Vec<String> = unreadable.iter().map(|(id, _)| id.clone()).collect();
+        for (gist_id, payload) in &collected {
+            match provider.delete(gist_id).await {
+                Ok(()) => {
+                    run.uploaded += 1;
+                    run.deleted += 1;
+                    run.result(legacy_result(
+                        gist_id,
+                        Some(payload),
+                        true,
+                        Some("collected into the library"),
+                    ));
+                }
+                Err(error) => {
+                    left.push(gist_id.clone());
+                    run.failed += 1;
+                    let message = error.to_string();
+                    run.result(legacy_result(gist_id, Some(payload), false, Some(&message)));
+                }
+            }
+        }
+        for (gist_id, message) in &unreadable {
+            run.failed += 1;
+            run.result(legacy_result(gist_id, None, false, Some(message)));
+        }
+
+        // The records this machine had were addressed to the per-item gists, which are gone: they
+        // are pointed at the library instead, so the local list names where a copy lives now.
+        let moved: Vec<SyncPayload> = collected
+            .iter()
+            .map(|(_, payload)| payload.clone())
+            .collect();
+        self.record_entries(&written.remote_id, &moved);
+        // What is left in the old layout, as this run found it: nothing, usually, which is what
+        // takes the banner away.
+        self.remember_legacy(&left);
+        self.invalidate_cache();
+        Ok(run.build())
+    }
+
+    /// The copy one old-layout gist holds, or why it could not be read.
+    ///
+    /// The reader of the layout this version replaced, and the only compatibility code this design
+    /// keeps: the provider hands the marker file over as the wire has it, and
+    /// [`gist::legacy_document`] turns it into the payload the old build wrote.
+    async fn legacy_copy(&self, provider: &dyn SyncProvider, gist_id: &str) -> Result<SyncPayload> {
+        let text = provider
+            .legacy_text(gist_id)
+            .await?
+            .ok_or_else(|| AppError::InvalidFormat {
+                format: "sync payload",
+                path: SYNC_MARKER_FILE.to_string(),
+                message: "the gist holds no marker file this build can read".to_string(),
+            })?;
+        let value: Value =
+            serde_json::from_str(&text).map_err(|error| AppError::InvalidFormat {
+                format: "sync payload",
+                path: SYNC_MARKER_FILE.to_string(),
+                message: error.to_string(),
+            })?;
+        gist::legacy_document(&value).ok_or_else(|| AppError::InvalidFormat {
+            format: "sync payload",
+            path: SYNC_MARKER_FILE.to_string(),
+            message: format!("the gist {gist_id} does not hold a copy this app wrote"),
+        })
+    }
+
     // --- automatic --------------------------------------------------------------------------
 
     /// Run the automatic set right now, if the module is on and connected.
@@ -1560,6 +1990,40 @@ fn result_of(item: &SyncItem, ok: bool, skipped: bool, message: Option<&str>) ->
         skipped,
         message: message.map(str::to_string),
         remote_id: None,
+    }
+}
+
+/// One line of a run that is about the library itself rather than one item of it: a password set,
+/// the encryption turned off, a re-seal.
+fn library_result(ok: bool, message: Option<&str>, remote_id: Option<&str>) -> SyncItemResult {
+    SyncItemResult {
+        name: "the cloud library".to_string(),
+        owner_id: String::new(),
+        kind: SyncKind::Other,
+        ok,
+        skipped: false,
+        message: message.map(str::to_string),
+        remote_id: remote_id.map(str::to_string),
+    }
+}
+
+/// One old gist's line in a migration run: the copy it held, when one was read, and the gist it
+/// came out of — which is the name a failure has to carry, because a gist with no copy in it has
+/// nothing else to be called.
+fn legacy_result(
+    gist_id: &str,
+    payload: Option<&SyncPayload>,
+    ok: bool,
+    message: Option<&str>,
+) -> SyncItemResult {
+    SyncItemResult {
+        name: payload.map_or_else(|| gist_id.to_string(), |payload| payload.label.clone()),
+        owner_id: payload.map_or_else(String::new, |payload| payload.owner_id.clone()),
+        kind: payload.map_or(SyncKind::Other, |payload| payload.kind),
+        ok,
+        skipped: false,
+        message: message.map(str::to_string),
+        remote_id: Some(gist_id.to_string()),
     }
 }
 

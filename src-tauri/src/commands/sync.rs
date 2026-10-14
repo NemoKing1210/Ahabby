@@ -8,7 +8,11 @@
 //!   sends item ids, never paths;
 //! * `pull_sync_items` is the only one that writes local files, requires `confirm`, and goes
 //!   through [`crate::services::SyncTarget`], which validates every destination against the
-//!   surface the owner's manifest declared.
+//!   surface the owner's manifest declared;
+//! * the library's own flows (`consolidate_sync_library`, `set_sync_password`,
+//!   `unlock_sync_encryption`, `clear_sync_encryption`, `reencrypt_sync_items` and
+//!   `delete_remote_sync_library`) take a password as an argument at most: the key it derives stays
+//!   in the credentials file, and nothing derived ever comes back over the boundary.
 
 use tauri::State;
 
@@ -159,4 +163,56 @@ pub async fn delete_remote_sync_item(
     confirm: bool,
 ) -> Result<SyncRun> {
     state.sync().delete_remote(&remote_id, confirm).await
+}
+
+/// Collect the gists written in the layout this version replaced into the one library, and remove
+/// them. Requires `confirm`: the old gists are deleted, and the confirmation is where both counts
+/// are named to the user.
+#[tauri::command]
+pub async fn consolidate_sync_library(
+    state: State<'_, AppState>,
+    confirm: bool,
+) -> Result<SyncRun> {
+    state.sync().migrate(confirm).await
+}
+
+/// Set the library password, or change it. The key it derives stays in the credentials file, the
+/// library moves to a fresh gist, and the password itself is the argument and nothing else: it is
+/// never stored, never returned and never crosses back over the boundary.
+#[tauri::command]
+pub async fn set_sync_password(state: State<'_, AppState>, password: String) -> Result<SyncRun> {
+    state.sync().set_password(&password).await
+}
+
+/// Unlock this machine with the password the library was sealed under: the document's own header
+/// says how to derive the key, so the machine ends up with the key that sealed it.
+#[tauri::command]
+pub async fn unlock_sync_encryption(
+    state: State<'_, AppState>,
+    password: String,
+) -> Result<SyncStatus> {
+    state.sync().unlock(&password).await
+}
+
+/// Write the library plain again, in place, and forget the key.
+#[tauri::command]
+pub async fn clear_sync_encryption(state: State<'_, AppState>) -> Result<SyncRun> {
+    state.sync().clear_encryption().await
+}
+
+/// Re-seal the library with the key this machine already holds — what a document an older build
+/// wrote needs.
+#[tauri::command]
+pub async fn reencrypt_sync_items(state: State<'_, AppState>) -> Result<SyncRun> {
+    state.sync().reencrypt().await
+}
+
+/// Delete the whole cloud library and forget every item. The forgotten-password path, and the one
+/// operation that clears both sides; requires `confirm`.
+#[tauri::command]
+pub async fn delete_remote_sync_library(
+    state: State<'_, AppState>,
+    confirm: bool,
+) -> Result<SyncRun> {
+    state.sync().delete_library(confirm).await
 }
