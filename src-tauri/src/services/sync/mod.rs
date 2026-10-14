@@ -6,7 +6,7 @@
 //! * a [`SyncProvider`] behind a trait (only [`gist::GistProvider`] implements it), so a second
 //!   cloud is one arm plus one file;
 //! * a [`store`] of what was uploaded (for idempotent, self-healing automatic runs) and the
-//!   credentials;
+//!   credentials — the token, and the key the document is sealed with;
 //! * a reconciliation loop that uploads a changed item and nothing else.
 //!
 //! Uploading is manual by default and may be made automatic per kind and owner; *restoring* is
