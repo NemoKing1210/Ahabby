@@ -4,4 +4,9 @@ import type { RemoteItem } from "./RemoteItem";
 /**
  * The cloud half of the Sync library.
  */
-export type RemoteList = { items: Array<RemoteItem>, fetchedAtMs: number, fromCache: boolean, };
+export type RemoteList = { items: Array<RemoteItem>, fetchedAtMs: number, fromCache: boolean, 
+/**
+ * `true` when the cloud holds a sealed library and this machine holds no key: there are no
+ * items to read, and the screen says so instead of showing an empty list.
+ */
+locked: boolean, };

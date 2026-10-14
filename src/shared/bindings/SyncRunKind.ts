@@ -3,4 +3,4 @@
 /**
  * What a push, a pull, a delete or an automatic run did.
  */
-export type SyncRunKind = "push" | "pull" | "delete" | "automatic";
+export type SyncRunKind = "push" | "pull" | "delete" | "automatic" | "encrypt" | "migrate";

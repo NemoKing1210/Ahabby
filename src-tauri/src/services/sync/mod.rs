@@ -29,10 +29,10 @@ use serde_json::Value;
 
 use crate::domain::{
     RemoteItem, SkillInstall, SkillInstallFile, SyncAccount, SyncComparison, SyncContent,
-    SyncContentSide, SyncFileAction, SyncFileContent, SyncFileStatus, SyncItem, SyncItemList,
-    SyncItemRef, SyncItemResult, SyncItemStatus, SyncKind, SyncMode, SyncPayload, SyncPayloadFile,
-    SyncPreview, SyncPreviewFile, SyncProviderId, SyncPullTarget, SyncRun, SyncRunKind,
-    SyncSettings, SyncStatus, SHARED_OWNER_ID, SYNC_SCHEMA,
+    SyncContentSide, SyncEncryptionStatus, SyncFileAction, SyncFileContent, SyncFileStatus,
+    SyncItem, SyncItemList, SyncItemRef, SyncItemResult, SyncItemStatus, SyncKind, SyncMigration,
+    SyncMode, SyncPayload, SyncPayloadFile, SyncPreview, SyncPreviewFile, SyncProviderId,
+    SyncPullTarget, SyncRun, SyncRunKind, SyncSettings, SyncStatus, SHARED_OWNER_ID, SYNC_SCHEMA,
 };
 use crate::error::{AppError, Result};
 use crate::platform::now_ms;
@@ -104,6 +104,9 @@ pub struct SyncService {
     /// The last scan, kept only so the automatic loop can run without the app in front of it.
     report: RwLock<Option<ScanReport>>,
     cache: Mutex<Option<RemoteCache>>,
+    /// What the last listing found in the layout this version replaced, so a screen can offer to
+    /// collect it without a request of its own.
+    legacy: Mutex<Option<SyncMigration>>,
     sink: RwLock<Option<Arc<dyn SyncSink>>>,
     /// A provider other than the Gist one — how the tests drive the service without a network,
     /// and where a second cloud would plug in.
@@ -124,6 +127,7 @@ impl SyncService {
             settings: RwLock::new(SyncSettings::default()),
             report: RwLock::new(None),
             cache: Mutex::new(None),
+            legacy: Mutex::new(None),
             sink: RwLock::new(None),
             provider: RwLock::new(None),
             account: RwLock::new(None),
@@ -177,6 +181,30 @@ impl SyncService {
         self.report.read().ok().and_then(|report| report.clone())
     }
 
+    /// What the last listing found in the old layout, if anything.
+    fn legacy(&self) -> Option<SyncMigration> {
+        self.legacy.lock().ok().and_then(|legacy| *legacy)
+    }
+
+    /// The key this machine holds, if any.
+    ///
+    /// One rule, one source of truth: a key held is encryption on, so every write path and the
+    /// status screen ask this rather than keeping a flag of their own.
+    fn cipher(&self) -> Option<crypto::SyncCipher> {
+        self.credentials.encryption()
+    }
+
+    /// Whether the library is sealed, and with which key — what the screen shows.
+    fn encryption_status(&self) -> SyncEncryptionStatus {
+        match self.cipher() {
+            Some(cipher) => SyncEncryptionStatus {
+                enabled: true,
+                kid: Some(cipher.kid()),
+            },
+            None => SyncEncryptionStatus::default(),
+        }
+    }
+
     /// The current status of the connection and the last runs.
     pub fn status(&self) -> SyncStatus {
         let settings = self.settings();
@@ -192,6 +220,10 @@ impl SyncService {
             last_pull_ms: snapshot.last_pull_ms,
             last_error: snapshot.last_error,
             running: self.running.load(Ordering::SeqCst),
+            encryption: self.encryption_status(),
+            // Filled by the listing that finds gists in the old layout; until one has run, there is
+            // nothing this machine knows how to collect.
+            migration: self.legacy(),
         }
     }
 
@@ -505,6 +537,7 @@ impl SyncService {
                             items: cache.items.clone(),
                             fetched_at_ms: now_ms(),
                             from_cache: true,
+                            locked: false,
                         });
                     }
                 }
@@ -515,6 +548,7 @@ impl SyncService {
             items,
             fetched_at_ms: now_ms(),
             from_cache: false,
+            locked: false,
         })
     }
 

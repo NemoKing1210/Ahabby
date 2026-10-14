@@ -305,10 +305,37 @@ pub struct SyncAccount {
     pub gists: usize,
 }
 
-/// Everything the Sync screen needs about the connection and the last runs.
+/// Whether the cloud library is sealed, and which key seals it.
+///
+/// There is no separate switch anywhere: a key held *is* encryption on, so the settings document
+/// and the credentials file can never disagree about it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub struct SyncEncryptionStatus {
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kid: Option<String>,
+}
+
+/// What the cloud still holds in the layout this version replaced: one gist per item, and the items
+/// they describe. Present only while there is something to collect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct SyncMigration {
+    /// Gists written in the old layout.
+    pub gists: usize,
+    /// Items those gists hold between them.
+    pub items: usize,
+}
+
+/// Everything the Sync screen needs about the connection and the last runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
 pub struct SyncStatus {
     pub provider: SyncProviderId,
     pub enabled: bool,
@@ -328,6 +355,11 @@ pub struct SyncStatus {
     pub last_error: Option<String>,
     /// `true` while a run (manual or automatic) is in flight.
     pub running: bool,
+    /// Whether this machine holds a key, and which one.
+    pub encryption: SyncEncryptionStatus,
+    /// What the cloud still holds in the old layout, when the last listing found any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub migration: Option<SyncMigration>,
 }
 
 /// The user's own sync configuration. Non-secret by construction: the token lives in its own
@@ -657,6 +689,10 @@ pub enum SyncRunKind {
     Pull,
     Delete,
     Automatic,
+    /// A pass over the cloud library that seals it, unseals it, or moves it to a new key.
+    Encrypt,
+    /// A pass that collects the gists written before the library was one document.
+    Migrate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -700,14 +736,17 @@ pub struct SyncItemList {
 }
 
 /// The cloud half of the Sync library.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, Default)]
+#[serde(rename_all = "camelCase", default)]
 #[ts(export, export_to = "../../src/shared/bindings/")]
 pub struct RemoteList {
     pub items: Vec<RemoteItem>,
     #[ts(type = "number")]
     pub fetched_at_ms: i64,
     pub from_cache: bool,
+    /// `true` when the cloud holds a sealed library and this machine holds no key: there are no
+    /// items to read, and the screen says so instead of showing an empty list.
+    pub locked: bool,
 }
 
 /// One file inside a [`SyncPayload`]: text as it is, anything else base64.
@@ -751,6 +790,27 @@ pub struct SyncPayload {
     /// `true` when the payload deliberately carries secret-looking values.
     pub has_secrets: bool,
 }
+
+/// The whole cloud library: one document in one gist, holding every item.
+///
+/// The entries are [`SyncPayload`] values exactly as they were written when a library was one gist
+/// per item, which is what lets an old gist's document merge into `items` with no conversion.
+///
+/// Deliberately not `TS`-exported: the frontend reads the library through [`RemoteItem`], and the
+/// raw document is never worth crossing the boundary.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SyncDocument {
+    pub schema: u32,
+    pub app: String,
+    pub updated_at_ms: i64,
+    pub app_version: String,
+    pub os: String,
+    pub items: Vec<SyncPayload>,
+}
+
+/// The schema version of [`SyncDocument`]. A reader refuses a document from a newer schema.
+pub const SYNC_DOCUMENT_SCHEMA: u32 = 1;
 
 /// The schema version of [`SyncPayload`]. A reader refuses a document from a newer schema.
 pub const SYNC_SCHEMA: u32 = 1;
@@ -952,5 +1012,114 @@ mod tests {
         let mut newer = document;
         newer["schema"] = serde_json::json!(SYNC_SCHEMA + 1);
         assert!(decode_marker(&newer).is_err());
+    }
+
+    #[test]
+    fn a_document_holds_payload_entries_and_survives_a_round_trip() {
+        let entry = sample_payload();
+        let document = SyncDocument {
+            schema: SYNC_DOCUMENT_SCHEMA,
+            app: "ahabby".to_string(),
+            updated_at_ms: 1_760_000_000_000,
+            app_version: "0.65.0".to_string(),
+            os: "windows".to_string(),
+            items: vec![entry.clone()],
+        };
+
+        let json = serde_json::to_value(&document).unwrap();
+        let entries = json["items"].as_array().expect("items is an array");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["kind"], serde_json::json!("skill"));
+        assert_eq!(entries[0]["key"], serde_json::json!("skill|pdf"));
+        assert_eq!(json["updatedAtMs"], serde_json::json!(1_760_000_000_000i64));
+        // An entry is a payload, unchanged: what an old per-item gist holds parses into `items`
+        // as it is, which is the whole reason the migration needs no conversion.
+        assert_eq!(entries[0].clone(), serde_json::to_value(&entry).unwrap());
+        // Last, so the borrows above are done with the value before it is handed over.
+        assert_eq!(
+            serde_json::from_value::<SyncDocument>(json).unwrap(),
+            document
+        );
+    }
+
+    #[test]
+    fn a_document_without_the_optional_fields_still_parses() {
+        let document: SyncDocument =
+            serde_json::from_str(r#"{"schema":1,"app":"ahabby"}"#).unwrap();
+        assert_eq!(document.schema, SYNC_DOCUMENT_SCHEMA);
+        assert_eq!(document.app, "ahabby");
+        assert!(document.items.is_empty());
+        assert_eq!(document.updated_at_ms, 0);
+        assert_eq!(document.app_version, "");
+        assert_eq!(document.os, "");
+    }
+
+    #[test]
+    fn the_status_carries_the_key_and_the_old_layout_count() {
+        let mut status = SyncStatus::default();
+        assert!(!status.encryption.enabled);
+        assert_eq!(status.encryption.kid, None);
+        assert_eq!(status.migration, None);
+
+        status.encryption = SyncEncryptionStatus {
+            enabled: true,
+            kid: Some("9f3a1c02".to_string()),
+        };
+        status.migration = Some(SyncMigration {
+            gists: 3,
+            items: 12,
+        });
+
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["encryption"]["enabled"], serde_json::json!(true));
+        assert_eq!(json["encryption"]["kid"], serde_json::json!("9f3a1c02"));
+        assert_eq!(json["migration"]["gists"], serde_json::json!(3));
+        assert_eq!(json["migration"]["items"], serde_json::json!(12));
+
+        // A status written before either field existed still parses, and means "no key, nothing to
+        // collect" — which is exactly what a machine that never set a password has.
+        let mut older = serde_json::to_value(SyncStatus::default()).unwrap();
+        let fields = older.as_object_mut().unwrap();
+        fields.remove("encryption");
+        fields.remove("migration");
+        let parsed: SyncStatus = serde_json::from_value(older).unwrap();
+        assert!(!parsed.encryption.enabled);
+        assert_eq!(parsed.encryption.kid, None);
+        assert_eq!(parsed.migration, None);
+    }
+
+    #[test]
+    fn a_remote_list_says_when_the_library_is_locked() {
+        assert!(!RemoteList::default().locked);
+
+        let locked = RemoteList {
+            locked: true,
+            ..RemoteList::default()
+        };
+        assert_eq!(
+            serde_json::to_value(&locked).unwrap()["locked"],
+            serde_json::json!(true)
+        );
+
+        let mut older = serde_json::to_value(RemoteList::default()).unwrap();
+        older.as_object_mut().unwrap().remove("locked");
+        assert!(!serde_json::from_value::<RemoteList>(older).unwrap().locked);
+    }
+
+    #[test]
+    fn the_run_kinds_include_the_new_passes() {
+        assert_eq!(
+            serde_json::to_value(SyncRunKind::Encrypt).unwrap(),
+            serde_json::json!("encrypt")
+        );
+        assert_eq!(
+            serde_json::to_value(SyncRunKind::Migrate).unwrap(),
+            serde_json::json!("migrate")
+        );
+        // The kinds the UI already knew are still spelled the way they were.
+        assert_eq!(
+            serde_json::to_value(SyncRunKind::Push).unwrap(),
+            serde_json::json!("push")
+        );
     }
 }

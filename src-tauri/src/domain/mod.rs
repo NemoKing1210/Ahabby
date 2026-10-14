@@ -65,10 +65,11 @@ pub use shared::{SharedResources, SHARED_OWNER_ID};
 pub use skill::{FrontmatterEntry, Skill, SkillDraft, SkillInstall, SkillInstallFile};
 pub use sync::{
     RemoteItem, RemoteList, SyncAccount, SyncComparedFile, SyncComparison, SyncContent,
-    SyncContentSide, SyncEvent, SyncFileAction, SyncFileContent, SyncFileStatus, SyncItem,
-    SyncItemList, SyncItemRef, SyncItemResult, SyncItemStatus, SyncKind, SyncMode, SyncOwnerKind,
-    SyncPayload, SyncPayloadFile, SyncPreview, SyncPreviewFile, SyncProviderId, SyncPullTarget,
-    SyncRun, SyncRunKind, SyncSettings, SyncStatus, ENVELOPE_SCHEMA, SYNC_DESCRIPTION_PREFIX,
+    SyncContentSide, SyncDocument, SyncEncryptionStatus, SyncEvent, SyncFileAction,
+    SyncFileContent, SyncFileStatus, SyncItem, SyncItemList, SyncItemRef, SyncItemResult,
+    SyncItemStatus, SyncKind, SyncMigration, SyncMode, SyncOwnerKind, SyncPayload, SyncPayloadFile,
+    SyncPreview, SyncPreviewFile, SyncProviderId, SyncPullTarget, SyncRun, SyncRunKind,
+    SyncSettings, SyncStatus, ENVELOPE_SCHEMA, SYNC_DESCRIPTION_PREFIX, SYNC_DOCUMENT_SCHEMA,
     SYNC_MARKER_FILE, SYNC_SCHEMA,
 };
 pub use tag::{normalize_tags, MAX_TAGS, MAX_TAG_LEN};
