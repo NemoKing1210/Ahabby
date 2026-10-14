@@ -31,6 +31,7 @@ const CONNECTED: SyncStatus = {
   mode: 'manual',
   connected: true,
   running: false,
+  encryption: { enabled: false },
 }
 
 const base = {
@@ -144,6 +145,7 @@ describe('CloudSummaryCard', () => {
       items: [CONFIG_COPY, CLOUD_ONLY],
       fetchedAtMs: 1,
       fromCache: false,
+      locked: false,
     })
     vi.mocked(ipc.pushSyncItems).mockResolvedValue({ data: run(1, 0) } as never)
     vi.mocked(ipc.pullSyncItems).mockResolvedValue({ data: run(0, 1) } as never)

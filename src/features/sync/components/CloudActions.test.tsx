@@ -34,6 +34,7 @@ const CONNECTED: SyncStatus = {
   connected: true,
   tokenHint: 'ghp_…',
   running: false,
+  encryption: { enabled: false },
 }
 
 const SKILL: SyncItem = {
@@ -122,6 +123,7 @@ describe('CloudActionsProvider', () => {
       items: [CLOUD_ONLY],
       fetchedAtMs: 1,
       fromCache: false,
+      locked: false,
     })
     vi.mocked(ipc.pushSyncItems).mockResolvedValue({
       data: {
@@ -217,6 +219,7 @@ describe('CloudActionsProvider', () => {
       ],
       fetchedAtMs: 1,
       fromCache: false,
+      locked: false,
     })
 
     const side = (which: SyncContentSide): SyncContent => ({

@@ -202,6 +202,7 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
     mode: 'manual',
     connected: false,
     running: false,
+    encryption: { enabled: false },
     ...overrides,
   }
 }
@@ -234,6 +235,7 @@ async function openSync(
     items: options.remote ?? [],
     fetchedAtMs: 0,
     fromCache: false,
+    locked: false,
   })
   vi.mocked(ipc.pushSyncItems).mockResolvedValue({ data: run(), report: emptyScanReport })
   vi.mocked(ipc.pushAllSyncItems).mockResolvedValue({ data: run(), report: emptyScanReport })

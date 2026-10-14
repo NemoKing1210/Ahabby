@@ -31,6 +31,13 @@ vi.mock('@/shared/ui/CodeViewer', () => ({
   CodeViewer: ({ value }: { value: string }) => <pre>{value}</pre>,
 }))
 
+/** The quick install dialog is its own component; what the tab owes it is the kind and the owner. */
+vi.mock('@/features/hub/components/HubQuickInstallDialog', () => ({
+  HubQuickInstallDialog: ({ kind, owner }: { kind: string; owner: AgentRef }) => (
+    <p>{`hub installer ${kind} for ${owner.id}`}</p>
+  ),
+}))
+
 /**
  * What the editor dialog was handed. The dialog itself is a CodeMirror surface with its own
  * tests, so the tab's contract with it is the document it resolves for the server.
@@ -118,6 +125,7 @@ const CONNECTED: SyncStatus = {
   connected: true,
   tokenHint: 'ghp_…',
   running: false,
+  encryption: { enabled: false },
 }
 
 const CLOUD_COPY: RemoteItem = {
@@ -152,6 +160,7 @@ beforeEach(() => {
     items: [],
     fetchedAtMs: 1,
     fromCache: false,
+    locked: false,
   })
 })
 
@@ -193,11 +202,41 @@ describe('McpTab', () => {
     expect(within(container).queryByRole('button', { name: 'New server' })).toBeNull()
   })
 
+  it('offers a server from the hub to the agent whose tab it is', async () => {
+    const user = userEvent.setup()
+    const { container } = renderTab({
+      owner: claude,
+      servers: [server({ id: 'srv-1', name: 'github' })],
+    })
+
+    await user.click(within(container).getByRole('button', { name: 'From the Hub' }))
+
+    expect(within(container).getByText('hub installer mcp for claude-code')).toBeTruthy()
+  })
+
+  it('leaves the hub out when no owner is given', () => {
+    const { container } = renderTab({ servers: [server({ id: 'srv-1', name: 'github' })] })
+
+    expect(within(container).queryByRole('button', { name: 'From the Hub' })).toBeNull()
+  })
+
+  it('offers the hub from an empty list too', async () => {
+    const user = userEvent.setup()
+    const { container } = renderTab({ owner: claude })
+
+    // An agent holding nothing is exactly where a collection is worth reading: the empty state
+    // carries the same two ways in as the list's own toolbar.
+    await user.click(within(container).getByRole('button', { name: 'From the Hub' }))
+
+    expect(within(container).getByText('hub installer mcp for claude-code')).toBeTruthy()
+  })
+
   it('shows the cloud copies this machine has no file for, and only those', async () => {
     vi.mocked(ipc.listRemoteSyncItems).mockResolvedValue({
       items: [CLOUD_COPY, { ...CLOUD_COPY, kind: 'skill', remoteId: 'gist-5', label: 'pdf' }],
       fetchedAtMs: 1,
       fromCache: false,
+      locked: false,
     })
     const { container } = renderTab({ cloud: true })
 

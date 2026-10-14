@@ -135,6 +135,7 @@ beforeEach(() => {
     lastPullMs: null,
     lastError: null,
     running: false,
+    encryption: { enabled: false },
   })
   vi.mocked(ipc.listTerminals).mockResolvedValue({ options: [], defaultCwd: '' })
   vi.mocked(ipc.setAgentFavorite).mockResolvedValue(testSettings())
