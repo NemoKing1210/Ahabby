@@ -1,6 +1,6 @@
 [package]
 name = "ahabby"
-version = "0.63.0"
+version = "0.64.2"
 description = "Ahabby — a control panel for the AI coding agents installed on your machine"
 authors = ["Ahabby contributors"]
 license = "MIT"
@@ -82,6 +82,12 @@ portable-pty = "0.9.0"
 # the IPC boundary base64-encoded and is decoded in the frontend. Already in the tree
 # through reqwest (0.22), so the version is pinned to share it.
 base64 = "0.22"
+# Client-side encryption of the sync document. `argon2id` turns the user's password into a key,
+# `aes-gcm` seals the document, and `zeroize` (already in the tree) wipes the key when a cipher is
+# dropped. Pure Rust, so no build tools join the toolchain for them.
+argon2 = "0.5"
+aes-gcm = "0.10"
+zeroize = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

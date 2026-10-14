@@ -5,6 +5,41 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.2] - 2026-10-15
+
+### Changed
+
+- **Aider, omp and Warp are recognised by their own mark instead of two letters.** The tile they wear everywhere
+  Ahabby names them — the agents list, an agent's own page, every picker, the sidebar, the terminal's panes —
+  now draws the brand's glyph: Warp's from simple-icons, omp's from its site favicon, and Aider's pixel `a`
+  traced from its app icon, since Aider publishes a wordmark rather than a mark. A brand whose artwork Ahabby
+  cannot carry still falls back to the monogram.
+
+## [0.64.1] - 2026-10-14
+
+### Fixed
+
+- A page's pinned header is fully opaque — the title no longer lets the list scrolling under it show through.
+
+## [0.64.0] - 2026-10-14
+
+### Added
+
+- **An agent's and a project's Skills and MCP tabs install from the Hub.** Both tabs carry a "From the Hub" button
+  beside their own "New skill" / "New server": it opens the collections this machine reads for that kind of resource
+  — chosen from a picker, searched, and read a page at a time with "Load more" if it is long — opens an entry's
+  read-only preview the way the Hub does, and installs it into the tab's own owner through the same review, file list
+  and confirmation. Where that owner already holds an entry is named on its card, which is also how a copy that
+  differs from the published one is spotted before overwriting anything.
+- **Several skills at once, from the same dialog.** Skills carry a tick box, and a bar above the list selects all of
+  them or installs what is ticked — or the whole list on screen when nothing is ticked, which its own label says —
+  through the Hub's batch review: one confirmation, a progress bar with the count as the run goes, skills the owner
+  already holds skipped, and a summary of what was installed, skipped and failed. Three writes are in flight at a
+  time, and the machine is read once for the whole set instead of once per file: a batch that cost a full scan per
+  skill now costs one, and a collection's tarball is downloaded once however many of its skills are taken at once.
+  Servers stay out of it on purpose: a server asks for its launch recipe and its values, so it is reviewed one at a
+  time.
+
 ## [0.63.0] - 2026-10-14
 
 ### Added
