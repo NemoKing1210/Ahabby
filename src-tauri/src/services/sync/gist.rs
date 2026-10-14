@@ -1,12 +1,17 @@
-//! The GitHub Gist provider: where a remote copy actually lives.
+//! The GitHub Gist provider: one gist holds the whole library.
 //!
-//! One gist per item, holding exactly one file ([`SYNC_MARKER_FILE`]) — the item's metadata and
-//! its bytes together. The gist's *description* carries the same facts in a compact, parseable
-//! form, so a listing costs one request per page instead of one per item; the marker file is what
-//! a pull reads, and it is authoritative whenever the two disagree.
+//! The gist holds exactly one file, [`SYNC_MARKER_FILE`], whose content is opaque here: a plain
+//! document when this machine holds no key, an envelope when it does. Its description is the
+//! constant marker, so nothing about the library — not an item's name, not its path — can be read
+//! off GitHub without the document's own bytes.
 //!
-//! The network mapping lives in pure functions ([`parse_account`], [`parse_gist`],
-//! [`create_body`], …) so the request and response shapes are tested without a server.
+//! Gists written when a library was one gist per item are still readable:
+//! [`GistProvider::legacy_text`] hands their marker file over for the migration that collects them.
+//! That is the only compatibility this module keeps.
+//!
+//! The network mapping lives in pure functions ([`parse_account`], [`parse_basics`],
+//! [`remote_document`], the request bodies) so the request and response shapes are tested without a
+//! server.
 
 use std::time::Duration;
 
@@ -14,11 +19,10 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::plan;
-use super::SyncProvider;
-use crate::domain::{
-    RemoteItem, SyncAccount, SyncKind, SyncPayload, SyncProviderId, SYNC_MARKER_FILE,
-};
+use super::{RemoteDocument, RemoteRead, SyncProvider};
+use crate::domain::{SyncAccount, SyncProviderId, SYNC_DESCRIPTION_MARKER, SYNC_MARKER_FILE};
 use crate::error::{AppError, Result};
+use crate::platform::sha256_hex;
 use crate::services::http;
 
 /// GitHub's REST root.
@@ -28,8 +32,8 @@ pub const TIMEOUT: Duration = Duration::from_secs(25);
 /// How many hops a gist request may take.
 pub const MAX_REDIRECTS: usize = 5;
 const PER_PAGE: usize = 100;
-/// Most gists one listing reads. A sync account with more than a thousand copies is far past
-/// what this feature is for; the rest stay reachable by their own pull.
+/// Most gists one listing reads. An account with more than a thousand gists is far past what this
+/// feature is for; the library stays reachable by its own id.
 const MAX_PAGES: usize = 10;
 
 /// A GitHub Gist is the only provider so far.
@@ -70,40 +74,29 @@ impl GistProvider {
             .map_err(|error| AppError::Network(format!("{url}: {error}")))
     }
 
-    /// Turn one gist payload into a [`RemoteItem`], fetching the marker file only when the
-    /// description cannot be read.
-    async fn remote_item(&self, gist: &Value) -> Result<Option<RemoteItem>> {
-        let basics = parse_basics(gist)?;
-        if !plan::is_our_description(&basics.description) {
-            return Ok(None);
+    /// The marker file of one gist: inline when GitHub returned it whole, through the raw URL when
+    /// it was truncated, and `None` when the gist has no such file at all.
+    async fn marker_text(&self, basics: &GistBasics) -> Result<Option<String>> {
+        if let Some(content) = &basics.content {
+            if !basics.truncated {
+                return Ok(Some(content.clone()));
+            }
         }
-        if let Some(described) = plan::parse_gist_description(&basics.description) {
-            return Ok(Some(remote_item_of(&basics, &described)));
+        match &basics.raw_url {
+            Some(url) => Ok(Some(self.raw(url).await?)),
+            None => Ok(None),
         }
-        // Ours, but the description was cut or hand-edited: the marker file is the authority.
-        let Some(payload) = self.payload_of(&basics).await? else {
-            return Ok(None);
-        };
-        Ok(Some(remote_item_of_payload(&basics, &payload)))
     }
 
-    /// The marker document of a gist, inline when GitHub returned it and through the raw URL
-    /// when it was truncated.
-    async fn payload_of(&self, basics: &GistBasics) -> Result<Option<SyncPayload>> {
-        let content = match &basics.content {
-            Some(content) if !basics.truncated => content.clone(),
-            _ => match &basics.raw_url {
-                Some(url) => self.raw(url).await?,
-                None => return Ok(None),
-            },
-        };
-        let value: Value =
-            serde_json::from_str(&content).map_err(|error| AppError::InvalidFormat {
-                format: "sync payload",
-                path: basics.remote_id.clone(),
-                message: error.to_string(),
-            })?;
-        Ok(Some(plan::decode_marker(&value)?))
+    /// Fetch one gist's own facts.
+    async fn basics_of(&self, gist_id: &str) -> Result<GistBasics> {
+        let url = format!("{API}/gists/{gist_id}");
+        let response = self
+            .request(reqwest::Method::GET, &url)
+            .send()
+            .await
+            .map_err(|error| http::network_error(&url, &error, TIMEOUT))?;
+        parse_basics(&self.json(response, &url).await?)
     }
 }
 
@@ -121,13 +114,15 @@ impl SyncProvider for GistProvider {
             .await
             .map_err(|error| http::network_error(&url, &error, TIMEOUT))?;
         let mut account = parse_account(&self.json(response, &url).await?)?;
-        let gists = self.list().await?;
-        account.gists = gists.len();
+        // One pass over the account: what Ahabby holds is the library plus whatever the layout
+        // before it left behind. The service replaces this count once it can read the document.
+        let read = self.read().await?;
+        account.gists = usize::from(read.document.is_some()) + read.legacy.len();
         Ok(account)
     }
 
-    async fn list(&self) -> Result<Vec<RemoteItem>> {
-        let mut items = Vec::new();
+    async fn read(&self) -> Result<RemoteRead> {
+        let mut read = RemoteRead::default();
         for page in 1..=MAX_PAGES {
             let url = format!("{API}/gists?per_page={PER_PAGE}&page={page}");
             let response = self
@@ -141,70 +136,100 @@ impl SyncProvider for GistProvider {
                 .ok_or_else(|| AppError::Network(format!("{url}: expected a list")))?;
             let count = page_items.len();
             for gist in page_items {
-                if let Some(item) = self.remote_item(gist).await? {
-                    items.push(item);
+                let basics = parse_basics(gist)?;
+                if plan::is_document_description(&basics.description) {
+                    // The first one wins: a second gist wearing the marker is either a copy the
+                    // user made or a leftover, and neither is one this machine should merge.
+                    if read.document.is_none() {
+                        let text = self.marker_text(&basics).await?.unwrap_or_default();
+                        read.document = Some(remote_document(&basics, text));
+                    }
+                } else if plan::is_our_gist(&basics.description) {
+                    read.legacy.push(basics.remote_id.clone());
                 }
             }
             if count < PER_PAGE {
                 break;
             }
         }
-        items.sort_by_key(|item| std::cmp::Reverse(item.updated_at_ms));
-        Ok(items)
+        Ok(read)
     }
 
-    async fn upload(&self, payload: &SyncPayload, existing: Option<&str>) -> Result<RemoteItem> {
-        let description = plan::gist_description(payload);
-        let (method, url, body) = match existing {
-            Some(id) => (
-                reqwest::Method::PATCH,
-                format!("{API}/gists/{id}"),
-                update_body(payload, &description),
-            ),
-            None => (
-                reqwest::Method::POST,
-                format!("{API}/gists"),
-                create_body(payload, &description),
-            ),
-        };
+    async fn write(&self, text: &str, current: Option<&RemoteDocument>) -> Result<RemoteDocument> {
+        match current {
+            Some(document) => {
+                // The check the whole conflict rule rests on: the cloud is asked what it holds
+                // *now*, and a document that moved on since it was read is refused rather than
+                // overwritten. The service re-reads, re-applies its changes and tries once more.
+                let basics = self.basics_of(&document.remote_id).await?;
+                let stored = self.marker_text(&basics).await?.unwrap_or_default();
+                if sha256_hex(stored.as_bytes()) != document.hash {
+                    // A distinguishable code on purpose: the service catches exactly this one,
+                    // re-reads, re-applies its changes and writes once more.
+                    return Err(AppError::Stale {
+                        path: document.remote_id.clone(),
+                    });
+                }
+                let url = format!("{API}/gists/{}", document.remote_id);
+                let body = update_body(text);
+                let response = self
+                    .request(reqwest::Method::PATCH, &url)
+                    .json(&body)
+                    .send()
+                    .await
+                    .map_err(|error| http::network_error(&url, &error, TIMEOUT))?;
+                let basics = parse_basics(&self.json(response, &url).await?)?;
+                Ok(remote_document(&basics, text.to_string()))
+            }
+            None => {
+                let url = format!("{API}/gists");
+                let body = create_body(text);
+                let response = self
+                    .request(reqwest::Method::POST, &url)
+                    .json(&body)
+                    .send()
+                    .await
+                    .map_err(|error| http::network_error(&url, &error, TIMEOUT))?;
+                let basics = parse_basics(&self.json(response, &url).await?)?;
+                Ok(remote_document(&basics, text.to_string()))
+            }
+        }
+    }
+
+    async fn replace(&self, text: &str, previous: Option<&str>) -> Result<RemoteDocument> {
+        let url = format!("{API}/gists");
         let response = self
-            .request(method, &url)
-            .json(&body)
+            .request(reqwest::Method::POST, &url)
+            .json(&create_body(text))
             .send()
             .await
             .map_err(|error| http::network_error(&url, &error, TIMEOUT))?;
-        let value = self.json(response, &url).await?;
-        let basics = parse_basics(&value)?;
-        Ok(remote_item_of_payload(&basics, payload))
+        let basics = parse_basics(&self.json(response, &url).await?)?;
+        let document = remote_document(&basics, text.to_string());
+        // Create first, delete second: a cleanup the network swallowed costs a leftover gist, never
+        // the library. The old revisions leave with the old gist, which is the point of replacing.
+        if let Some(previous) = previous {
+            if previous != document.remote_id {
+                self.delete(previous).await?;
+            }
+        }
+        Ok(document)
     }
 
-    async fn download(&self, remote_id: &str) -> Result<SyncPayload> {
-        let url = format!("{API}/gists/{remote_id}");
-        let response = self
-            .request(reqwest::Method::GET, &url)
-            .send()
-            .await
-            .map_err(|error| http::network_error(&url, &error, TIMEOUT))?;
-        let value = self.json(response, &url).await?;
-        let basics = parse_basics(&value)?;
-        self.payload_of(&basics)
-            .await?
-            .ok_or_else(|| AppError::InvalidFormat {
-                format: "sync payload",
-                path: remote_id.to_string(),
-                message: format!("the gist holds no {SYNC_MARKER_FILE}"),
-            })
+    async fn legacy_text(&self, gist_id: &str) -> Result<Option<String>> {
+        let basics = self.basics_of(gist_id).await?;
+        self.marker_text(&basics).await
     }
 
-    async fn delete(&self, remote_id: &str) -> Result<()> {
-        let url = format!("{API}/gists/{remote_id}");
+    async fn delete(&self, gist_id: &str) -> Result<()> {
+        let url = format!("{API}/gists/{gist_id}");
         let response = self
             .request(reqwest::Method::DELETE, &url)
             .send()
             .await
             .map_err(|error| http::network_error(&url, &error, TIMEOUT))?;
         if response.status().as_u16() == 404 {
-            // Already gone: deleting a copy the user removed by hand is not a failure.
+            // Already gone: deleting a gist the user removed by hand is not a failure.
             return Ok(());
         }
         let _ = check(response, &url).await?;
@@ -340,88 +365,41 @@ pub fn parse_timestamp(value: &str) -> i64 {
         .unwrap_or(0)
 }
 
-/// Build a remote record out of a parsed description.
-pub fn remote_item_of(basics: &GistBasics, described: &plan::DescribedItem) -> RemoteItem {
-    RemoteItem {
+/// The library as the provider sees it: where it lives, when it moved, its text and the hash of
+/// that text — which is what the next write hands back as its check.
+pub fn remote_document(basics: &GistBasics, text: String) -> RemoteDocument {
+    let hash = sha256_hex(text.as_bytes());
+    RemoteDocument {
         remote_id: basics.remote_id.clone(),
-        key: described.key.clone(),
-        owner_id: described.owner_id.clone(),
-        owner_name: described.owner_id.clone(),
-        owner_kind: plan::owner_kind(&described.owner_id),
-        kind: described.kind,
-        name: plan::key_name(&described.key).to_string(),
-        label: plan::key_name(&described.key).to_string(),
-        relative_path: described.relative_path.clone(),
-        is_directory: described.kind == SyncKind::Skill,
-        files: described.files,
-        size_bytes: described.size_bytes,
-        hash: String::new(),
-        description: basics.description.clone(),
         uri: basics.uri.clone(),
         updated_at_ms: basics.updated_at_ms,
-        has_secrets: false,
+        text,
+        hash,
     }
 }
 
-/// Build a remote record out of the marker document itself (the authority).
-pub fn remote_item_of_payload(basics: &GistBasics, payload: &SyncPayload) -> RemoteItem {
-    RemoteItem {
-        remote_id: basics.remote_id.clone(),
-        key: payload.key.clone(),
-        owner_id: payload.owner_id.clone(),
-        owner_name: payload.owner_name.clone(),
-        owner_kind: payload.owner_kind,
-        kind: payload.kind,
-        name: payload.name.clone(),
-        label: payload.label.clone(),
-        relative_path: payload.relative_path.clone(),
-        is_directory: payload.is_directory,
-        files: payload.files.len(),
-        size_bytes: plan::payload_size(&payload.files),
-        hash: payload.hash.clone(),
-        description: plan::gist_description(payload),
-        uri: basics.uri.clone(),
-        updated_at_ms: if basics.updated_at_ms > 0 {
-            basics.updated_at_ms
-        } else {
-            payload.pushed_at_ms
-        },
-        has_secrets: payload.has_secrets,
-    }
-}
-
-/// The body of a create request.
-pub fn create_body(payload: &SyncPayload, description: &str) -> Value {
+/// The body of a request that creates the library.
+pub fn create_body(text: &str) -> Value {
     serde_json::json!({
-        "description": description,
+        "description": SYNC_DESCRIPTION_MARKER,
         "public": false,
-        "files": { SYNC_MARKER_FILE: { "content": marker_text(payload) } },
+        "files": { SYNC_MARKER_FILE: { "content": text } },
     })
 }
 
-/// The body of an update request. Only our own file is touched: anything the user added to the
-/// gist by hand is left where it is.
-pub fn update_body(payload: &SyncPayload, description: &str) -> Value {
+/// The body of a request that updates it. Only our own file is touched, and only its content: the
+/// description is the same constant it has always been, so an update cannot be told from a create
+/// by anyone reading the gist.
+pub fn update_body(text: &str) -> Value {
     serde_json::json!({
-        "description": description,
-        "files": { SYNC_MARKER_FILE: { "content": marker_text(payload) } },
+        "description": SYNC_DESCRIPTION_MARKER,
+        "files": { SYNC_MARKER_FILE: { "content": text } },
     })
-}
-
-fn marker_text(payload: &SyncPayload) -> String {
-    serde_json::to_string_pretty(payload).unwrap_or_else(|_| "{}".to_string())
-}
-
-/// `true` for a payload the provider may store: the owner kind must agree with the owner id, so
-/// a hand-built document cannot claim a surface it is not.
-pub fn payload_is_consistent(payload: &SyncPayload) -> bool {
-    plan::owner_kind(&payload.owner_id) == payload.owner_kind
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{SyncOwnerKind, SYNC_SCHEMA};
 
     fn account_json() -> Value {
         serde_json::json!({
@@ -453,9 +431,9 @@ mod tests {
 
     #[test]
     fn basics_carry_the_marker_and_the_timestamp() {
-        let basics = parse_basics(&gist_json("abc", "[Ahabby] x")).unwrap();
+        let basics = parse_basics(&gist_json("abc", SYNC_DESCRIPTION_MARKER)).unwrap();
         assert_eq!(basics.remote_id, "abc");
-        assert_eq!(basics.description, "[Ahabby] x");
+        assert_eq!(basics.description, SYNC_DESCRIPTION_MARKER);
         assert_eq!(basics.uri, "https://gist.github.com/abc");
         assert_eq!(basics.updated_at_ms, 1_791_540_000_000);
         assert_eq!(basics.size_bytes, 120);
@@ -465,7 +443,7 @@ mod tests {
 
     #[test]
     fn a_truncated_marker_keeps_its_raw_url() {
-        let mut gist = gist_json("abc", "[Ahabby] x");
+        let mut gist = gist_json("abc", SYNC_DESCRIPTION_MARKER);
         gist["files"][SYNC_MARKER_FILE]["truncated"] = serde_json::json!(true);
         gist["files"][SYNC_MARKER_FILE]["content"] = serde_json::json!(null);
         gist["files"][SYNC_MARKER_FILE]["raw_url"] =
@@ -483,78 +461,50 @@ mod tests {
     }
 
     #[test]
-    fn description_bodies_carry_one_file_and_the_prefix() {
-        let payload = sample_payload();
-        let description = plan::gist_description(&payload);
-        let create = create_body(&payload, &description);
+    fn the_document_carries_the_hash_of_its_own_text() {
+        let basics = parse_basics(&gist_json("abc", SYNC_DESCRIPTION_MARKER)).unwrap();
+        let document = remote_document(&basics, "{\"items\":[]}".to_string());
+        assert_eq!(document.remote_id, "abc");
+        assert_eq!(document.uri, "https://gist.github.com/abc");
+        assert_eq!(document.updated_at_ms, 1_791_540_000_000);
+        assert_eq!(document.hash, sha256_hex(b"{\"items\":[]}"));
+        // The hash is what the next write compares against, so it has to move with the text alone.
+        let other = remote_document(&basics, "{\"items\":[1]}".to_string());
+        assert_ne!(other.hash, document.hash);
+    }
+
+    #[test]
+    fn the_bodies_name_one_file_and_the_marker() {
+        let create = create_body("{\"schema\":1}");
         assert_eq!(create["public"], serde_json::json!(false));
-        assert_eq!(create["description"], serde_json::json!(description));
-        assert!(create["files"][SYNC_MARKER_FILE]["content"]
-            .as_str()
-            .unwrap()
-            .contains("\"app\": \"ahabby\""));
-        let update = update_body(&payload, &description);
+        assert_eq!(
+            create["description"],
+            serde_json::json!(SYNC_DESCRIPTION_MARKER)
+        );
+        assert_eq!(
+            create["files"][SYNC_MARKER_FILE]["content"],
+            serde_json::json!("{\"schema\":1}")
+        );
+
+        let update = update_body("{\"schema\":1}");
         assert!(update.get("public").is_none());
-        assert!(update["files"][SYNC_MARKER_FILE]["content"].is_string());
+        assert_eq!(
+            update["description"],
+            serde_json::json!(SYNC_DESCRIPTION_MARKER)
+        );
+        assert_eq!(
+            update["files"][SYNC_MARKER_FILE]["content"],
+            serde_json::json!("{\"schema\":1}")
+        );
     }
 
     #[test]
-    fn a_remote_item_from_a_description_needs_no_fetch() {
-        let payload = sample_payload();
-        let description = plan::gist_description(&payload);
-        let basics = parse_basics(&gist_json("abc", &description)).unwrap();
-        let described = plan::parse_gist_description(&description).unwrap();
-        let item = remote_item_of(&basics, &described);
-        assert_eq!(item.remote_id, "abc");
-        assert_eq!(item.key, payload.key);
-        assert_eq!(item.owner_id, "claude-code");
-        assert_eq!(item.files, 1);
-        assert_eq!(item.size_bytes, plan::payload_size(&payload.files));
-        assert_eq!(item.uri, "https://gist.github.com/abc");
-        assert_eq!(item.updated_at_ms, 1_791_540_000_000);
-    }
-
-    #[test]
-    fn a_remote_item_from_the_marker_prefers_the_document() {
-        let payload = sample_payload();
-        let mut basics = parse_basics(&gist_json("abc", "")).unwrap();
-        basics.updated_at_ms = 0;
-        let item = remote_item_of_payload(&basics, &payload);
-        assert_eq!(item.hash, payload.hash);
-        assert_eq!(item.label, payload.label);
-        assert_eq!(item.updated_at_ms, payload.pushed_at_ms);
-    }
-
-    #[test]
-    fn a_foreign_document_is_still_a_consistent_payload_only_for_its_own_owner() {
-        let mut payload = sample_payload();
-        assert!(payload_is_consistent(&payload));
-        payload.owner_id = "project:ab12".to_string();
-        payload.owner_kind = SyncOwnerKind::Project;
-        assert!(payload_is_consistent(&payload));
-    }
-
-    fn sample_payload() -> SyncPayload {
-        let files = vec![plan::payload_file("settings.json", b"{\"model\":\"opus\"}")];
-        SyncPayload {
-            schema: SYNC_SCHEMA,
-            app: "ahabby".to_string(),
-            kind: SyncKind::Config,
-            key: plan::item_key(SyncKind::Config, "settings.json"),
-            owner_kind: SyncOwnerKind::Agent,
-            owner_id: "claude-code".to_string(),
-            owner_name: "Claude Code".to_string(),
-            name: "settings.json".to_string(),
-            label: "Settings".to_string(),
-            relative_path: "~/.claude/settings.json".to_string(),
-            is_directory: false,
-            hash: plan::payload_hash(&files),
-            files,
-            pushed_at_ms: 1_760_000_000_000,
-            source_path: "/home/u/.claude/settings.json".to_string(),
-            app_version: "0.50.0".to_string(),
-            os: "linux".to_string(),
-            has_secrets: false,
-        }
+    fn a_gist_is_the_document_only_when_its_description_says_so() {
+        assert!(plan::is_document_description(SYNC_DESCRIPTION_MARKER));
+        // An old per-item description is ours, and is not the document.
+        let old = "[Ahabby] claude-code :: config :: config|settings.json :: 1 :: 512 :: ~/.x";
+        assert!(!plan::is_document_description(old));
+        assert!(plan::is_our_gist(old));
+        assert!(!plan::is_our_gist("just a gist"));
     }
 }

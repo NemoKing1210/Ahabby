@@ -5,25 +5,27 @@
 //! proof that "adding an agent needs only a manifest" holds for the real pipeline, because
 //! the agent used here exists nowhere in the shipped catalog.
 
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+
+use base64::Engine as _;
 
 use ahabby_lib::adapters::doc_edit;
 use ahabby_lib::adapters::AgentAdapter;
 use ahabby_lib::catalog;
 use ahabby_lib::domain::{
     AgentStatus, ConfigFormat, ExtensionAction, ExtensionKind, ExtensionManager, InstallAction,
-    Manager, McpDraftTransport, McpKeyValue, McpServerDraft, Os, Proxy, RemoteItem, Severity,
-    SkillDraft, SkillInstall, SkillInstallFile, SyncAccount, SyncContentSide, SyncFileAction,
-    SyncFileStatus, SyncItem, SyncItemRef, SyncItemStatus, SyncKind, SyncPayload, SyncProviderId,
-    SyncPullTarget, SyncRunKind, SyncSettings,
+    Manager, McpDraftTransport, McpKeyValue, McpServerDraft, Os, Proxy, Severity, SkillDraft,
+    SkillInstall, SkillInstallFile, SyncAccount, SyncContentSide, SyncDocument, SyncFileAction,
+    SyncFileStatus, SyncItem, SyncItemRef, SyncItemStatus, SyncKind, SyncMigration, SyncPayload,
+    SyncProviderId, SyncPullTarget, SyncRunKind, SyncSettings, SYNC_DOCUMENT_SCHEMA,
 };
 use ahabby_lib::error::{AppError, Result};
 use ahabby_lib::platform::PlatformContext;
-use ahabby_lib::services::sync::plan;
+use ahabby_lib::services::sync::crypto::{self, SyncCipher};
+use ahabby_lib::services::sync::{plan, RemoteDocument, RemoteRead, MAX_DOCUMENT_BYTES};
 use ahabby_lib::services::{self, aggregate, Scanner, SyncProvider, SyncService, SyncTarget};
 use ahabby_lib::state::resolve_document;
 
@@ -1923,54 +1925,113 @@ async fn a_hub_entry_is_found_installed_in_the_scan_report() {
 
 // --- cloud sync -------------------------------------------------------------------------------
 
-/// An in-memory cloud: one "gist" per payload, keyed by the id it minted.
+/// An in-memory cloud: one document holding the whole library, and the gists the layout before it
+/// left behind.
+///
+/// It stores the opaque *text* and nothing else, which is what keeps the seam honest: a cloud that
+/// kept payloads would let the encryption tests pass without a byte ever being sealed.
 #[derive(Default)]
 struct FakeProvider {
-    gists: Mutex<HashMap<String, SyncPayload>>,
+    /// The document: its id, its text, the hash of that text and when it was written.
+    document: Mutex<Option<(String, String, String, i64)>>,
+    /// Old-layout gists the migration must find: id → the marker file's text.
+    legacy: Mutex<Vec<(String, String)>>,
+    reads: AtomicUsize,
+    writes: AtomicUsize,
     next: AtomicUsize,
 }
 
 impl FakeProvider {
-    fn count(&self) -> usize {
-        self.gists.lock().unwrap().len()
-    }
-
-    /// Id of the copy whose item key is `key`.
-    fn remote_of(&self, key: &str) -> Option<String> {
-        self.gists
+    /// The text the cloud holds; empty when it holds no document at all.
+    fn text(&self) -> String {
+        self.document
             .lock()
             .unwrap()
-            .iter()
-            .find(|(_, payload)| payload.key == key)
-            .map(|(id, _)| id.clone())
+            .as_ref()
+            .map(|(_, text, _, _)| text.clone())
+            .unwrap_or_default()
     }
 
-    /// Put a document into the cloud without going through a push.
-    fn seed(&self, payload: SyncPayload) -> String {
-        let id = format!("seed-{}", self.next.fetch_add(1, Ordering::SeqCst));
-        self.gists.lock().unwrap().insert(id.clone(), payload);
-        id
+    /// Write the document without going through the service — how a test plays another machine.
+    fn set_text(&self, text: &str) {
+        let mut guard = self.document.lock().unwrap();
+        let id = match guard.as_ref() {
+            Some((id, _, _, _)) => id.clone(),
+            None => self.mint("doc"),
+        };
+        let updated = self.clock();
+        *guard = Some((id, text.to_string(), hash_of(text), updated));
     }
 
-    fn remote_item(&self, id: &str, payload: &SyncPayload) -> RemoteItem {
-        RemoteItem {
-            remote_id: id.to_string(),
-            key: payload.key.clone(),
-            owner_id: payload.owner_id.clone(),
-            owner_name: payload.owner_name.clone(),
-            owner_kind: payload.owner_kind,
-            kind: payload.kind,
-            name: payload.name.clone(),
-            label: payload.label.clone(),
-            relative_path: payload.relative_path.clone(),
-            is_directory: payload.is_directory,
-            files: payload.files.len(),
-            size_bytes: plan::payload_size(&payload.files),
-            hash: payload.hash.clone(),
-            description: plan::gist_description(payload),
+    /// The id of one entry of the document, as the service hands it around.
+    fn remote_of(&self, key: &str) -> String {
+        format!("{}|{key}", self.id())
+    }
+
+    /// The id the document lives under; empty while there is none.
+    fn id(&self) -> String {
+        self.document
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|(id, _, _, _)| id.clone())
+            .unwrap_or_default()
+    }
+
+    /// One more entry in the cloud's document, written the way another machine would leave it.
+    fn seed_entry(&self, entry: SyncPayload) {
+        let text = self.text();
+        let mut document = if text.is_empty() {
+            new_document()
+        } else {
+            plan::decode_document(&text).expect("a plain document")
+        };
+        document.items.push(entry);
+        self.set_text(&plan::encode_document(&document).unwrap());
+    }
+
+    /// One gist written in the layout this version replaced: its marker file's text.
+    fn add_legacy(&self, text: &str) {
+        let id = self.mint("old");
+        self.legacy.lock().unwrap().push((id, text.to_string()));
+    }
+
+    fn reads(&self) -> usize {
+        self.reads.load(Ordering::SeqCst)
+    }
+
+    fn writes(&self) -> usize {
+        self.writes.load(Ordering::SeqCst)
+    }
+
+    /// Open what the cloud holds with one password and seal it with another: how a test makes a
+    /// copy that was sealed on another machine.
+    fn reseal(&self, from_password: &str, to_password: &str) {
+        let (bytes, _) = crypto::open_with_password(from_password, &self.text())
+            .expect("the document opens with the password it was sealed under");
+        let sealed = SyncCipher::derive(to_password)
+            .expect("a key")
+            .seal(&bytes)
+            .expect("the document seals");
+        self.set_text(&sealed);
+    }
+
+    fn mint(&self, prefix: &str) -> String {
+        format!("{prefix}-{}", self.next.fetch_add(1, Ordering::SeqCst))
+    }
+
+    /// A write's own timestamp, later than the one before it.
+    fn clock(&self) -> i64 {
+        1_760_000_000_000 + self.next.fetch_add(1, Ordering::SeqCst) as i64
+    }
+
+    fn document_of(&self, id: String, text: &str, updated_at_ms: i64) -> RemoteDocument {
+        RemoteDocument {
             uri: format!("https://gist.invalid/{id}"),
-            updated_at_ms: payload.pushed_at_ms,
-            has_secrets: payload.has_secrets,
+            remote_id: id,
+            updated_at_ms,
+            text: text.to_string(),
+            hash: hash_of(text),
         }
     }
 }
@@ -1982,46 +2043,92 @@ impl SyncProvider for FakeProvider {
     }
 
     async fn verify(&self) -> Result<SyncAccount> {
+        let gists = usize::from(self.document.lock().unwrap().is_some())
+            + self.legacy.lock().unwrap().len();
         Ok(SyncAccount {
             provider: SyncProviderId::Gist,
             login: "tester".to_string(),
             name: None,
             avatar: None,
-            gists: self.count(),
+            gists,
         })
     }
 
-    async fn list(&self) -> Result<Vec<RemoteItem>> {
-        let gists = self.gists.lock().unwrap();
-        Ok(gists
+    async fn read(&self) -> Result<RemoteRead> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        let document = self
+            .document
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|(id, text, hash, updated)| RemoteDocument {
+                remote_id: id.clone(),
+                uri: format!("https://gist.invalid/{id}"),
+                updated_at_ms: *updated,
+                text: text.clone(),
+                hash: hash.clone(),
+            });
+        let legacy = self
+            .legacy
+            .lock()
+            .unwrap()
             .iter()
-            .map(|(id, payload)| self.remote_item(id, payload))
-            .collect())
+            .map(|(id, _)| id.clone())
+            .collect();
+        Ok(RemoteRead { document, legacy })
     }
 
-    async fn upload(&self, payload: &SyncPayload, existing: Option<&str>) -> Result<RemoteItem> {
-        let id = match existing {
-            Some(id) => id.to_string(),
-            None => format!("gist-{}", self.next.fetch_add(1, Ordering::SeqCst)),
+    async fn write(&self, text: &str, current: Option<&RemoteDocument>) -> Result<RemoteDocument> {
+        let mut guard = self.document.lock().unwrap();
+        if let Some(held) = current {
+            let stored = guard
+                .as_ref()
+                .map(|(_, _, hash, _)| hash.clone())
+                .unwrap_or_default();
+            // What GitHub does with a write that was based on a text that has moved on since.
+            if stored != held.hash {
+                return Err(AppError::Stale {
+                    path: held.remote_id.clone(),
+                });
+            }
+        }
+        let id = match guard.as_ref() {
+            Some((id, _, _, _)) => id.clone(),
+            None => self.mint("doc"),
         };
-        self.gists
-            .lock()
-            .unwrap()
-            .insert(id.clone(), payload.clone());
-        Ok(self.remote_item(&id, payload))
+        let updated = self.clock();
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        *guard = Some((id.clone(), text.to_string(), hash_of(text), updated));
+        Ok(self.document_of(id, text, updated))
     }
 
-    async fn download(&self, remote_id: &str) -> Result<SyncPayload> {
-        self.gists
-            .lock()
-            .unwrap()
-            .get(remote_id)
-            .cloned()
-            .ok_or_else(|| AppError::NotFound(format!("gist {remote_id}")))
+    async fn replace(&self, text: &str, _previous: Option<&str>) -> Result<RemoteDocument> {
+        // A fresh id, and the document before it goes with it: the cloud holds exactly one.
+        let id = self.mint("doc");
+        let updated = self.clock();
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        *self.document.lock().unwrap() =
+            Some((id.clone(), text.to_string(), hash_of(text), updated));
+        Ok(self.document_of(id, text, updated))
     }
 
-    async fn delete(&self, remote_id: &str) -> Result<()> {
-        self.gists.lock().unwrap().remove(remote_id);
+    async fn legacy_text(&self, gist_id: &str) -> Result<Option<String>> {
+        Ok(self
+            .legacy
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(id, _)| id == gist_id)
+            .map(|(_, text)| text.clone()))
+    }
+
+    async fn delete(&self, gist_id: &str) -> Result<()> {
+        let mut guard = self.document.lock().unwrap();
+        if guard.as_ref().is_some_and(|(id, _, _, _)| id == gist_id) {
+            *guard = None;
+        }
+        drop(guard);
+        self.legacy.lock().unwrap().retain(|(id, _)| id != gist_id);
         Ok(())
     }
 }
@@ -2084,8 +2191,59 @@ impl SyncTarget for FakeTarget {
     }
 }
 
+/// One more item for the scan to find: a skill directory of the fixture's agent.
+fn write_skill(fixture: &Fixture, name: &str) {
+    let dir = fixture.home.join(".pipeline").join("skills").join(name);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: A {name} skill\n---\n\n# {name}\n"),
+    )
+    .unwrap();
+}
+
+/// Put a sync key into the fixture's `credentials.json`, the way a password set on this machine
+/// leaves one, so the service built next seals everything it writes.
+fn store_sync_key(fixture: &Fixture, password: &str) {
+    let cipher = SyncCipher::derive(password).expect("a key");
+    let params = cipher.params();
+    let credentials = serde_json::json!({
+        "provider": "gist",
+        "token": "test-token",
+        "encryption": {
+            "salt": base64::engine::general_purpose::STANDARD.encode(cipher.salt()),
+            "m": params.m,
+            "t": params.t,
+            "p": params.p,
+            "key": base64::engine::general_purpose::STANDARD.encode(cipher.key()),
+        },
+    });
+    let dir = fixture.app_config.join("sync");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("credentials.json"),
+        serde_json::to_string_pretty(&credentials).unwrap(),
+    )
+    .unwrap();
+}
+
 /// The fixture's report, its service and the two fakes, wired the way the app wires them.
 async fn sync_fixture() -> (
+    Fixture,
+    ahabby_lib::services::ScanReport,
+    Arc<SyncService>,
+    Arc<FakeProvider>,
+    FakeTarget,
+) {
+    sync_setup(&[], None).await
+}
+
+/// The same wiring, with more on disk and — when `password` is given — a sync key already in the
+/// credentials file, written before the service is built.
+async fn sync_setup(
+    extra_skills: &[&str],
+    password: Option<&str>,
+) -> (
     Fixture,
     ahabby_lib::services::ScanReport,
     Arc<SyncService>,
@@ -2096,6 +2254,12 @@ async fn sync_fixture() -> (
     fixture.write_manifest();
     fixture.write_binary("4.2.1");
     fixture.write_agent_files();
+    for name in extra_skills {
+        write_skill(&fixture, name);
+    }
+    if let Some(password) = password {
+        store_sync_key(&fixture, password);
+    }
 
     let catalog = catalog_for(&fixture);
     let report = Scanner::new(&catalog)
@@ -2121,6 +2285,44 @@ async fn sync_fixture() -> (
     (fixture, report, service, provider, target)
 }
 
+/// A second machine over the same cloud and the same state store, with an `app_config` of its own
+/// — so its credentials file holds no key.
+fn second_service(fixture: &Fixture, provider: &Arc<FakeProvider>) -> Arc<SyncService> {
+    let config = fixture.app_config.join("second");
+    fs::create_dir_all(&config).unwrap();
+    let service = Arc::new(SyncService::new(&fixture.app_data, &config, &Proxy::none()));
+    service.set_provider(provider.clone());
+    service.set_settings(&SyncSettings {
+        enabled: true,
+        ..SyncSettings::default()
+    });
+    service
+        .set_token(SyncProviderId::Gist, "second-token")
+        .expect("the token is stored");
+    service
+}
+
+/// An empty library, as a first write stamps it.
+fn new_document() -> SyncDocument {
+    SyncDocument {
+        schema: SYNC_DOCUMENT_SCHEMA,
+        app: "ahabby".to_string(),
+        ..SyncDocument::default()
+    }
+}
+
+/// The entries the cloud library holds right now.
+fn entries(provider: &FakeProvider) -> Vec<SyncPayload> {
+    plan::decode_document(&provider.text())
+        .expect("a plain document")
+        .items
+}
+
+/// The hash a provider remembers for a text.
+fn hash_of(text: &str) -> String {
+    ahabby_lib::platform::sha256_hex(text.as_bytes())
+}
+
 fn refs(items: &[SyncItem]) -> Vec<SyncItemRef> {
     items
         .iter()
@@ -2136,6 +2338,19 @@ fn target_of(item: &SyncItem) -> SyncPullTarget {
         remote_id: String::new(),
         owner_id: item.owner_id.clone(),
     }
+}
+
+/// The id a listing gives one entry of the cloud library — how the UI addresses a copy.
+async fn remote_id_of(service: &SyncService, key: &str) -> String {
+    service
+        .remote_items(true)
+        .await
+        .unwrap()
+        .items
+        .into_iter()
+        .find(|row| row.key == key)
+        .expect("the cloud holds that entry")
+        .remote_id
 }
 
 #[tokio::test]
@@ -2178,16 +2393,19 @@ async fn cloud_sync_saves_only_what_changed_and_refuses_secrets_by_default() {
     assert_eq!(run.kind, SyncRunKind::Push);
     assert_eq!(run.uploaded, plain.len());
     assert_eq!(run.failed, 0);
-    assert_eq!(provider.count(), plain.len());
+    // One document holds them all, and one write is what a run spends however many items it covers.
+    assert_eq!(entries(&provider).len(), plain.len());
+    assert_eq!(provider.writes(), 1);
 
-    // The secret-bearing file is skipped until the user opts in.
+    // The secret-bearing file is skipped until the user opts in — and a skipped item writes nothing.
     let run = service
         .push(&report, &refs(std::slice::from_ref(&secret)))
         .await
         .unwrap();
     assert_eq!(run.uploaded, 0);
     assert_eq!(run.skipped, 1);
-    assert_eq!(provider.count(), plain.len());
+    assert_eq!(provider.writes(), 1);
+    assert_eq!(entries(&provider).len(), plain.len());
 
     service.set_settings(&SyncSettings {
         enabled: true,
@@ -2199,12 +2417,19 @@ async fn cloud_sync_saves_only_what_changed_and_refuses_secrets_by_default() {
         .await
         .unwrap();
     assert_eq!(run.uploaded, 1);
-    assert_eq!(provider.count(), plain.len() + 1);
+    assert_eq!(provider.writes(), 2);
+    assert_eq!(entries(&provider).len(), plain.len() + 1);
 
-    // Nothing changed since: a second save spends no request at all.
+    // Nothing changed since: the run reads the library once and writes nothing at all.
+    let writes = provider.writes();
     let run = service.push(&report, &refs(&plain)).await.unwrap();
     assert_eq!(run.uploaded, 0);
     assert_eq!(run.failed, 0);
+    assert_eq!(
+        provider.writes(),
+        writes,
+        "an unchanged tree is never written"
+    );
     assert!(run
         .results
         .iter()
@@ -2264,7 +2489,7 @@ async fn cloud_sync_restores_only_into_declared_surfaces() {
         .await
         .unwrap();
     assert_eq!(run.uploaded, 1);
-    let remote = provider.remote_of(&config.key).expect("a copy exists");
+    let remote = remote_id_of(&service, &config.key).await;
 
     // Something else changed the file on disk.
     fs::write(&config.path, "{\n  \"theme\": \"light\"\n}\n").unwrap();
@@ -2319,7 +2544,8 @@ async fn cloud_sync_restores_only_into_declared_surfaces() {
         pushed_at_ms: 1,
         ..remote_payload(&config, b"{\n  \"nope\": true\n}\n")
     };
-    let orphan_id = provider.seed(payload);
+    let orphan_id = provider.remote_of(&orphan.key);
+    provider.seed_entry(payload);
     let mut request = target_of(&config);
     request.remote_id = orphan_id;
     let run = service
@@ -2357,7 +2583,7 @@ async fn cloud_sync_restores_only_into_declared_surfaces() {
         .await
         .unwrap();
     assert_eq!(run.uploaded, 1);
-    let remote = provider.remote_of(&skill.key).unwrap();
+    let remote = remote_id_of(&service, &skill.key).await;
 
     // While the directory is there, the same restore is refused rather than merged into.
     let preview = service
@@ -2457,8 +2683,8 @@ async fn cloud_sync_reads_content_and_compares_it_with_the_cloud() {
         .await
         .unwrap();
     assert_eq!(run.uploaded, 2);
-    let config_remote = provider.remote_of(&config.key).unwrap();
-    let skill_remote = provider.remote_of(&skill.key).unwrap();
+    let config_remote = remote_id_of(&service, &config.key).await;
+    let skill_remote = remote_id_of(&service, &skill.key).await;
 
     let cloud = service.remote_content(&config_remote).await.unwrap();
     assert_eq!(cloud.side, SyncContentSide::Remote);
@@ -2515,7 +2741,8 @@ async fn cloud_sync_reads_content_and_compares_it_with_the_cloud() {
     orphan.key = plan::item_key(SyncKind::Config, "nowhere.json");
     orphan.name = "nowhere.json".to_string();
     orphan.relative_path = "~/.pipeline/nowhere.json".to_string();
-    let orphan_id = provider.seed(orphan);
+    let orphan_id = provider.remote_of(&orphan.key);
+    provider.seed_entry(orphan);
     let comparison = service
         .compare(&report, &orphan_id, agent_id)
         .await
@@ -2533,6 +2760,494 @@ async fn cloud_sync_reads_content_and_compares_it_with_the_cloud() {
     assert!(service
         .local_content(&report, agent_id, "config|nope.json#x")
         .is_err());
+}
+
+/// The cloud library *is* the document's items: a listing is the document read once, and every
+/// row is one entry of it.
+#[tokio::test]
+async fn the_cloud_library_is_the_documents_items() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    let skill = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .unwrap()
+        .clone();
+    let run = service
+        .push(&report, &refs(&[config.clone(), skill.clone()]))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 2);
+
+    let before = provider.reads();
+    let rows = service.remote_items(false).await.unwrap();
+    assert_eq!(
+        provider.reads(),
+        before + 1,
+        "a listing costs one read, not one per item"
+    );
+    assert!(!rows.locked);
+    let mut keys: Vec<&str> = rows.items.iter().map(|row| row.key.as_str()).collect();
+    keys.sort();
+    let mut expected = vec![config.key.as_str(), skill.key.as_str()];
+    expected.sort();
+    assert_eq!(keys, expected);
+    assert!(
+        rows.items
+            .iter()
+            .all(|row| row.remote_id.starts_with(&format!("{}|", provider.id()))),
+        "a row is addressed by the document it came out of"
+    );
+
+    // The copy is the entry itself: reading one back costs no second request.
+    let row = rows.items.iter().find(|row| row.key == config.key).unwrap();
+    let content = service.remote_content(&row.remote_id).await.unwrap();
+    assert_eq!(content.side, SyncContentSide::Remote);
+    assert_eq!(content.files.len(), 1);
+    assert_eq!(content.files[0].path, "prefs.json");
+    assert_eq!(
+        content.files[0].text.as_deref(),
+        Some("{\n  \"theme\": \"dark\"\n}\n")
+    );
+
+    let row = rows.items.iter().find(|row| row.key == skill.key).unwrap();
+    let content = service.remote_content(&row.remote_id).await.unwrap();
+    assert!(content.is_directory);
+    assert_eq!(content.files.len(), 1);
+    assert_eq!(content.files[0].path, "SKILL.md");
+}
+
+/// An account that never pushed holds no document at all: no rows, nothing locked, one read.
+#[tokio::test]
+async fn an_empty_account_has_no_library() {
+    let (_fixture, _report, service, provider, _target) = sync_fixture().await;
+
+    let before = provider.reads();
+    let rows = service.remote_items(false).await.unwrap();
+    assert_eq!(
+        provider.reads(),
+        before + 1,
+        "an empty account is still one read"
+    );
+    assert!(rows.items.is_empty());
+    assert!(!rows.locked);
+    assert!(provider.text().is_empty());
+}
+
+/// What a listing found in the old layout is remembered beside the cache, so the screen can offer
+/// to collect it without a request of its own — and reports nothing once there is nothing.
+#[tokio::test]
+async fn a_listing_remembers_the_old_layout_it_found() {
+    let (_fixture, _report, service, provider, _target) = sync_fixture().await;
+    assert!(service.status().migration.is_none());
+
+    provider.add_legacy("{\"schema\":1,\"app\":\"ahabby\"}");
+    provider.add_legacy("{\"schema\":1,\"app\":\"ahabby\"}");
+    service.remote_items(false).await.unwrap();
+    assert_eq!(
+        service.status().migration,
+        Some(SyncMigration { gists: 2, items: 0 })
+    );
+}
+
+/// Removing one copy edits the document: exactly that entry goes, the other stays, and the record
+/// of the removed one is forgotten — behind the same confirmation everything destructive takes.
+#[tokio::test]
+async fn removing_one_item_rewrites_the_document_without_it() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    let skill = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .unwrap()
+        .clone();
+    let run = service
+        .push(&report, &refs(&[config.clone(), skill.clone()]))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 2);
+    let writes = provider.writes();
+
+    let remote = remote_id_of(&service, &config.key).await;
+    assert!(matches!(
+        service.delete_remote(&remote, false).await,
+        Err(AppError::InvalidInput(_))
+    ));
+    assert_eq!(
+        provider.writes(),
+        writes,
+        "an unconfirmed delete writes nothing"
+    );
+
+    let run = service.delete_remote(&remote, true).await.unwrap();
+    assert_eq!(run.deleted, 1);
+    assert_eq!(run.failed, 0);
+    assert_eq!(
+        provider.writes(),
+        writes + 1,
+        "one entry removed is one write, whatever the library holds"
+    );
+    let left = entries(&provider);
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].key, skill.key);
+
+    let list = service.local_items(&report, Some(agent_id));
+    let forgotten = list
+        .items
+        .iter()
+        .find(|item| item.key == config.key)
+        .unwrap();
+    assert_eq!(
+        forgotten.status,
+        SyncItemStatus::Unsynced,
+        "the state store forgot it with the cloud"
+    );
+}
+
+/// Deleting the library removes the document whole and forgets every item this machine had
+/// recorded: the forgotten-password path, and the one operation that clears both sides.
+#[tokio::test]
+async fn deleting_the_library_clears_the_cloud_and_the_state() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    let skill = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Skill)
+        .unwrap()
+        .clone();
+    let run = service
+        .push(&report, &refs(&[config.clone(), skill.clone()]))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 2);
+
+    assert!(matches!(
+        service.delete_library(false).await,
+        Err(AppError::InvalidInput(_))
+    ));
+    assert!(!provider.text().is_empty());
+
+    let run = service.delete_library(true).await.unwrap();
+    assert_eq!(run.deleted, 1);
+    assert_eq!(run.failed, 0);
+    assert!(
+        provider.text().is_empty(),
+        "the cloud holds no document any more"
+    );
+
+    let list = service.local_items(&report, Some(agent_id));
+    assert_eq!(list.unsynced, list.items.len(), "every item is new again");
+    for item in &list.items {
+        assert_eq!(item.status, SyncItemStatus::Unsynced);
+    }
+}
+
+/// However many items a run covers, it reads the library once and writes it once: what grows with
+/// the item count is the document, not the number of requests.
+#[tokio::test]
+async fn a_run_reads_once_and_writes_once_for_any_number_of_items() {
+    let (_fixture, report, service, provider, _target) = sync_setup(&["csv", "json"], None).await;
+    let agent_id = "pipeline-demo";
+    service.set_settings(&SyncSettings {
+        enabled: true,
+        mode: ahabby_lib::domain::SyncMode::Automatic,
+        auto_owners: vec![agent_id.to_string()],
+        ..SyncSettings::default()
+    });
+
+    let reads = provider.reads();
+    let run = service.push_all(&report).await.unwrap();
+    assert_eq!(
+        run.uploaded, 4,
+        "four items of the fixture carry no secrets"
+    );
+    assert_eq!(provider.reads(), reads + 1, "one read for the whole run");
+    assert_eq!(provider.writes(), 1, "one write for the whole run");
+    assert_eq!(entries(&provider).len(), 4);
+}
+
+/// A second run of an unchanged tree spends its one read and no write at all, and says why per
+/// item: the document is rebuilt byte for byte from what the cloud already holds.
+#[tokio::test]
+async fn a_second_run_with_nothing_changed_writes_nothing() {
+    let (_fixture, report, service, provider, _target) = sync_setup(&["csv", "json"], None).await;
+    let agent_id = "pipeline-demo";
+    service.set_settings(&SyncSettings {
+        enabled: true,
+        mode: ahabby_lib::domain::SyncMode::Automatic,
+        auto_owners: vec![agent_id.to_string()],
+        ..SyncSettings::default()
+    });
+    let first = service.push_all(&report).await.unwrap();
+    assert_eq!(first.uploaded, 4);
+    let writes = provider.writes();
+
+    let reads = provider.reads();
+    let run = service.push_all(&report).await.unwrap();
+    assert_eq!(
+        provider.reads(),
+        reads + 1,
+        "the run still reads the library once"
+    );
+    assert_eq!(provider.writes(), writes, "and writes nothing at all");
+    assert_eq!(run.uploaded, 0);
+    assert_eq!(run.failed, 0);
+    assert!(run
+        .results
+        .iter()
+        .any(|result| result.message.as_deref() == Some("already up to date")));
+}
+
+/// A document another machine wrote under this one's feet is merged into, never overwritten: this
+/// run's entry lands and the foreign entry survives, in one write.
+#[tokio::test]
+async fn a_foreign_write_is_merged_rather_than_lost() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1);
+    assert_eq!(provider.writes(), 1);
+
+    // Another machine wrote the library: a document holding a different entry, and a hash this
+    // service has never read.
+    let foreign_key = plan::item_key(SyncKind::Config, "foreign.json");
+    let mut document = new_document();
+    document.items.push(SyncPayload {
+        key: foreign_key.clone(),
+        name: "foreign.json".to_string(),
+        label: "Foreign".to_string(),
+        relative_path: "~/.pipeline/foreign.json".to_string(),
+        files: vec![plan::payload_file(
+            "foreign.json",
+            b"{\n  \"foreign\": true\n}\n",
+        )],
+        hash: plan::payload_hash(&[plan::payload_file(
+            "foreign.json",
+            b"{\n  \"foreign\": true\n}\n",
+        )]),
+        ..remote_payload(&config, b"{\n  \"foreign\": true\n}\n")
+    });
+    provider.set_text(&plan::encode_document(&document).unwrap());
+
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1);
+    assert_eq!(run.failed, 0);
+    assert_eq!(provider.writes(), 2, "the merge is one more write");
+
+    let held = entries(&provider);
+    assert_eq!(held.len(), 2, "both entries are in the document");
+    assert!(held.iter().any(|entry| entry.key == config.key));
+    let survived = held
+        .iter()
+        .find(|entry| entry.key == foreign_key)
+        .expect("the foreign entry survived the merge");
+    assert_eq!(survived.files[0].content, "{\n  \"foreign\": true\n}\n");
+}
+
+/// The library is one file now, so it has one ceiling: a run whose document would cross it is
+/// refused by name and writes nothing at all, rather than being truncated.
+#[tokio::test]
+async fn a_document_over_the_ceiling_is_refused_by_name() {
+    let (_fixture, report, service, provider, _target) = sync_fixture().await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+
+    // A document already at the ceiling: whatever the run adds is what crosses it.
+    let files = vec![plan::payload_file(
+        "big.txt",
+        "a".repeat(MAX_DOCUMENT_BYTES as usize).as_bytes(),
+    )];
+    let mut library = new_document();
+    library.items.push(SyncPayload {
+        key: plan::item_key(SyncKind::Config, "big.txt"),
+        name: "big.txt".to_string(),
+        label: "Big".to_string(),
+        relative_path: "~/.pipeline/big.txt".to_string(),
+        hash: plan::payload_hash(&files),
+        files,
+        ..remote_payload(&config, b"{}")
+    });
+    let held = plan::encode_document(&library).unwrap();
+    assert!(held.len() as u64 > MAX_DOCUMENT_BYTES);
+    provider.set_text(&held);
+
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 0);
+    assert_eq!(run.failed, 1);
+    let message = run.results[0].message.clone().unwrap_or_default();
+    assert!(
+        message.contains(&MAX_DOCUMENT_BYTES.to_string()),
+        "the failure names the ceiling: {message}"
+    );
+    assert_eq!(provider.text(), held, "the refused document is untouched");
+    assert_eq!(provider.writes(), 0);
+}
+
+/// A key held seals what is written: the provider's text is an envelope carrying neither an item's
+/// name nor its path, and the same rows and copies come back out of it on this machine.
+#[tokio::test]
+async fn a_key_held_round_trips_the_document() {
+    let (_fixture, report, service, provider, _target) =
+        sync_setup(&[], Some("a long enough password")).await;
+    let agent_id = "pipeline-demo";
+
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    let run = service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1);
+
+    let status = service.status();
+    assert!(status.encryption.enabled, "a key held is encryption on");
+    assert!(status.encryption.kid.is_some());
+
+    let sealed = provider.text();
+    assert!(sealed.contains("\"encrypted\": true"), "the text is sealed");
+    assert!(
+        !sealed.contains("prefs.json"),
+        "no item name reaches the cloud"
+    );
+    assert!(!sealed.contains(".pipeline"), "no path reaches the cloud");
+
+    let rows = service.remote_items(false).await.unwrap();
+    assert!(!rows.locked);
+    assert_eq!(rows.items.len(), 1);
+    assert_eq!(rows.items[0].key, config.key);
+
+    let content = service
+        .remote_content(&rows.items[0].remote_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        content.files[0].text.as_deref(),
+        Some("{\n  \"theme\": \"dark\"\n}\n")
+    );
+}
+
+/// A sealed library on a machine that holds no key is not an error but the locked answer — no rows
+/// — and every action that would need the key is refused instead of writing anything.
+#[tokio::test]
+async fn a_locked_library_refuses_a_read_and_a_run() {
+    // Machine one holds the key, so what it writes is sealed.
+    let (fixture, report, service, provider, _target) =
+        sync_setup(&[], Some("a long enough password")).await;
+    let agent_id = "pipeline-demo";
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    assert!(provider.text().contains("\"encrypted\": true"));
+
+    // Machine two is the same cloud over a credentials file of its own, holding no key.
+    let second = second_service(&fixture, &provider);
+    let rows = second.remote_items(false).await.unwrap();
+    assert!(rows.locked);
+    assert!(rows.items.is_empty());
+
+    let writes = provider.writes();
+    assert!(matches!(
+        second
+            .push(&report, &refs(std::slice::from_ref(&config)))
+            .await,
+        Err(AppError::InvalidInput(_))
+    ));
+    assert_eq!(
+        provider.writes(),
+        writes,
+        "a locked library is not written over"
+    );
+}
+
+/// A library sealed under a password that is not this machine's is refused by name: holding *a*
+/// key is not the same as holding the one the document needs.
+#[tokio::test]
+async fn a_document_sealed_with_another_key_is_refused() {
+    let (_fixture, report, service, provider, _target) =
+        sync_setup(&[], Some("the first password")).await;
+    let agent_id = "pipeline-demo";
+    let list = service.local_items(&report, Some(agent_id));
+    let config = list
+        .items
+        .iter()
+        .find(|item| item.kind == SyncKind::Config)
+        .unwrap()
+        .clone();
+    service
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+
+    // Another machine changed the password: the library is sealed with a key this one cannot use.
+    provider.reseal("the first password", "the second password");
+    assert!(matches!(
+        service.remote_items(false).await,
+        Err(AppError::InvalidInput(_))
+    ));
 }
 
 /// A payload for one item, used to seed the cloud by hand.

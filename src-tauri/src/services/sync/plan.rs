@@ -11,10 +11,10 @@ use std::path::Path;
 use similar::TextDiff;
 
 use crate::domain::{
-    is_project_owner, Agent, Project, SharedResources, Skill, SyncComparedFile, SyncFileAction,
-    SyncFileContent, SyncFileStatus, SyncItem, SyncItemStatus, SyncKind, SyncOwnerKind,
-    SyncPayload, SyncPayloadFile, SHARED_OWNER_ID, SYNC_DESCRIPTION_PREFIX, SYNC_MARKER_FILE,
-    SYNC_SCHEMA,
+    is_project_owner, Agent, Project, SharedResources, Skill, SyncComparedFile, SyncDocument,
+    SyncFileAction, SyncFileContent, SyncFileStatus, SyncItem, SyncItemStatus, SyncKind,
+    SyncOwnerKind, SyncPayload, SyncPayloadFile, SHARED_OWNER_ID, SYNC_DESCRIPTION_MARKER,
+    SYNC_DESCRIPTION_PREFIX, SYNC_DOCUMENT_SCHEMA, SYNC_MARKER_FILE, SYNC_SCHEMA,
 };
 use crate::error::{AppError, Result};
 use crate::platform::sha256_hex;
@@ -22,10 +22,6 @@ use crate::services::ScanReport;
 
 /// Separator between the kind and the name inside a key.
 pub const KEY_SEPARATOR: char = '|';
-/// Separator between the fields of a gist description.
-pub const DESCRIPTION_SEPARATOR: &str = " :: ";
-/// GitHub's own limit on a gist description.
-pub const DESCRIPTION_MAX: usize = 256;
 /// Most files one item may hold. A skill is text and scripts; a thousand files is not one.
 pub const MAX_ITEM_FILES: usize = 1000;
 
@@ -503,73 +499,52 @@ pub fn decode_marker(value: &serde_json::Value) -> Result<SyncPayload> {
     Ok(payload)
 }
 
-// --- gist description ----------------------------------------------------------------------
+// --- the document --------------------------------------------------------------------------
 
-/// The gist description: readable, and the whole index a listing needs.
-///
-/// The structured fields come first and the display path last, so the 256-character limit can
-/// only ever cut what the marker file already carries authoritatively — never a field a listing
-/// reads to build its record.
-pub fn gist_description(payload: &SyncPayload) -> String {
-    let head = format!(
-        "{SYNC_DESCRIPTION_PREFIX}{}{DESCRIPTION_SEPARATOR}{}{DESCRIPTION_SEPARATOR}{}{DESCRIPTION_SEPARATOR}{}{DESCRIPTION_SEPARATOR}{}{DESCRIPTION_SEPARATOR}",
-        payload.owner_id,
-        payload.kind.name(),
-        payload.key,
-        payload.files.len(),
-        payload_size(&payload.files),
-    );
-    if head.chars().count() + payload.relative_path.chars().count() <= DESCRIPTION_MAX {
-        return format!("{head}{}", payload.relative_path);
+/// The document as a provider stores it: compact JSON, so a library of a few megabytes stays a few
+/// megabytes on the wire.
+pub fn encode_document(document: &SyncDocument) -> Result<String> {
+    Ok(serde_json::to_string(document)?)
+}
+
+/// Read a document back, refusing one that is not ours or that a newer Ahabby wrote.
+pub fn decode_document(text: &str) -> Result<SyncDocument> {
+    let document: SyncDocument =
+        serde_json::from_str(text).map_err(|error| AppError::InvalidFormat {
+            format: "sync document",
+            path: SYNC_MARKER_FILE.to_string(),
+            message: error.to_string(),
+        })?;
+    if document.app != "ahabby" {
+        return Err(AppError::NotSupported(format!(
+            "'{}' is not an Ahabby sync document",
+            document.app
+        )));
     }
-    // Nothing left to trim but the display path. The marker file stays authoritative; a cut
-    // description costs a second request on that one entry, never correctness.
-    head.chars().take(DESCRIPTION_MAX).collect()
+    if document.schema > SYNC_DOCUMENT_SCHEMA {
+        return Err(AppError::NotSupported(format!(
+            "sync document schema {} is newer than this Ahabby understands ({SYNC_DOCUMENT_SCHEMA})",
+            document.schema
+        )));
+    }
+    Ok(document)
 }
 
-/// What a listing can read out of a description without fetching the gist.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DescribedItem {
-    pub owner_id: String,
-    pub kind: SyncKind,
-    /// Machine-independent item key, already carrying the kind and the display name.
-    pub key: String,
-    pub files: usize,
-    pub size_bytes: u64,
-    /// Display path, when the description was not truncated before it.
-    pub relative_path: String,
-}
-
-/// `true` when a description is one of Ahabby's.
-pub fn is_our_description(description: &str) -> bool {
+/// `true` for a gist description Ahabby wrote: the current document's marker, or one of the
+/// per-item descriptions the layout before it wrote. How a listing tells ours from a stranger's.
+pub fn is_our_gist(description: &str) -> bool {
     description.starts_with(SYNC_DESCRIPTION_PREFIX)
 }
 
-/// Parse the structured prefix. `None` means the description is not ours (or is too damaged to
-/// read) — the caller then falls back to the marker file.
-pub fn parse_gist_description(description: &str) -> Option<DescribedItem> {
-    let rest = description.strip_prefix(SYNC_DESCRIPTION_PREFIX)?;
-    let mut fields = rest.splitn(6, DESCRIPTION_SEPARATOR);
-    let owner_id = fields.next()?.trim();
-    if owner_id.is_empty() || owner_id.contains(char::is_whitespace) {
-        return None;
-    }
-    let kind = SyncKind::from_name(fields.next()?.trim())?;
-    let key = fields.next()?.trim();
-    if key.is_empty() || key.split_once(KEY_SEPARATOR).is_none() {
-        return None;
-    }
-    let files = fields.next()?.trim().parse::<usize>().ok()?;
-    let size_bytes = fields.next()?.trim().parse::<u64>().ok()?;
-    let relative_path = fields.next().unwrap_or("").trim().to_string();
-    Some(DescribedItem {
-        owner_id: owner_id.to_string(),
-        kind,
-        key: key.to_string(),
-        files,
-        size_bytes,
-        relative_path,
-    })
+/// `true` when a description is the one document's marker.
+pub fn is_document_description(description: &str) -> bool {
+    description == SYNC_DESCRIPTION_MARKER
+}
+
+/// `true` for a payload a provider may store: the owner kind has to agree with the owner id, so a
+/// hand-built entry cannot claim a surface it does not belong to.
+pub fn payload_is_consistent(payload: &SyncPayload) -> bool {
+    owner_kind(&payload.owner_id) == payload.owner_kind
 }
 
 // --- exclusions ----------------------------------------------------------------------------
@@ -824,46 +799,68 @@ mod tests {
     }
 
     #[test]
-    fn description_round_trips_and_reads_foreign_ones_as_none() {
-        let payload = sample_payload(
-            SyncKind::Skill,
-            "project:ab12",
-            "~/w/app/.claude/skills/pdf",
-        );
-        let description = gist_description(&payload);
-        assert!(description.starts_with(SYNC_DESCRIPTION_PREFIX));
-        let parsed = parse_gist_description(&description).unwrap();
-        assert_eq!(parsed.owner_id, "project:ab12");
-        assert_eq!(parsed.kind, SyncKind::Skill);
-        assert_eq!(parsed.key, "skill|pdf");
-        assert_eq!(parsed.relative_path, "~/w/app/.claude/skills/pdf");
-        assert_eq!(parsed.files, 1);
-        assert_eq!(parsed.size_bytes, 4);
-        assert_eq!(owner_kind(&parsed.owner_id), SyncOwnerKind::Project);
+    fn a_document_round_trips_through_its_text() {
+        let entry = sample_payload(SyncKind::Config, "claude-code", "~/.claude/settings.json");
+        let document = SyncDocument {
+            schema: SYNC_DOCUMENT_SCHEMA,
+            app: "ahabby".to_string(),
+            updated_at_ms: 1_760_000_000_000,
+            app_version: "0.65.0".to_string(),
+            os: "windows".to_string(),
+            items: vec![entry.clone()],
+        };
 
-        assert!(parse_gist_description("just a gist").is_none());
-        assert!(parse_gist_description("[Ahabby] ").is_none());
-        assert!(parse_gist_description("[Ahabby] claude-code :: nope :: x :: 1 :: 2").is_none());
-        assert!(
-            parse_gist_description("[Ahabby] claude-code :: config :: nokey :: 1 :: 2").is_none()
-        );
-        assert!(is_our_description(&description));
+        let text = encode_document(&document).unwrap();
+        assert!(!text.contains('\n'), "the document is compact");
+        let parsed = decode_document(&text).unwrap();
+        assert_eq!(parsed, document);
+        assert_eq!(parsed.items[0].files[0].content, entry.files[0].content);
     }
 
     #[test]
-    fn a_long_description_keeps_the_structured_prefix() {
-        let mut payload = sample_payload(SyncKind::Config, "claude-code", &"a".repeat(240));
-        payload.key = item_key(SyncKind::Config, "settings.json");
-        payload.label = "x".repeat(240);
-        let description = gist_description(&payload);
-        assert!(description.chars().count() <= DESCRIPTION_MAX);
-        let parsed = parse_gist_description(&description).unwrap();
-        assert_eq!(parsed.owner_id, "claude-code");
-        assert_eq!(parsed.kind, SyncKind::Config);
-        assert_eq!(parsed.key, "config|settings.json");
-        assert_eq!(parsed.files, 1);
-        // The display path was cut; the marker file is what a pull reads for it.
-        assert!(parsed.relative_path.is_empty());
+    fn a_newer_or_foreign_document_is_refused() {
+        let document = SyncDocument {
+            schema: SYNC_DOCUMENT_SCHEMA,
+            app: "ahabby".to_string(),
+            ..SyncDocument::default()
+        };
+
+        let mut newer = document.clone();
+        newer.schema = SYNC_DOCUMENT_SCHEMA + 1;
+        assert_eq!(
+            decode_document(&encode_document(&newer).unwrap())
+                .unwrap_err()
+                .code(),
+            "not_supported"
+        );
+
+        let mut foreign = document;
+        foreign.app = "something-else".to_string();
+        assert_eq!(
+            decode_document(&encode_document(&foreign).unwrap())
+                .unwrap_err()
+                .code(),
+            "not_supported"
+        );
+
+        assert_eq!(
+            decode_document("{not json").unwrap_err().code(),
+            "invalid_format"
+        );
+    }
+
+    #[test]
+    fn our_own_gist_is_told_apart_from_the_document() {
+        // A description the layout before this one wrote: ours, and not the document's marker.
+        let old = "[Ahabby] claude-code :: config :: config|settings.json :: 1 :: 512 :: ~/.x";
+        assert!(is_our_gist(old));
+        assert!(!is_document_description(old));
+
+        assert!(is_our_gist(SYNC_DESCRIPTION_MARKER));
+        assert!(is_document_description(SYNC_DESCRIPTION_MARKER));
+
+        assert!(!is_our_gist("just a gist"));
+        assert!(!is_document_description(""));
     }
 
     #[test]

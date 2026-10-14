@@ -825,6 +825,12 @@ pub const SYNC_MARKER_FILE: &str = "ahabby.json";
 /// Prefix of a gist description Ahabby owns.
 pub const SYNC_DESCRIPTION_PREFIX: &str = "[Ahabby] ";
 
+/// The description of the one gist the library lives in.
+///
+/// A constant, and deliberately so: everything the library holds is inside the document, so the
+/// description says nothing about it — no owner, no name, no path, no size.
+pub const SYNC_DESCRIPTION_MARKER: &str = "[Ahabby] sync";
+
 #[cfg(test)]
 mod tests {
     use super::*;

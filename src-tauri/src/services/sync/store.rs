@@ -118,21 +118,6 @@ impl SyncStore {
         }
     }
 
-    /// Drop every record that pointed at one remote copy — what deleting it in the cloud means.
-    pub fn forget_remote(&self, remote_id: &str) {
-        let mut snapshot = self.guard();
-        let before = snapshot.items.len();
-        snapshot
-            .items
-            .retain(|_, entry| entry.remote_id != remote_id);
-        let removed = snapshot.items.len() != before;
-        let clone = snapshot.clone();
-        drop(snapshot);
-        if removed {
-            self.persist(&clone);
-        }
-    }
-
     pub fn set_last_push(&self, ms: i64) {
         let mut snapshot = self.guard();
         snapshot.last_push_ms = Some(ms);
