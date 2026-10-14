@@ -590,6 +590,8 @@
     "noRecipe": "Die Sammlung sagt nicht, wie man das macht.",
     "secret": "Geheimnis",
     "copyId": "Kopiereintragskennung",
+    "copyLink": "Link kopieren",
+    "copySourceId": "Quell-ID kopieren",
     "refreshEntry": "Wiederlesen aus der Sammlung",
     "refreshed": "\"  PH0  \" wurde erneut aus seiner Sammlung gelesen",
     "entryPage": "Eingangsseite",

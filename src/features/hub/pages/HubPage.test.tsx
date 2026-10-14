@@ -593,6 +593,27 @@ describe('HubPage', () => {
     expect(within(dialog).getByText('Install selected skills')).toBeTruthy()
   })
 
+  it('offers a source its own context menu, every item translated', async () => {
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+    const card = cardOf(container, 'Example Skills')
+
+    // The source's own strip is the trigger — the collection's cards keep their own menu.
+    const strip = card.firstElementChild
+    if (!strip) throw new Error('the source card has no strip')
+    fireEvent.contextMenu(strip)
+    const menu = await screen.findByRole('menu')
+
+    // Every action the card can take, named in the reader's language — and a name for the menu
+    // itself. A raw key anywhere here is a string nobody translated.
+    expect(within(menu).getByRole('menuitem', { name: 'Expand Example Skills' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Open the collection' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Copy link' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Copy source id' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Install 1 on screen' })).toBeTruthy()
+    expect(within(menu).queryByText(/^hub\./)).toBeNull()
+  })
+
   it('opens Recommendations with role chips and asks for curated entries', async () => {
     const user = userEvent.setup()
     const { container } = renderPage()

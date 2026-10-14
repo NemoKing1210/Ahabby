@@ -5,6 +5,16 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.0] - 2026-10-14
+
+### Added
+
+- **A Hub source has its own context menu.** Right-click a collection's heading — or open it with the
+  keyboard — for what the card can do: fold it away, open the collection and its documentation, select
+  everything it shows, install all of it, and the two things the strip has no room for, copying the link
+  and the source's id. The trigger is the source's own strip, so the menu of an entry inside the
+  collection is never shadowed by it.
+
 ## [0.54.2] - 2026-10-14
 
 ### Fixed

@@ -590,6 +590,8 @@
     "noRecipe": "藏品未说如何运行.",
     "secret": "隐藏",
     "copyId": "复制条目编号",
+    "copyLink": "复制链接",
+    "copySourceId": "复制来源 ID",
     "refreshEntry": "从收藏中重新读取",
     "refreshed": "“-PH0-”再次从其汇编中读取",
     "entryPage": "条目页",

@@ -590,6 +590,8 @@
     "noRecipe": "La collection ne dit pas comment gérer ça.",
     "secret": "secret",
     "copyId": "Copier l'identifiant d'entrée",
+    "copyLink": "Copier le lien",
+    "copySourceId": "Copier l’id de la source",
     "refreshEntry": "Relecture de la collection",
     "refreshed": "\"  PH0  \" a été relire de sa collection",
     "entryPage": "Page d'entrée",

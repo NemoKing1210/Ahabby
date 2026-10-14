@@ -42,6 +42,7 @@ import { HubBatchActions } from './HubBatchActions'
 import { HubEntryList } from './HubEntryList'
 import { HubEntrySkeletons } from './HubSkeletons'
 import { HubGroupBlock } from './HubGroupBlock'
+import { HubSourceContextMenu } from './HubSourceContextMenu'
 
 /** Entries asked for per request. The MCP registry is slowest with a *small* page, not a large one. */
 export const PAGE_SIZE = 16
@@ -224,95 +225,108 @@ export const HubSourceSection = memo(function HubSourceSection({
       {/* The card's strip: the tinted caption band while the collection is open, the card itself
           while it is folded. One card per source, and the page's run welds them — the Hub opens as
           a single stack of collections, the way the Settings index wears its areas. */}
-      <div
-        className={cn(
-          'ease-warm flex min-w-0 flex-col gap-2 px-3 py-2.5 transition-colors duration-150',
-          !collapsed && (rank === 1 ? 'bg-accent-soft' : 'bg-surface-2'),
-        )}
+      <HubSourceContextMenu
+        source={source}
+        collapsed={collapsed}
+        link={link ?? null}
+        selectable={visibleSkills.length}
+        allSelected={visibleAllSelected}
+        installingAll={loadingVisible}
+        onToggleCollapsed={() => setOpened((value) => !value)}
+        onSelectAll={() => onSelectEntries(visibleSkills)}
+        onDeselectAll={() => onDeselectEntries(visibleSkills)}
+        onInstallAll={installVisible}
       >
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1">
-            <Tooltip content={toggleLabel}>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                aria-expanded={!collapsed}
-                aria-label={toggleLabel}
-                onClick={() => setOpened((value) => !value)}
-              >
-                {collapsed ? (
-                  <ChevronRight className="size-3.5" aria-hidden />
-                ) : (
-                  <ChevronDown className="size-3.5" aria-hidden />
-                )}
-              </Button>
-            </Tooltip>
-            <button
-              type="button"
-              className="focus-visible:outline-ring flex min-w-0 flex-1 items-center rounded-lg px-1 py-0.5 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
-              aria-expanded={!collapsed}
-              onClick={() => setOpened((value) => !value)}
-            >
-              <SectionHeader
-                leading={<SourceAvatar source={source} />}
-                title={source.name}
-                count={report?.total ?? (entries.length > 0 ? entries.length : undefined)}
-              >
-                {rank === undefined ? null : <SourceRank rank={rank} />}
-                {source.builtin ? null : <Badge tone="accent">{t('hub.yourSource')}</Badge>}
-                {isKnownNumber(source.stars) ? (
-                  <span className="text-muted inline-flex items-center gap-1 text-[0.75rem] tabular-nums">
-                    <Star className="size-3.5" aria-hidden />
-                    <span className="sr-only">{t('hub.starsHint')}</span>
-                    {formatCount(source.stars, i18n.language)}
-                  </span>
-                ) : null}
-                {/* A source read again — for a filter that moved, for an install, or because the user
-                  asked — says so here, so a collection that is slow is never mistaken for an empty
-                  one. The skeletons below cover the first read of it. */}
-                {page.isFetching && !page.isPending ? (
-                  <span className="text-faint inline-flex items-center gap-1.5 text-[0.75rem]">
-                    <Spinner className="size-3" aria-hidden />
-                    {t('hub.reading')}
-                  </span>
-                ) : null}
-                {report && !report.fromCache ? (
-                  <span className="text-faint text-[0.75rem]">{report.durationMs} ms</span>
-                ) : null}
-              </SectionHeader>
-            </button>
-            {link ? (
-              <Tooltip content={t('hub.openSource')}>
+        <div
+          className={cn(
+            'ease-warm flex min-w-0 flex-col gap-2 px-3 py-2.5 transition-colors duration-150',
+            !collapsed && (rank === 1 ? 'bg-accent-soft' : 'bg-surface-2'),
+          )}
+        >
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              <Tooltip content={toggleLabel}>
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   className="shrink-0"
-                  aria-label={t('hub.openSource')}
-                  onClick={() => browser.open(link)}
+                  aria-expanded={!collapsed}
+                  aria-label={toggleLabel}
+                  onClick={() => setOpened((value) => !value)}
                 >
-                  <ExternalLink className="size-3.5" />
+                  {collapsed ? (
+                    <ChevronRight className="size-3.5" aria-hidden />
+                  ) : (
+                    <ChevronDown className="size-3.5" aria-hidden />
+                  )}
                 </Button>
               </Tooltip>
+              <button
+                type="button"
+                className="focus-visible:outline-ring flex min-w-0 flex-1 items-center rounded-lg px-1 py-0.5 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
+                aria-expanded={!collapsed}
+                onClick={() => setOpened((value) => !value)}
+              >
+                <SectionHeader
+                  leading={<SourceAvatar source={source} />}
+                  title={source.name}
+                  count={report?.total ?? (entries.length > 0 ? entries.length : undefined)}
+                >
+                  {rank === undefined ? null : <SourceRank rank={rank} />}
+                  {source.builtin ? null : <Badge tone="accent">{t('hub.yourSource')}</Badge>}
+                  {isKnownNumber(source.stars) ? (
+                    <span className="text-muted inline-flex items-center gap-1 text-[0.75rem] tabular-nums">
+                      <Star className="size-3.5" aria-hidden />
+                      <span className="sr-only">{t('hub.starsHint')}</span>
+                      {formatCount(source.stars, i18n.language)}
+                    </span>
+                  ) : null}
+                  {/* A source read again — for a filter that moved, for an install, or because the user
+                  asked — says so here, so a collection that is slow is never mistaken for an empty
+                  one. The skeletons below cover the first read of it. */}
+                  {page.isFetching && !page.isPending ? (
+                    <span className="text-faint inline-flex items-center gap-1.5 text-[0.75rem]">
+                      <Spinner className="size-3" aria-hidden />
+                      {t('hub.reading')}
+                    </span>
+                  ) : null}
+                  {report && !report.fromCache ? (
+                    <span className="text-faint text-[0.75rem]">{report.durationMs} ms</span>
+                  ) : null}
+                </SectionHeader>
+              </button>
+              {link ? (
+                <Tooltip content={t('hub.openSource')}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0"
+                    aria-label={t('hub.openSource')}
+                    onClick={() => browser.open(link)}
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </Button>
+                </Tooltip>
+              ) : null}
+            </div>
+
+            {showSectionActions ? (
+              <HubBatchActions
+                selectable={visibleSkills.length}
+                selectedCount={visibleSelected}
+                installingAll={loadingVisible}
+                onSelectAll={() =>
+                  visibleAllSelected
+                    ? onDeselectEntries(visibleSkills)
+                    : onSelectEntries(visibleSkills)
+                }
+                onInstallAll={installVisible}
+              />
             ) : null}
           </div>
-
-          {showSectionActions ? (
-            <HubBatchActions
-              selectable={visibleSkills.length}
-              selectedCount={visibleSelected}
-              installingAll={loadingVisible}
-              onSelectAll={() =>
-                visibleAllSelected
-                  ? onDeselectEntries(visibleSkills)
-                  : onSelectEntries(visibleSkills)
-              }
-              onInstallAll={installVisible}
-            />
-          ) : null}
+          <SourceFacts source={source} read={entries.length} installed={installedCount} />
         </div>
-        <SourceFacts source={source} read={entries.length} installed={installedCount} />
-      </div>
+      </HubSourceContextMenu>
 
       <Reveal open={!collapsed}>
         {/* The body keeps the page's own canvas, so the entries inside look exactly as they do

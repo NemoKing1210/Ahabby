@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.54.2`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.55.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -232,7 +232,9 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
 - **Right click**: the WebView's own menu is cancelled app-wide by `src/app/nativeMenu.ts` (wired in
   `main.tsx`), except inside text entry, where it is the only clipboard UI — a surface with actions of its
   own uses `src/shared/ui/ContextMenu.tsx`, whose content is never given an exit animation so Radix restores
-  focus before a dialog opens. The card's trigger is the whole card, so the keyboard context-menu key works.
+  focus before a dialog opens. The card's trigger is the whole card, so the keyboard context-menu key works —
+  and where a card holds cards of its own (a Hub entry inside a source), the outer one's trigger is the
+  strip and never the whole section (`HubSourceContextMenu`), so the entry's own menu is not shadowed.
 - **Text selection**: `body` is `user-select: none` (see `globals.css`) — form fields, `.cm-editor`, `code`,
   `pre`, `.ah-prose` and anything marked `.select-text` opt back in. Add a `ContextMenu` action instead of a
   selectable region when a value is meant to be copied.

@@ -590,6 +590,8 @@
     "noRecipe": "The collection does not say how to run this.",
     "secret": "secret",
     "copyId": "Copy entry id",
+    "copyLink": "Copy link",
+    "copySourceId": "Copy source id",
     "refreshEntry": "Re-read from the collection",
     "refreshed": "“{{name}}” was read again from its collection",
     "entryPage": "Entry page",

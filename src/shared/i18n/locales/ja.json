@@ -590,6 +590,8 @@
     "noRecipe": "このコレクションは、これを実行する方法とは言えません。",
     "secret": "ログイン",
     "copyId": "コピーエントリーID",
+    "copyLink": "リンクをコピー",
+    "copySourceId": "ソース ID をコピー",
     "refreshEntry": "コレクションから再読み込み",
     "refreshed": "\" PH0   \" はコレクションから再び読み直しました",
     "entryPage": "エントリーページ",

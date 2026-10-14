@@ -590,6 +590,8 @@
     "noRecipe": "La colección no dice cómo ejecutar esto.",
     "secret": "secreto",
     "copyId": "Copiar ID de entrada",
+    "copyLink": "Copiar enlace",
+    "copySourceId": "Copiar el id del origen",
     "refreshEntry": "Releer de la colección.",
     "refreshed": "“{{name}}” fue leído nuevamente de su colección",
     "entryPage": "Página de entrada",
