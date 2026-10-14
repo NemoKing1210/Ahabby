@@ -5,6 +5,112 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.0] - 2026-10-14
+
+### Added
+
+- **A Hub source wears the face of the account that publishes it.** The avatar GitHub keeps for a
+  repository's owner is read in the same request as the collection's star count and cached with it, and a
+  source's heading paints it through the reader's image proxy — the window still loads nothing but its own
+  bundle and `data:` URLs — falling back to the monogram tile for a source that is not on GitHub or whose
+  picture could not be read. Because both facts are one answer, a rate limit or an offline machine keeps
+  the last known popularity order _and_ the last known faces.
+- **The Hub names its three most starred collections.** A rank chip, an accent edge and — for the leader —
+  a tinted band mark the top of the catalog, and the rank is what GitHub reports for the repository rather
+  than the position a filter happens to leave a card in: narrowing the screen to a single source still
+  shows that collection's real place among the Hub's sources.
+- **Six more collections ship with the Hub**, picked for how much they publish and how many stars they
+  carry: **Ponytail** (the smallest change that solves the task), **Addy Osmani's Skills** (25 skills for
+  the whole engineering method, from spec to launch), **Taste Skill** (frontend art direction), **Composio
+  Skills** (an agent skill per SaaS app Composio connects, plus the general document and tooling ones),
+  **Marketing Skills** (50 skills for conversion, SEO, ads, email and growth) and **PM Skills** (69
+  product-management skills, grouped by the phase they belong to). Each one declares its subjects as tags,
+  so the Hub's tag row filters across all of them.
+
+## [0.53.4] - 2026-10-14
+
+### Changed
+
+- **The Library and the Hub open as an index, not as a wall of cards.** A group of either list — a skill or
+  MCP name several agents share, an owning agent, a plugin group of a Hub collection — and the Hub's own
+  source sections now start folded, so a screen holding hundreds of cards opens on the headings it holds:
+  each one is a single row with the chevron that opens it, and whatever the user opens is remembered for the
+  session and comes back as it was left. A folded section mounts none of its cards until it is opened, and
+  the MCP tab of the Library gained the same fold the skills tab already had. The sources are one card run,
+  the way the Settings index wears its areas: each source is a card of that stack — the fold control, the
+  name, the link out and the section's batch actions across its strip, the collection inside it — so the Hub
+  reads as one block of collections instead of a paste-up of separate cards, plain while folded and a tinted
+  caption band with its list under it while open. The plugin groups inside a source wear the same card one
+  level in — the group's heading is its strip, its skills sit on the canvas the card frames, and the source
+  welds its groups into a run of their own — so the screen keeps that shape all the way down.
+
+## [0.53.3] - 2026-10-14
+
+### Fixed
+
+- **A Hub collection answered from memory no longer claims it was just fetched.** The MCP registry is the
+  one source whose whole page is kept in memory, and the stored copy carried the "not from the cache" marker
+  it was written with — so a second identical search reported a fetch it never made, and `HubSourceSection`
+  printed a request duration beside the collection's name that nobody had spent. The marker describes the
+  answer, not the record it came from, so it is now set where the answer is built.
+
+## [0.53.2] - 2026-10-14
+
+### Changed
+
+- **Moving between screens is immediate again, and the Library opens in a fraction of the time.** A screen
+  used to be held back until the one it replaced had finished leaving, so every click on the rail answered
+  about a fifth of a second late and every query the new screen starts waited behind that; the screen that
+  was asked for now mounts with the click and eases in, and the one leaving is gone at once. The Library —
+  one card per skill and per MCP server this machine holds, hundreds of them — mounts its rows a batch at a
+  time as the list is scrolled, derives its filters, facet counts, groups and owner list once per change
+  instead of on every render, and keeps its cards memoized, so a keystroke in the search box or a switch on
+  one card redraws what actually changed. The rail's own entries no longer repaint underneath every screen
+  change either.
+
+## [0.53.1] - 2026-10-14
+
+### Changed
+
+- **The Hub stays smooth with collections of hundreds of entries.** A collection's entries are now mounted
+  a batch at a time as the list is scrolled, and the cards, the plugin groups and the flat lists of the
+  page are memoized — so a keystroke in the search box, a tick on one card's checkbox or an opened preview
+  redraws only what actually changed. The animation of a long run of rows, and a motion element per tag on
+  every card, were dropped where they cost more than they showed.
+
+### Added
+
+- **A collection being read shows the shape of what is coming.** A source's entries appear as card-shaped
+  placeholders that shimmer and ease in one after another while the collection answers, reading the next
+  page shows the list growing instead of a lone spinner, and the screen wears the Hub's own shape — the
+  heading, the search box, the filters, the collections to come — while the source files themselves are
+  read. A collection read again for a filter, an install or a refresh says so beside its name.
+
+## [0.53.0] - 2026-10-14
+
+### Added
+
+- **A skill group can be folded away, and its heading is the card above it.** Every heading of the Library's
+  skills list — a name several agents share, or an owning agent — is now the first row of the very run its
+  cards are in: the chevron at its lead, the owner's tile and the name, the count of what the group holds,
+  and the agents behind it at the far end, so the titles stay in one column down the list. Folded away the
+  group _is_ that one card, in the material of the list around it; opened, the heading becomes the block's
+  tinted caption band, welded to the first card under it with the corners tightening at every seam — so the
+  state reads at a glance and not only from the chevron. The strip is the control, and the fold is kept for
+  the session like the filters around it: leaving the library and coming back — or stepping over to another
+  tab — finds the list as it was left, and each grouping remembers its own.
+
+## [0.52.1] - 2026-10-14
+
+### Changed
+
+- **The switch reads as a control, not a flat pill.** Its track now sits slightly recessed while it is
+  off — an inner shade and a hairline border — and takes the accent as a soft top-lit gradient with a
+  faint halo while it is on, so a row of settings can be read at a glance. The knob is a raised bead
+  with its own contact shadow and edge, which is what the recess and the halo set off, and it dims
+  under the press instead of sitting still. Everything is drawn from the theme's own tokens, so an
+  accent chosen in Settings is what the switch is painted with.
+
 ## [0.52.0] - 2026-10-09
 
 ### Changed

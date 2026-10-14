@@ -1,0 +1,58 @@
+# The PM Skills marketplace: the product manager's toolkit as agent skills, one plugin per phase.
+#
+# SOURCE: https://github.com/phuryn/pm-skills (checked 2026-10-14) — 69 `SKILL.md` directories under
+#   `pm-<phase>/skills/<skill>`; the repository declares the MIT license. No `path` is declared: the
+#   phases are separate plugin directories with no common ancestor, and the layout names each one, so
+#   the Hub groups the collection by phase on its own.
+id = "pm-skills"
+name = "PM Skills"
+kind = "githubSkills"
+repository = "phuryn/pm-skills"
+provides = ["skill"]
+vendor = "phuryn"
+homepage = "https://github.com/phuryn/pm-skills"
+license = "MIT"
+description = """Product management from discovery to launch: PRDs, roadmaps, user stories and OKRs,
+assumption and experiment design, market sizing and personas, positioning and go-to-market plans,
+pricing and monetisation, data analysis — and the toolkit skills (NDA, privacy policy, resume
+review)."""
+
+tags = ["planning", "docs"]
+
+# One rule per plugin directory, which is what the repository's own layout groups the skills by (see
+# `catalog/HUB.md`); a `pm-<phase>` directory is the prefix of everything inside it.
+[[tag_rules]]
+prefix = "pm-ai-shipping"
+tags = ["development", "review"]
+
+[[tag_rules]]
+prefix = "pm-data-analytics"
+tags = ["data", "analytics"]
+
+[[tag_rules]]
+prefix = "pm-execution"
+tags = ["planning", "docs"]
+
+[[tag_rules]]
+prefix = "pm-go-to-market"
+tags = ["launch", "marketing"]
+
+[[tag_rules]]
+prefix = "pm-market-research"
+tags = ["research"]
+
+[[tag_rules]]
+prefix = "pm-marketing-growth"
+tags = ["marketing", "growth"]
+
+[[tag_rules]]
+prefix = "pm-product-discovery"
+tags = ["planning", "research"]
+
+[[tag_rules]]
+prefix = "pm-product-strategy"
+tags = ["planning", "business"]
+
+[[tag_rules]]
+prefix = "pm-toolkit"
+tags = ["docs", "writing"]

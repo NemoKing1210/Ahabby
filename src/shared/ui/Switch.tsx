@@ -7,17 +7,24 @@ export function Switch({ className, ...props }: ComponentProps<typeof SwitchPrim
   return (
     <SwitchPrimitive.Root
       className={cn(
-        'peer border-border bg-surface-3 ease-warm inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-150',
-        'data-[state=checked]:border-accent data-[state=checked]:bg-accent',
-        'focus-visible:outline-ring outline-none focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
+        // The track: a small pill that sits recessed while off and takes the accent with a soft
+        // halo while on, so the state reads from across the card.
+        'group ease-warm inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-[background-color,border-color,box-shadow,scale] duration-150',
+        'border-border bg-surface-3 hover:border-border-strong shadow-[inset_0_1px_2px_color-mix(in_oklab,var(--color-foreground)_9%,transparent)]',
+        'data-[state=checked]:border-accent data-[state=checked]:from-accent data-[state=checked]:to-accent-hover data-[state=checked]:bg-gradient-to-b',
+        'data-[state=checked]:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_14%,transparent)]',
+        'focus-visible:outline-ring outline-none focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50',
         className,
       )}
       {...props}
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          'bg-surface ease-warm pointer-events-none block size-3.5 translate-x-0.5 rounded-full shadow-none transition-transform duration-150',
-          'data-[state=checked]:bg-accent-foreground data-[state=checked]:translate-x-4',
+          // The knob: a raised bead with a contact shadow and a hairline edge, which is what the
+          // track's recess and the accent's halo are there to set off.
+          'bg-surface ease-warm pointer-events-none block size-3.5 translate-x-0.5 rounded-full transition-[translate,scale,background-color] duration-150',
+          'shadow-[0_1px_2px_color-mix(in_oklab,var(--color-foreground)_25%,transparent),0_0_0_1px_color-mix(in_oklab,var(--color-foreground)_8%,transparent)]',
+          'group-active:scale-90 data-[state=checked]:translate-x-4',
         )}
       />
     </SwitchPrimitive.Root>

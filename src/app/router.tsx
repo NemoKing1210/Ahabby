@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, RouterProvider, createHashRouter } from 'react-router-dom'
+import { Navigate, RouterProvider, createHashRouter, type RouteObject } from 'react-router-dom'
 
 import { AgentPage } from '@/features/agents/pages/AgentPage'
 import { AgentsPage } from '@/features/agents/pages/AgentsPage'
@@ -22,8 +22,11 @@ import { AppShell } from './layouts/AppShell'
  *
  * There is no route for the terminal: it is a dock of the shell (`AppShell`), so several agents
  * can run in tabs under every screen instead of behind one.
+ *
+ * Exported so a test can hold every path the app navigates to against this table, the way
+ * `settingsRoutes` is exported for the same reason.
  */
-const routes = [
+export const routes: RouteObject[] = [
   {
     path: '/',
     element: <AppShell />,

@@ -38,6 +38,16 @@ gitRef?: string | null,
  */
 stars?: number | null, 
 /**
+ * Avatar of the account that publishes the source's GitHub repository, as the Hub last read
+ * it — the URL GitHub itself names, not the picture.
+ *
+ * Runtime data like [`HubSource::stars`], and read from the same answer: `None` for a source
+ * that is not on GitHub, or whose repository could not be read (an offline machine, a rate
+ * limit). The screen paints it through the reader's image proxy, falling back to a monogram
+ * tile; the bytes are never part of a source file.
+ */
+avatar?: string | null, 
+/**
  * `githubSkills`: only skills under this repository directory are offered.
  */
 path?: string | null, 

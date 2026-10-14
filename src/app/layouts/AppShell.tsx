@@ -1,8 +1,10 @@
 import {
   Suspense,
   lazy,
+  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useMemo,
@@ -84,10 +86,18 @@ const TerminalDock = lazy(async () => {
 })
 
 /**
- * Screens cross-fade instead of hard-swapping.
+ * The screen the window is on.
  *
- * `mode="wait"` finishes the outgoing screen before the next one paints, so the two never
- * overlap, and the scroll container is returned to the top once the old screen is gone.
+ * The screen that was asked for is mounted with the click and eases in; the one it replaced is
+ * gone at once rather than playing an exit first. `AnimatePresence` with `mode="wait"` — what this
+ * used to be — held the incoming screen back until the outgoing one had finished leaving, so every
+ * navigation answered a fifth of a second late and every query the new screen starts waited behind
+ * that. A screen still does not hard-swap: it fades and slides in.
+ *
+ * The scroll container is returned to the top before the new screen paints, so a screen is entered
+ * where it starts rather than wherever the last one was left. The first screen is not animated at
+ * all: the window is painted from a hidden state and a fade on top of the splash would read as a
+ * second load.
  *
  * Settings is one screen with a sub-route per area, so it is keyed by its section rather than
  * by the full path: remounting the settings layout on every tab would throw away the unsaved
@@ -101,18 +111,23 @@ function PageTransition({ scrollRef }: { scrollRef: RefObject<HTMLElement | null
   const outlet = useOutlet()
   const location = useLocation()
   const slide = useSoftSlide(8)
+  const key = transitionKey(location.pathname)
+
+  // The container is put back at the top before the new screen paints, so a screen is entered where
+  // it starts rather than wherever the last one was left.
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [key, scrollRef])
 
   return (
-    <AnimatePresence
-      mode="wait"
-      initial={false}
-      onExitComplete={() => scrollRef.current?.scrollTo({ top: 0 })}
-    >
+    // No `exit` on the screen itself: a leaving screen takes its leave at once, and the one that was
+    // asked for mounts in the same commit. `initial={false}` is AnimatePresence's own "do not
+    // animate the screen the window opens on".
+    <AnimatePresence initial={false}>
       <motion.div
-        key={transitionKey(location.pathname)}
+        key={key}
         initial={slide.initial}
         animate={slide.animate}
-        exit={slide.exit}
         transition={softTransition}
       >
         {outlet}
@@ -184,6 +199,78 @@ function ScanSummary() {
   )
 }
 
+/**
+ * The rail's own entries: one link per screen, each with the count of what that screen holds.
+ *
+ * Memoized, with its props held still by `AppShell`: the shell re-renders whenever the settings
+ * document is replaced — which is once per navigation, when the screen the window is on is written
+ * back — so a rail that rebuilt its six links and their tooltips underneath every screen change
+ * would be doing it for nothing.
+ */
+const SidebarNav = memo(function SidebarNav({
+  collapsed,
+  counts,
+  label,
+}: {
+  collapsed: boolean
+  /** The badge of a screen, by path; a screen that holds nothing to count has none. */
+  counts: Readonly<Record<string, number | undefined>>
+  /** What the run of links is called — the `nav` landmark's own name. */
+  label: string
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <nav aria-label={label} className="flex flex-col gap-1">
+      {NAV_ITEMS.map((item) => (
+        <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
+          {/* The Radix trigger must be a plain element: `asChild` merges `className`,
+            which would stringify NavLink's className function and drop every class. */}
+          <div className="flex">
+            <NavLink
+              to={item.to}
+              end={item.end}
+              data-tour={item.tour}
+              aria-label={collapsed ? t(item.labelKey) : undefined}
+              className={({ isActive }) =>
+                cn(
+                  'ease-warm relative flex items-center rounded-xl text-[0.9375rem] font-medium transition-colors duration-150',
+                  collapsed ? 'mx-auto size-11 justify-center' : 'flex-1 gap-3 px-3 py-2.5',
+                  isActive
+                    ? 'text-accent-strong'
+                    : 'text-muted hover:bg-surface-2 hover:text-foreground',
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive ? (
+                    <motion.span
+                      aria-hidden
+                      layoutId="nav-active-pill"
+                      transition={glideTransition}
+                      className="bg-accent-soft absolute inset-0 rounded-xl"
+                    />
+                  ) : null}
+                  <item.icon className="relative size-5 shrink-0" aria-hidden />
+                  {collapsed ? null : (
+                    <span className="relative flex-1 truncate">{t(item.labelKey)}</span>
+                  )}
+                  {!collapsed && counts[item.to] ? (
+                    <Badge tone={isActive ? 'accent' : 'neutral'} className="relative tabular-nums">
+                      {counts[item.to]}
+                    </Badge>
+                  ) : null}
+                </>
+              )}
+            </NavLink>
+          </div>
+        </Tooltip>
+      ))}
+    </nav>
+  )
+})
+
 export function AppShell() {
   const { t } = useTranslation()
   const { rescan, isScanning } = useScanRefresh()
@@ -238,13 +325,17 @@ export function AppShell() {
       return agent ? [agent] : []
     })
   }, [report, favoriteIds])
-  const navCounts: Record<string, number | undefined> = {
-    '/agents': report?.installed,
-    '/projects': report?.projects.projects.length,
-    '/library': library
-      ? library.stats.skills + library.stats.mcpServers + library.stats.other
-      : undefined,
-  }
+  // Held still for the memoized rail: a fresh object per render would redraw every link.
+  const navCounts = useMemo<Record<string, number | undefined>>(
+    () => ({
+      '/agents': report?.installed,
+      '/projects': report?.projects.projects.length,
+      '/library': library
+        ? library.stats.skills + library.stats.mcpServers + library.stats.other
+        : undefined,
+    }),
+    [report, library],
+  )
 
   // The window is one flat background; the sidebar floats over it as an inset panel, so the rail
   // never fuses with the window edges and reads as its own surface — and it is as tall as the
@@ -287,58 +378,7 @@ export function AppShell() {
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
             <div className="flex flex-col">
               {collapsed ? null : <NavSection>{t('nav.sections')}</NavSection>}
-              <nav aria-label={t('nav.sections')} className="flex flex-col gap-1">
-                {NAV_ITEMS.map((item) => (
-                  <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
-                    {/* The Radix trigger must be a plain element: `asChild` merges `className`,
-                      which would stringify NavLink's className function and drop every class. */}
-                    <div className="flex">
-                      <NavLink
-                        to={item.to}
-                        end={item.end}
-                        data-tour={item.tour}
-                        aria-label={collapsed ? t(item.labelKey) : undefined}
-                        className={({ isActive }) =>
-                          cn(
-                            'ease-warm relative flex items-center rounded-xl text-[0.9375rem] font-medium transition-colors duration-150',
-                            collapsed
-                              ? 'mx-auto size-11 justify-center'
-                              : 'flex-1 gap-3 px-3 py-2.5',
-                            isActive
-                              ? 'text-accent-strong'
-                              : 'text-muted hover:bg-surface-2 hover:text-foreground',
-                          )
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            {isActive ? (
-                              <motion.span
-                                aria-hidden
-                                layoutId="nav-active-pill"
-                                transition={glideTransition}
-                                className="bg-accent-soft absolute inset-0 rounded-xl"
-                              />
-                            ) : null}
-                            <item.icon className="relative size-5 shrink-0" aria-hidden />
-                            {collapsed ? null : (
-                              <span className="relative flex-1 truncate">{t(item.labelKey)}</span>
-                            )}
-                            {!collapsed && navCounts[item.to] ? (
-                              <Badge
-                                tone={isActive ? 'accent' : 'neutral'}
-                                className="relative tabular-nums"
-                              >
-                                {navCounts[item.to]}
-                              </Badge>
-                            ) : null}
-                          </>
-                        )}
-                      </NavLink>
-                    </div>
-                  </Tooltip>
-                ))}
-              </nav>
+              <SidebarNav collapsed={collapsed} counts={navCounts} label={t('nav.sections')} />
             </div>
 
             <Reveal open={favoriteAgents.length > 0}>

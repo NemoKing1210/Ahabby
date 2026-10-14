@@ -1298,3 +1298,783 @@ pub fn plan_for(
         target_os: ctx.os,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    use super::*;
+    use crate::catalog;
+    use crate::domain::{
+        AgentRef, ConfigFormat, InstallAction, McpDraftTransport, McpServer, McpServerDraft, Os,
+        Skill, SkillDraft, SkillFormat, SkillInstall, SkillInstallFile,
+    };
+    use crate::error::AppError;
+    use crate::platform::PlatformContext;
+
+    /// A manifest declaring every surface this adapter can act on.
+    const MANIFEST: &str = r#"
+id = "adapter-fixture"
+name = "Adapter Fixture"
+description = "Declares a skills directory, an MCP config and one install method."
+
+[binaries]
+names = ["adapter-fixture"]
+
+[skills]
+format = "skillMd"
+glob = "**/SKILL.md"
+path = { windows = "${HOME}/skills", macos = "${HOME}/skills", linux = "${HOME}/skills" }
+
+[mcp]
+format = "json"
+key_path = ["mcpServers"]
+path = { windows = "${HOME}/mcp.json", macos = "${HOME}/mcp.json", linux = "${HOME}/mcp.json" }
+
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g adapter-fixture"
+priority = 0
+"#;
+
+    /// The same agent with no MCP source at all: its servers can be read, never created.
+    const MANIFEST_WITHOUT_MCP: &str = r#"
+id = "adapter-fixture"
+name = "Adapter Fixture"
+description = "Declares no MCP source."
+
+[binaries]
+names = ["adapter-fixture"]
+
+[[methods]]
+id = "npm"
+manager = "npm"
+command = "npm install -g adapter-fixture"
+"#;
+
+    /// An agent that can only be installed by hand.
+    const MANUAL_ONLY: &str = r#"
+id = "adapter-manual"
+name = "Adapter Manual"
+description = "Nothing but a manual install."
+
+[binaries]
+names = ["adapter-manual"]
+
+[[methods]]
+id = "manual"
+manager = "manual"
+command = "read the docs"
+"#;
+
+    fn manifest(raw: &str) -> AgentManifest {
+        catalog::parse_manifest(raw, "test").expect("fixture manifest is valid")
+    }
+
+    /// A context that touches nothing: every path under it belongs to the temp directory.
+    struct Fixture {
+        // Kept alive for as long as the home directory below is used.
+        _root: tempfile::TempDir,
+        home: PathBuf,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let root = tempfile::tempdir().expect("temp dir");
+            let home = root.path().join("home");
+            fs::create_dir_all(&home).unwrap();
+            Self { _root: root, home }
+        }
+
+        fn ctx(&self) -> PlatformContext {
+            PlatformContext::for_tests(
+                Os::current(),
+                &self.home,
+                self.home.join("appdata"),
+                self.home.join("cfg"),
+            )
+        }
+
+        fn skills_root(&self) -> PathBuf {
+            self.home.join("skills")
+        }
+    }
+
+    /// A context for the checks that only read `ctx.os`: nothing is resolved against it.
+    fn context() -> PlatformContext {
+        PlatformContext::for_tests(
+            Os::current(),
+            "/nonexistent/home",
+            "/nonexistent/data",
+            "/nonexistent/cfg",
+        )
+    }
+
+    /// A skill directory as the adapter itself would read it — the thing it produced.
+    fn write_skill(root: &Path, name: &str) -> PathBuf {
+        let directory = root.join(name);
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join("SKILL.md"),
+            format!("---\nname: {name}\ndescription: A fixture skill\n---\n\nBody.\n"),
+        )
+        .unwrap();
+        directory
+    }
+
+    async fn only_skill(adapter: &ManifestAdapter, ctx: &PlatformContext) -> Skill {
+        let mut skills = adapter.list_skills(ctx).await.unwrap();
+        assert_eq!(skills.len(), 1, "the fixture writes exactly one skill");
+        skills.remove(0)
+    }
+
+    async fn only_server(adapter: &ManifestAdapter, ctx: &PlatformContext) -> McpServer {
+        let mut servers = adapter.list_mcp_servers(ctx).await.unwrap();
+        assert_eq!(servers.len(), 1, "the fixture writes exactly one server");
+        servers.remove(0)
+    }
+
+    fn foreign_ref() -> AgentRef {
+        AgentRef {
+            id: "someone-else".into(),
+            name: "Someone Else".into(),
+            icon: None,
+        }
+    }
+
+    fn payload(path: &str) -> SkillInstallFile {
+        SkillInstallFile {
+            path: path.to_string(),
+            bytes: format!("body of {path}").into_bytes(),
+        }
+    }
+
+    /// A payload file with the exact bytes a publisher would ship.
+    fn payload_from(path: &str, content: &str) -> SkillInstallFile {
+        SkillInstallFile {
+            path: path.to_string(),
+            bytes: content.as_bytes().to_vec(),
+        }
+    }
+
+    /// Sorted names in a directory: the observable form of "nothing was written here".
+    fn listing(root: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(root)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// The frontmatter of a rendered `SKILL.md`, fences stripped.
+    fn frontmatter_of(rendered: &str) -> &str {
+        rendered
+            .strip_prefix("---\n")
+            .expect("a rendered skill opens with a fence")
+            .split_once("\n---\n")
+            .expect("a rendered skill closes its frontmatter")
+            .0
+    }
+
+    /// Parse a rendered frontmatter as the flat `name -> scalar` map it is meant to be; a value
+    /// that leaked into a nested mapping makes this fail.
+    fn frontmatter_scalars(rendered: &str) -> BTreeMap<String, String> {
+        serde_yaml::from_str(frontmatter_of(rendered)).expect("frontmatter is a flat map")
+    }
+
+    // ---------------------------------------------------------------- pure helpers
+
+    #[test]
+    fn the_disabled_suffix_is_a_rename_in_both_directions() {
+        assert_eq!(disabled_name("SKILL.md"), "SKILL.md.disabled");
+        assert_eq!(
+            without_disabled_suffix(Path::new("skills/demo/SKILL.md.disabled")),
+            PathBuf::from("skills/demo/SKILL.md")
+        );
+        // The un-suffixed name is what the adapter stores as the skill's path, so a name that
+        // never carried the suffix has to come back untouched rather than truncated.
+        assert_eq!(
+            without_disabled_suffix(Path::new("skills/demo/SKILL.md")),
+            PathBuf::from("skills/demo/SKILL.md")
+        );
+        assert_eq!(
+            without_disabled_suffix(Path::new(&disabled_name("README.md"))),
+            PathBuf::from("README.md")
+        );
+    }
+
+    #[test]
+    fn a_renamed_entry_is_the_same_skill_switched_off() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("SKILL.md"), "on").unwrap();
+
+        let (entry, enabled) = skill_entry(dir.path(), SkillFormat::SkillMd).unwrap();
+        assert_eq!(entry, dir.path().join("SKILL.md"));
+        assert!(enabled);
+
+        // Switching off renames the entry and nothing else: the directory is still the skill,
+        // reported with the state the file name puts it in.
+        fs::rename(
+            dir.path().join("SKILL.md"),
+            dir.path().join("SKILL.md.disabled"),
+        )
+        .unwrap();
+        let (entry, enabled) = skill_entry(dir.path(), SkillFormat::SkillMd).unwrap();
+        assert_eq!(entry, dir.path().join("SKILL.md.disabled"));
+        assert!(!enabled);
+    }
+
+    #[test]
+    fn readme_only_counts_for_the_directory_format() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("README.md"), "# readme").unwrap();
+
+        // `skillMd` means the exact entry file every agent looks for; a README is not it.
+        assert!(skill_entry(dir.path(), SkillFormat::SkillMd).is_none());
+
+        let (entry, enabled) = skill_entry(dir.path(), SkillFormat::Directory).unwrap();
+        assert_eq!(entry, dir.path().join("README.md"));
+        assert!(enabled);
+    }
+
+    #[test]
+    fn a_directory_with_neither_entry_is_not_a_skill() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("notes.md"), "hello").unwrap();
+
+        for format in [
+            SkillFormat::SkillMd,
+            SkillFormat::Directory,
+            SkillFormat::MarkdownFile,
+        ] {
+            assert!(skill_entry(dir.path(), format).is_none(), "{format:?}");
+        }
+    }
+
+    #[test]
+    fn the_markdown_file_format_has_no_directory_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("SKILL.md"), "on").unwrap();
+
+        // Instructions kept in a single file are never a directory skill, whatever sits next
+        // to that file — that surface is read by `skill_from_file` instead.
+        assert!(skill_entry(dir.path(), SkillFormat::MarkdownFile).is_none());
+    }
+
+    #[test]
+    fn an_enabled_entry_anywhere_in_the_list_beats_a_disabled_one() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("README.md"), "# readme").unwrap();
+        fs::write(dir.path().join("SKILL.md.disabled"), "off").unwrap();
+
+        // The enabled pass runs before the disabled one, so the leftover disabled entry cannot
+        // report a skill the agent still loads as switched off.
+        let (entry, enabled) = skill_entry(dir.path(), SkillFormat::Directory).unwrap();
+        assert_eq!(entry, dir.path().join("README.md"));
+        assert!(enabled);
+    }
+
+    #[test]
+    fn an_object_keeps_its_document_order() {
+        let map = serde_json::json!({
+            "zeta": { "command": "z" },
+            "alpha": { "command": "a" },
+        });
+
+        let names: Vec<String> = mcp_entries(&map)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert_eq!(names, ["zeta", "alpha"]);
+    }
+
+    #[test]
+    fn an_array_names_each_entry_by_itself() {
+        let map = serde_json::json!([
+            { "name": "named", "command": "a" },
+            { "command": "b" },
+        ]);
+
+        let entries = mcp_entries(&map);
+        let names: Vec<&str> = entries.iter().map(|(name, _)| name.as_str()).collect();
+        // A Continue-style list carries its name inside the entry; one that has none still needs
+        // an address, and its position is the only thing left to name it by.
+        assert_eq!(names, ["named", "server-2"]);
+        assert_eq!(
+            entries[1]
+                .1
+                .get("command")
+                .and_then(serde_json::Value::as_str),
+            Some("b")
+        );
+    }
+
+    #[test]
+    fn a_map_that_is_neither_an_object_nor_an_array_yields_nothing() {
+        for map in [
+            serde_json::json!("npx"),
+            serde_json::json!(3),
+            serde_json::json!(true),
+            serde_json::json!(null),
+        ] {
+            assert!(mcp_entries(&map).is_empty(), "{map}");
+        }
+    }
+
+    #[test]
+    fn a_slug_keeps_letters_and_digits_and_collapses_everything_else() {
+        assert_eq!(skill_slug("My Skill!"), "my-skill");
+        assert_eq!(skill_slug("PDF   Reader---2024"), "pdf-reader-2024");
+        assert_eq!(skill_slug("My_Skill"), "my-skill");
+        // A leading or trailing separator would leave the directory name with a stray dash.
+        assert_eq!(skill_slug("  -- My Skill --  "), "my-skill");
+    }
+
+    #[test]
+    fn a_name_without_a_usable_character_yields_no_slug() {
+        // An empty slug is the signal the callers refuse on, so this is a value the code
+        // deliberately produces and acts on rather than a directory name.
+        assert_eq!(skill_slug("!!!"), "");
+        assert_eq!(skill_slug("   "), "");
+        assert_eq!(skill_slug(""), "");
+    }
+
+    #[test]
+    fn the_name_comes_first_and_the_body_follows_the_frontmatter() {
+        let rendered = render_skill(
+            "My Skill",
+            Some("Reads things"),
+            Some("  # Body\n\nText.  "),
+        );
+
+        let block = frontmatter_of(&rendered);
+        assert!(block.starts_with("name: "), "{block}");
+        let name_at = block.find("name: ").unwrap();
+        let description_at = block.find("description: ").unwrap();
+        assert!(name_at < description_at, "{block}");
+
+        let scalars = frontmatter_scalars(&rendered);
+        assert_eq!(scalars["name"], "My Skill");
+        assert_eq!(scalars["description"], "Reads things");
+
+        // The frontmatter is a block and the body starts after it, with the body trimmed.
+        let body = rendered.split_once("\n---\n").unwrap().1;
+        assert_eq!(body.trim(), "# Body\n\nText.");
+    }
+
+    #[test]
+    fn a_blank_description_is_left_out_of_the_frontmatter() {
+        for description in [Some(""), Some("   "), Some("\n\t ")] {
+            let rendered = render_skill("demo", description, None);
+            // An empty `description:` would reach the agent as a blank summary.
+            assert!(
+                !rendered.contains("description"),
+                "{description:?} → {rendered}"
+            );
+            assert_eq!(frontmatter_scalars(&rendered)["name"], "demo");
+        }
+    }
+
+    #[test]
+    fn a_value_that_would_parse_as_something_else_is_quoted() {
+        // Each of these is text a user can type into a skill name or description. Unquoted, the
+        // first would become a nested mapping and the rest would lose their spaces or change
+        // type on the way back in.
+        for value in ["a: b", " x ", "#not-a-comment", "yes", "null", "2024-01-01"] {
+            let scalar = yaml_scalar(value);
+            let parsed: String = serde_yaml::from_str(&scalar)
+                .unwrap_or_else(|error| panic!("{value:?} → {scalar}: {error}"));
+            assert_eq!(parsed, value, "{value:?} → {scalar}");
+        }
+
+        let quoted = yaml_scalar("a: b");
+        assert!(
+            quoted.starts_with('\'') || quoted.starts_with('"'),
+            "{quoted}"
+        );
+    }
+
+    #[test]
+    fn a_created_document_starts_from_the_skeleton_of_its_format() {
+        // A structured document with nothing in it still has to be parseable, because the first
+        // entry is inserted into what this returns.
+        for format in [ConfigFormat::Json, ConfigFormat::Jsonc, ConfigFormat::Yaml] {
+            assert_eq!(empty_document(format), "{\n}\n", "{format:?}");
+        }
+
+        // The rest have no skeleton to write: an empty file is already valid for them, and TOML
+        // has no "empty object" spelling.
+        for format in [
+            ConfigFormat::Toml,
+            ConfigFormat::Markdown,
+            ConfigFormat::Text,
+        ] {
+            assert_eq!(empty_document(format), "", "{format:?}");
+        }
+    }
+
+    // ---------------------------------------------------------------- skill refusals
+
+    #[tokio::test]
+    async fn a_skill_of_another_agent_is_never_switched() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let directory = write_skill(&fixture.skills_root(), "demo");
+        let skill = only_skill(&adapter, &ctx).await;
+
+        // The path is inside the declared skills directory and exists, so only the owner can be
+        // what refuses this.
+        let mut foreign = skill;
+        foreign.agents = vec![foreign_ref()];
+        let error = adapter
+            .set_skill_enabled(&ctx, &foreign, false)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, AppError::InvalidInput(_)), "{error:?}");
+
+        // Refused means untouched: the entry file is exactly where the agent left it.
+        assert!(directory.join("SKILL.md").is_file());
+        assert!(!directory.join("SKILL.md.disabled").exists());
+    }
+
+    #[tokio::test]
+    async fn a_skill_outside_the_declared_directory_is_never_switched() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        write_skill(&fixture.skills_root(), "demo");
+        let directory = write_skill(&fixture.home.join("elsewhere"), "demo");
+
+        let mut skill = only_skill(&adapter, &ctx).await;
+        // Right owner and still on disk — the manifest never declared this directory.
+        skill.path = directory.to_string_lossy().to_string();
+        skill.entry_path = Some(directory.join("SKILL.md").to_string_lossy().to_string());
+
+        let error = adapter
+            .set_skill_enabled(&ctx, &skill, false)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, AppError::CommandNotAllowed(_)), "{error:?}");
+        assert!(directory.join("SKILL.md").is_file());
+    }
+
+    #[tokio::test]
+    async fn a_skill_whose_directory_is_gone_is_reported_missing() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let directory = write_skill(&fixture.skills_root(), "demo");
+        let skill = only_skill(&adapter, &ctx).await;
+
+        fs::remove_dir_all(&directory).unwrap();
+        let error = adapter
+            .set_skill_enabled(&ctx, &skill, false)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, AppError::NotFound(_)), "{error:?}");
+    }
+
+    #[tokio::test]
+    async fn a_skill_ahabby_does_not_own_is_never_removed() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let directory = write_skill(&fixture.skills_root(), "demo");
+        let mut skill = only_skill(&adapter, &ctx).await;
+
+        // `skill_from_file` reports a standalone instructions file this way: read as a skill,
+        // but not a directory Ahabby may delete. The switch has to refuse it too.
+        skill.removable = false;
+        let error = adapter.remove_skill(&ctx, &skill).await.unwrap_err();
+        assert!(matches!(error, AppError::NotSupported(_)), "{error:?}");
+        let error = adapter
+            .set_skill_enabled(&ctx, &skill, false)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, AppError::NotSupported(_)), "{error:?}");
+
+        assert!(directory.join("SKILL.md").is_file());
+        assert_eq!(
+            fs::read_to_string(directory.join("SKILL.md")).unwrap(),
+            "---\nname: demo\ndescription: A fixture skill\n---\n\nBody.\n"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_skill_of_another_agent_is_never_removed() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let directory = write_skill(&fixture.skills_root(), "demo");
+        let mut skill = only_skill(&adapter, &ctx).await;
+
+        skill.agents = vec![foreign_ref()];
+        let error = adapter.remove_skill(&ctx, &skill).await.unwrap_err();
+        assert!(matches!(error, AppError::InvalidInput(_)), "{error:?}");
+        assert!(directory.is_dir());
+    }
+
+    #[tokio::test]
+    async fn a_name_with_no_usable_characters_creates_nothing() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let root = fixture.skills_root();
+        fs::create_dir_all(&root).unwrap();
+        let before = listing(&root);
+
+        let draft = SkillDraft {
+            name: "!!!".into(),
+            description: None,
+            content: None,
+        };
+        let error = adapter.create_skill(&ctx, &draft).await.unwrap_err();
+        // There is no directory name in `!!!` — that is why `skill_slug` may return an empty
+        // string at all, and why the refusal happens before a path is derived from it.
+        assert!(matches!(error, AppError::InvalidInput(_)), "{error:?}");
+        assert_eq!(listing(&root), before);
+    }
+
+    // ---------------------------------------------------------------- install refusals
+
+    #[tokio::test]
+    async fn an_unsafe_hub_payload_is_refused_and_leaves_nothing_behind() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let root = fixture.skills_root();
+        fs::create_dir_all(&root).unwrap();
+        // A sentinel, so "nothing was written" is observable as an unchanged directory rather
+        // than an empty one — the staging directory an install works in would show up here too.
+        fs::write(root.join("keep.txt"), "untouched").unwrap();
+        let before = listing(&root);
+
+        let payloads: Vec<(&str, Vec<SkillInstallFile>)> = vec![
+            (
+                "an absolute path",
+                vec![payload("SKILL.md"), payload("/etc/passwd")],
+            ),
+            (
+                "a path that steps up",
+                vec![payload("SKILL.md"), payload("../escape.md")],
+            ),
+            (
+                "a file that is the parent of another",
+                vec![
+                    payload("SKILL.md"),
+                    payload("docs"),
+                    payload("docs/notes.md"),
+                ],
+            ),
+            (
+                "the same path twice",
+                vec![payload("SKILL.md"), payload("SKILL.md")],
+            ),
+            ("no entry file", vec![payload("notes.md")]),
+        ];
+
+        for (case, files) in payloads {
+            let install = SkillInstall {
+                name: "Hub Skill".into(),
+                files,
+            };
+            let error = adapter.install_skill(&ctx, &install).await.unwrap_err();
+            assert!(
+                matches!(error, AppError::InvalidInput(_)),
+                "{case}: {error:?}"
+            );
+            assert_eq!(listing(&root), before, "{case} left something on disk");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_safe_hub_payload_lands_in_one_piece() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+
+        // The control for the refusals above: the same shape of payload, with safe paths, is
+        // written — so a refusal cannot be the only thing this method ever does.
+        let install = SkillInstall {
+            name: "Hub Skill".into(),
+            files: vec![
+                payload_from(
+                    "SKILL.md",
+                    "---\nname: Hub Skill\ndescription: From the Hub\n---\n\nBody.\n",
+                ),
+                payload("scripts/render.py"),
+                payload("templates/row.md"),
+            ],
+        };
+        let skill = adapter.install_skill(&ctx, &install).await.unwrap();
+
+        // The payload is written as published: the name the agent reads is the one in its own
+        // frontmatter, not the directory Ahabby derived from the install's name.
+        assert_eq!(skill.name, "Hub Skill");
+        assert_eq!(skill.description.as_deref(), Some("From the Hub"));
+        let directory = fixture.skills_root().join("hub-skill");
+        assert_eq!(directory, PathBuf::from(&skill.path));
+        assert_eq!(
+            fs::read_to_string(directory.join("scripts/render.py")).unwrap(),
+            "body of scripts/render.py"
+        );
+        // The directory is renamed into place as a whole, so no staging directory is left.
+        assert_eq!(
+            listing(&fixture.skills_root()),
+            vec!["hub-skill".to_string()]
+        );
+    }
+
+    // ---------------------------------------------------------------- MCP refusals
+
+    /// The one file the `MANIFEST` fixture declares as its MCP source.
+    fn write_mcp_config(home: &Path) -> PathBuf {
+        let path = home.join("mcp.json");
+        fs::write(
+            &path,
+            r#"{ "mcpServers": { "github": { "command": "npx", "args": ["-y", "server-github"] } } }"#,
+        )
+        .unwrap();
+        path
+    }
+
+    #[tokio::test]
+    async fn an_mcp_server_of_another_agent_is_never_removed() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let config = write_mcp_config(&fixture.home);
+        let before = fs::read_to_string(&config).unwrap();
+        let server = only_server(&adapter, &ctx).await;
+
+        let mut foreign = server;
+        foreign.agent = foreign_ref();
+        let error = adapter.remove_mcp_server(&ctx, &foreign).await.unwrap_err();
+        assert!(matches!(error, AppError::InvalidInput(_)), "{error:?}");
+        // The removal and the switch share one guard, so both have to refuse the same server.
+        let error = adapter
+            .set_mcp_server_enabled(&ctx, &foreign, false)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, AppError::InvalidInput(_)), "{error:?}");
+
+        assert_eq!(fs::read_to_string(&config).unwrap(), before);
+    }
+
+    #[tokio::test]
+    async fn an_mcp_server_outside_the_declared_config_is_never_removed() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        write_mcp_config(&fixture.home);
+        let mut server = only_server(&adapter, &ctx).await;
+
+        // Right owner, and the file even exists — but the manifest never declared it, so a
+        // forged `source_config` from the frontend reaches nothing.
+        let stray = fixture.home.join("stray.json");
+        fs::write(
+            &stray,
+            r#"{ "mcpServers": { "github": { "command": "npx" } } }"#,
+        )
+        .unwrap();
+        let before = fs::read_to_string(&stray).unwrap();
+        server.source_config = stray.to_string_lossy().to_string();
+
+        let error = adapter.remove_mcp_server(&ctx, &server).await.unwrap_err();
+        assert!(matches!(error, AppError::CommandNotAllowed(_)), "{error:?}");
+        assert_eq!(fs::read_to_string(&stray).unwrap(), before);
+    }
+
+    #[tokio::test]
+    async fn an_mcp_server_ahabby_does_not_own_is_never_changed() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let config = write_mcp_config(&fixture.home);
+        let before = fs::read_to_string(&config).unwrap();
+        let mut server = only_server(&adapter, &ctx).await;
+
+        // A list-shaped entry is read but is not addressable by key, which is what a removal
+        // needs; that is the same "not removable" state a foreign owner reports.
+        server.removable = false;
+        let error = adapter.remove_mcp_server(&ctx, &server).await.unwrap_err();
+        assert!(matches!(error, AppError::NotSupported(_)), "{error:?}");
+        let error = adapter
+            .set_mcp_server_enabled(&ctx, &server, false)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, AppError::NotSupported(_)), "{error:?}");
+
+        assert_eq!(fs::read_to_string(&config).unwrap(), before);
+    }
+
+    #[tokio::test]
+    async fn creating_a_server_for_a_manifest_without_an_mcp_source_is_not_supported() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST_WITHOUT_MCP));
+        let draft = McpServerDraft {
+            name: "demo".into(),
+            transport: McpDraftTransport::Stdio {
+                command: "npx".into(),
+                args: vec![],
+                env: vec![],
+            },
+        };
+
+        let error = adapter.create_mcp_server(&ctx, &draft).await.unwrap_err();
+        assert!(matches!(error, AppError::NotSupported(_)), "{error:?}");
+
+        assert!(adapter.list_mcp_servers(&ctx).await.unwrap().is_empty());
+        assert!(!fixture.home.join("mcp.json").exists());
+    }
+
+    // ---------------------------------------------------------------- install plans
+
+    #[test]
+    fn an_unknown_method_id_is_invalid_input() {
+        let manifest = manifest(MANIFEST);
+        let error =
+            plan_for(&manifest, &context(), InstallAction::Install, Some("pipx")).unwrap_err();
+        assert!(matches!(error, AppError::InvalidInput(_)), "{error:?}");
+    }
+
+    #[test]
+    fn a_manifest_whose_only_method_is_manual_has_no_install_method() {
+        let manifest = manifest(MANUAL_ONLY);
+        let error = plan_for(&manifest, &context(), InstallAction::Install, None).unwrap_err();
+        // A manual method is a docs link, not something to run, so it cannot be selected even
+        // when it is the only one there is.
+        assert!(
+            matches!(error, AppError::NoInstallMethod { .. }),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn an_uninstall_without_an_uninstall_command_is_not_supported() {
+        let manifest = manifest(MANIFEST);
+        let error =
+            plan_for(&manifest, &context(), InstallAction::Uninstall, Some("npm")).unwrap_err();
+        // The method was asked for by id, so it is not "no method" — Ahabby simply has nothing
+        // to run that removes it.
+        assert!(matches!(error, AppError::NotSupported(_)), "{error:?}");
+    }
+
+    #[test]
+    fn a_method_with_an_empty_command_is_invalid_input() {
+        // `parse_manifest` rejects an empty command, so the only way one can reach the plan is a
+        // manifest assembled in code — which is exactly the case this guard exists for.
+        let mut manifest = manifest(MANIFEST);
+        manifest.methods[0].command.clear();
+
+        let error =
+            plan_for(&manifest, &context(), InstallAction::Install, Some("npm")).unwrap_err();
+        assert!(matches!(error, AppError::InvalidInput(_)), "{error:?}");
+    }
+}

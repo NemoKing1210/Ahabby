@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,14 @@ import { renderWithProviders } from '@/test/render'
 
 import { LibraryPage } from './LibraryPage'
 import { emptySyncSettings } from '@/test/fixtures'
+
+// The stub has to be published before `lazyRows` is imported, which a hoisted callback does — see
+// `@/test/intersectionObserver` for why the module is reached through a dynamic import.
+const { FakeIntersectionObserver } = await vi.hoisted(async () => {
+  const stub = await import('@/test/intersectionObserver')
+  stub.installFakeIntersectionObserver()
+  return { FakeIntersectionObserver: stub.FakeIntersectionObserver }
+})
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: { listLibrary: vi.fn(), getSettings: vi.fn() },
@@ -135,6 +143,14 @@ function renderPage() {
   )
 }
 
+/**
+ * The skill cards actually mounted — one switch each, which is what `useLazyRows` bounds. The
+ * entries behind the ones on screen are the query's data, not the list's markup.
+ */
+function mountedCards(container: HTMLElement): number {
+  return container.querySelectorAll('[role="switch"]').length
+}
+
 const SETTINGS: Settings = {
   language: 'en',
   theme: 'system',
@@ -173,6 +189,7 @@ const TEXT = { ignore: 'script, style, title' } as const
 
 describe('LibraryPage', () => {
   beforeEach(() => {
+    FakeIntersectionObserver.reset()
     vi.mocked(ipc.listLibrary).mockResolvedValue(LIBRARY)
     vi.mocked(ipc.getSettings).mockResolvedValue(SETTINGS)
   })
@@ -185,14 +202,18 @@ describe('LibraryPage', () => {
   })
 
   it('heads a shared name and leaves a one-agent name in the plain list', async () => {
+    const user = userEvent.setup()
     const { container } = renderPage()
+    // The shared name is a group, so it starts folded: its heading is there, its cards are not.
     await within(container).findByRole('heading', { name: 'pdf' })
+    expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull()
 
-    // `review` belongs to a single agent, so it needs no heading of its own.
+    // `review` belongs to a single agent, so it needs no heading of its own — and no fold.
     expect(within(container).queryByRole('heading', { name: 'review' })).toBeNull()
     expect(within(container).getAllByRole('button', { name: 'review' })).toHaveLength(1)
 
-    const pdf = within(container).getByRole('button', { name: 'pdf' })
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+    const pdf = await within(container).findByRole('button', { name: 'pdf' })
     const review = within(container).getByRole('button', { name: 'review' })
     expect(within(pdf).getAllByText('Claude Code', TEXT).length).toBeGreaterThan(0)
     expect(within(pdf).getAllByText('OpenCode', TEXT).length).toBeGreaterThan(0)
@@ -210,7 +231,12 @@ describe('LibraryPage', () => {
     expect(within(container).getByRole('heading', { name: 'Claude Code' })).toBeTruthy()
     expect(within(container).getByRole('heading', { name: 'OpenCode' })).toBeTruthy()
     expect(within(container).queryByRole('heading', { name: 'pdf' })).toBeNull()
-    expect(within(container).getAllByText('/a/pdf')).toHaveLength(2)
+
+    // Each owner's block is a group of its own, so it starts folded too; the shared skill is
+    // under both of them once they are opened.
+    await user.click(within(container).getByRole('button', { name: 'Expand Claude Code' }))
+    await user.click(within(container).getByRole('button', { name: 'Expand OpenCode' }))
+    expect(await within(container).findAllByText('/a/pdf')).toHaveLength(2)
   })
 
   it('narrows every tab with the search box', async () => {
@@ -330,10 +356,12 @@ describe('LibraryPage', () => {
   })
 
   it('shows the file date each resource carries, and labels it honestly', async () => {
+    const user = userEvent.setup()
     const { container } = renderPage()
     await within(container).findByRole('heading', { name: 'pdf' })
 
-    const pdf = within(container).getByRole('button', { name: 'pdf' })
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+    const pdf = await within(container).findByRole('button', { name: 'pdf' })
     expect(within(pdf).getByText(/^Created /)).toBeTruthy()
 
     // The shared skill has no creation time, so its card falls back to the modification
@@ -358,5 +386,139 @@ describe('LibraryPage', () => {
     expect(menu.getByRole('menuitem', { name: 'Show in file manager' })).toBeTruthy()
 
     view.unmount()
+  })
+
+  it('opens a skill group from its own heading, and folds it away again', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    // The list is a run of headings until a group is opened — the library is long, so the
+    // headings are what it opens on.
+    await within(container).findByRole('heading', { name: 'pdf' })
+    expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull()
+    expect(within(container).getByRole('button', { name: 'Expand pdf' })).toBeTruthy()
+
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+    expect(await within(container).findByRole('button', { name: 'pdf' })).toBeTruthy()
+
+    await user.click(within(container).getByRole('button', { name: 'Collapse pdf' }))
+
+    // The cards leave and the heading stays — it is the control that brings them back.
+    await waitFor(() => expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull())
+    expect(within(container).getByRole('heading', { name: 'pdf' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'Expand pdf' })).toBeTruthy()
+  })
+
+  it('keeps an opened group open across a tab switch, and folds each grouping on its own', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+    expect(await within(container).findByRole('button', { name: 'pdf' })).toBeTruthy()
+
+    await user.click(within(container).getByRole('tab', { name: /^MCP/ }))
+    await user.click(within(container).getByRole('tab', { name: /^Skills/ }))
+    // The fold is a session filter like the ones around it: the list comes back as it was left.
+    expect(within(container).getByRole('button', { name: 'pdf' })).toBeTruthy()
+
+    // Grouping by agent is a list of its own, so its groups are folded again.
+    await user.click(within(container).getByRole('button', { name: 'Agent' }))
+    expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull()
+    expect(within(container).getByRole('button', { name: 'Expand Claude Code' })).toBeTruthy()
+  })
+
+  it('mounts one batch of a long library and grows it as the sentinel comes into view', async () => {
+    vi.mocked(ipc.listLibrary).mockResolvedValue({
+      ...LIBRARY,
+      skills: Array.from({ length: 60 }, (_, index) =>
+        // Zero-padded, so the names sort in the order they are numbered and the batch is a prefix.
+        skill(`skill-${String(index).padStart(2, '0')}`, `/p/skill-${index}`, [claude]),
+      ),
+    })
+
+    const { container } = renderPage()
+    await within(container).findByText('skill-00')
+
+    // One batch, not the whole library: the cards nobody is looking at stay unmounted — a card is
+    // its own component with its own menu and switch, and a library is everything this machine
+    // holds. The names here are one-of-a-kind, so the batch is the plain run under the headed ones.
+    expect(mountedCards(container)).toBe(24)
+    expect(within(container).queryByText('skill-24')).toBeNull()
+
+    act(() => FakeIntersectionObserver.latest().intersect())
+
+    expect(mountedCards(container)).toBe(48)
+    expect(within(container).getByText('skill-24')).toBeTruthy()
+  })
+
+  it('keeps every heading with the cards under it when the batch cuts a group', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listLibrary).mockResolvedValue({
+      ...LIBRARY,
+      skills: [
+        // More than one batch of one shared name, then a group past the cut.
+        ...Array.from({ length: 40 }, (_, index) =>
+          skill('pdf', `/p/pdf-${index}`, [claude, opencode]),
+        ),
+        skill('zzz', '/p/zzz-a', [claude, opencode]),
+      ],
+    })
+
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+    // The batch is spent on the rows the list mounts, so a folded group costs it nothing — this
+    // group is opened here to watch the budget land inside it.
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+    await waitFor(() => expect(mountedCards(container)).toBe(24))
+
+    // The group the batch lands inside is cut, not broken: its heading is there with the cards it
+    // heads, and a group past the cut is not headed at all — a heading over nothing reads as an
+    // empty group rather than as one more to come.
+    expect(within(container).getByRole('heading', { name: 'pdf' })).toBeTruthy()
+    expect(within(container).queryByRole('heading', { name: 'zzz' })).toBeNull()
+
+    act(() => FakeIntersectionObserver.latest().intersect())
+
+    // The next batch reaches the second group: its heading is there, and it stays folded until it
+    // is opened — a folded group is one row, which is what lets the batch get past it.
+    expect(within(container).getByRole('heading', { name: 'zzz' })).toBeTruthy()
+    expect(mountedCards(container)).toBe(40)
+
+    await user.click(within(container).getByRole('button', { name: 'Expand zzz' }))
+    expect(await within(container).findByRole('button', { name: 'zzz' })).toBeTruthy()
+  })
+
+  it('lets the batch through to the list under a group that is folded away', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listLibrary).mockResolvedValue({
+      ...LIBRARY,
+      skills: [
+        // A shared name with more cards than one batch, then one-of-a-kind names under it.
+        ...Array.from({ length: 40 }, (_, index) =>
+          skill('pdf', `/p/pdf-${index}`, [claude, opencode]),
+        ),
+        ...Array.from({ length: 30 }, (_, index) =>
+          skill(`zzz-${String(index).padStart(2, '0')}`, `/p/zzz-${index}`, [claude]),
+        ),
+      ],
+    })
+
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    // The group opens folded, so the batch is already through to the list under it: counting the
+    // cards it hides would leave those 30 names unmounted behind a heading nobody opened.
+    await waitFor(() => expect(mountedCards(container)).toBe(23))
+    expect(within(container).getByText('zzz-00')).toBeTruthy()
+
+    // Opening it spends the batch inside the group instead, and folding it away gives the list
+    // under it back.
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+    await waitFor(() => expect(mountedCards(container)).toBe(24))
+    expect(within(container).queryByText('zzz-00')).toBeNull()
+
+    await user.click(within(container).getByRole('button', { name: 'Collapse pdf' }))
+    await waitFor(() => expect(mountedCards(container)).toBe(23))
+    expect(within(container).getByText('zzz-00')).toBeTruthy()
   })
 })

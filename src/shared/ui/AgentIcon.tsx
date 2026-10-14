@@ -53,6 +53,7 @@ export function AgentIcon({
   name,
   icon,
   ownerId,
+  image,
   size = 'md',
   className,
 }: {
@@ -61,10 +62,24 @@ export function AgentIcon({
   icon?: string | null
   /** Owner id; the agent-neutral shared surface gets its own tile instead of a monogram. */
   ownerId?: string
+  /**
+   * The address of a picture that stands for this name — a `data:` URL, because the CSP lets the
+   * window load nothing else. It wins over the brand palette and the monogram, and is what a Hub
+   * source's GitHub avatar paints; the caller fetches the bytes.
+   */
+  image?: string | null
   size?: keyof typeof SIZES
   className?: string
 }) {
   const { tile, edge } = SIZES[size]
+
+  if (image) {
+    return (
+      <span aria-hidden className={cn(TILE, 'border-border bg-surface-2', tile, className)}>
+        <img src={image} alt="" className="size-full object-cover" />
+      </span>
+    )
+  }
 
   if (ownerId && isSharedOwner(ownerId)) {
     return (

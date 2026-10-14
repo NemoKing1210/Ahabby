@@ -1,0 +1,45 @@
+# `ponytail` — a discipline rather than a toolbox: the agent that writes the least code that works.
+#
+# SOURCE: https://github.com/DietrichGebert/ponytail (checked 2026-10-14) — `skills/<name>/SKILL.md`;
+#   the repository declares the MIT license. The same six skills are mirrored into
+#   `.openclaw/skills/<name>` for that harness, which is exactly what `path` leaves out.
+id = "ponytail"
+name = "Ponytail"
+kind = "githubSkills"
+repository = "DietrichGebert/ponytail"
+path = "skills"
+provides = ["skill"]
+vendor = "Dietrich Gebert"
+homepage = "https://github.com/DietrichGebert/ponytail"
+license = "MIT"
+description = """“He says nothing. He writes one line. It works.” A rule the agent applies before it
+reaches for a dependency, an abstraction or a rewrite — plus the skills that audit what is already
+there, review what a change adds, and name the debt it pays off and the gain it buys."""
+
+tags = ["development"]
+
+# What each skill is *for*, so the Hub can be browsed and filtered by subject instead of by
+# directory layout. The prefixes are the repository's own directories (see `catalog/HUB.md`).
+[[tag_rules]]
+prefix = "skills/ponytail"
+tags = ["refactoring", "development"]
+
+[[tag_rules]]
+prefix = "skills/ponytail-audit"
+tags = ["review", "refactoring"]
+
+[[tag_rules]]
+prefix = "skills/ponytail-review"
+tags = ["review"]
+
+[[tag_rules]]
+prefix = "skills/ponytail-debt"
+tags = ["refactoring"]
+
+[[tag_rules]]
+prefix = "skills/ponytail-gain"
+tags = ["performance", "refactoring"]
+
+[[tag_rules]]
+prefix = "skills/ponytail-help"
+tags = ["docs"]

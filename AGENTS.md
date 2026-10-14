@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.52.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.54.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -241,10 +241,51 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   `animate-[…]`. **A list of items is an `AnimatedList`** — one stack, grid or chip row of keyed rows that
   eases each row in, animates a removed row out where it stood (`AnimatePresence` with `mode="popLayout"`,
   `layout="position"`) and slides the rest into the gap; pass `grouped={false}` when `className` already
-  describes the layout, and `as="ul"` when the rows are a real list. `Reveal` is for disclosure content, and
+  describes the layout, and `as="ul"` when the rows are a real list. Past `ANIMATED_ROWS_MAX` rows the list
+  renders plainly instead — animating hundreds of layout-projected rows costs more than that entrance is
+  worth — and `animate={false}` asks for it sooner. `Reveal` is for disclosure content, and
   a surface that slides into place is built on `useSoftSlide` — `reducedMotion="user"` (set in
   `providers.tsx`) stops layout animation and instant-jumps transforms, but it would still hold a slide
   offset for the whole tween, which is why `useSoftSlide` falls back to a plain fade itself.
+- **A Library group head is the first row of its own card run.** Every heading of the Library's skills list —
+  a name several agents share, or an owning agent — is the first child of the `AnimatedList` its cards are
+  in, so the concentric rules of `.ah-card-group` are what round it: folded away
+  (`library.expanded.<tab>.<mode>` in `shared/lib/sessionState.ts`) the group is one card in the material of
+  the list around it, and open it is the block's tinted caption band, welded to the first card under it. The
+  fold needs no `Reveal`: the cards are the run's own rows, so they leave it the way a filtered row leaves a
+  list. **Every group starts folded** — the library and the Hub's plugin groups (`hub.expanded.<source>.<group>`)
+  are long lists whose headings are their index — so the session store holds the groups the user _opened_,
+  and a group nobody touched is one row of its list. The Hub's source sections are the same story one level
+  out (`hub.sourceExpanded.<id>`): the page opens as the list of collections it can read, and a folded
+  section mounts none of its cards until it is opened. A source _is_ a card of the page's own run, the way
+  the Settings index wears its areas — the sections sit `--group-gap` apart with the full radius only at the
+  ends of the stack — and the fold paints its strip as a Library group head is painted: a plain card while
+  folded, the tinted caption band with the collection under it while open. The plugin groups inside wear the
+  same card one level in — their heading the strip, their skills on the canvas the card frames, and the source
+  welding its groups into a run of its own (`ah-card-stack`) — so a collection reads the same way at every
+  level. A source's strip also carries what GitHub says about the collection itself: the owner's avatar
+  (painted through the reader's image proxy — the CSP lets the window load nothing but `data:`), the star
+  count, and, for the three most starred collections of the whole catalog, a rank — the leader wears the
+  accent chip, the accent edge and, while open, the accent band, the two behind it a quieter chip and edge.
+  The rank is what the repository is, not where a filter left the card: it is taken from the catalog's own
+  order (`HubPage`'s `ranks`), so a screen narrowed to one source still names its real place.
+- **A long list is mounted a batch at a time.** `shared/lib/lazyRows.ts` (`useLazyRows`) reveals its rows as
+  the sentinel under them comes into view, so the Hub's source sections and plugin groups — and the
+  **Library**, which is one card per skill and per MCP server the machine holds — mount only what the user
+  is near while the rest waits its turn; the _data_ stays the caller's, so reading the next page is still an
+  explicit `Load more`. `LibrarySections` spends one row budget over the whole tab, group by group, and cuts
+  a group where it lands instead of heading a group it mounts nothing under. With `memo` on `HubEntryCard`,
+  `HubEntryList`, `HubGroupBlock`, `SkillCard` and `McpCard`, and the surrounding page's handlers held still
+  (`useCallback`/`useMemo`), ticking one card's checkbox or typing in the search box repaints that card and
+  nothing else — and the pages' own derivations (filters, facet counts, groups, owner options, tag
+  vocabulary) are `useMemo`s keyed on their inputs, never re-walked per render.
+- **A screen is mounted the moment it is asked for.** `AppShell`'s `PageTransition` keys a `motion.div` by
+  the route and gives it no `exit`: the outgoing screen leaves at once and the incoming one mounts in the
+  same commit, animating its own entrance. It used to run `AnimatePresence` with `mode="wait"`, which held
+  the new screen back for the old one's whole exit — a fifth of a second of the click doing nothing, with
+  every query the new screen starts waiting behind it. `initial={false}` on the presence is what keeps the
+  screen the window opens on from animating; the scroll container is put back at the top before the new
+  screen paints.
 - **Document edits** go through `features/editor` — one `DocumentEditorDialog` for every addressable file
   (configs, MCP source files, `SKILL.md`, instructions/commands/hooks/rules), described by an
   `EditorDocument`. The order is fixed: edit → `previewConfigSave` (diff + validation + hash) → `saveConfig`,
@@ -613,6 +654,10 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   a library from (`mcpRegistry`, `githubSkills` or `index`), embedded at compile time by the same `build.rs`
   pass, with the user's own in `<app config>/hub/` overriding by `id`. `catalog/HUB.md` documents every field
   and the index document format; a source file that does not validate is skipped and reported, never fatal.
+  What the screen shows _about_ a source — the star count it is ordered by and the avatar of the account that
+  publishes the repository — is runtime, not declarative: both are parsed out of the one GitHub answer for
+  the repository (`GET /repos/{owner}/{repo}`), cached for a day in `<app data>/cache/hub-repos.json`, and
+  the fields are `skip_deserializing`, so a source file claiming either is ignored.
 - Every path group carries a `# SOURCE: <url> (checked <date>)` comment. Anything unconfirmed goes into
   `unverified = ["dotted.path"]` (prefix-tolerant matching; UI shows a "needs verification" badge).
 - `skills` and `mcp` are **lists**: `[[skills]]` / `[[mcp]]`, because a tool may keep skills in more than one
@@ -666,26 +711,45 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
 
 ## Testing & QA
 
+- **A UI change is proved by a test, never by driving the running app.** Render the surface with
+  `renderWithProviders` and assert on what it shows: that case is what CI re-runs, and it is the same proof
+  for everyone, on every platform, in seconds. Do not take over the user's own desktop to look at a screen —
+  a synthetic cursor or keystroke from the harness (`computer-use`), a scripted click at a screen coordinate,
+  automation of a `tauri dev` window. It is slow and flaky, it cannot run in CI, and it writes the very state
+  it means to observe: the app's real `settings.json` (where `lastRoute`/`sidebarCollapsed` live), its scan
+  cache, the cursor and the focused window of the person whose machine this is. A surface jsdom genuinely
+  cannot render is reported as _not verified_, together with what was checked instead — never automated
+  through the desktop.
 - **Frontend**: Vitest (`vitest run`) with jsdom; config is inline in `vite.config.ts`. Use
   `renderWithProviders(ui, { route })` from `src/test/render.tsx` (wraps I18next en, TooltipProvider,
   MemoryRouter). **RTL auto-cleanup is not configured** (`setup.ts` only imports jest-dom, no `globals`), so
   the DOM accumulates across `it` blocks in a file: scope queries with `within(container)`, call `unmount()` /
-  `cleanup()`, or avoid duplicated accessible text.
+  `cleanup()`, or avoid duplicated accessible text. **A list that reveals its rows as it is scrolled needs an
+  observer jsdom does not ship**, so a test file publishes the stub of `src/test/intersectionObserver.ts` from
+  a `vi.hoisted` callback — which runs above the imports, as `shared/lib/lazyRows` decides once, at load,
+  whether this environment can watch a sentinel at all.
 - Tests currently cover: locale key parity + no-empty strings, IPC error normalization, formatting/masking
   helpers, `AgentCard` (render, install gating, badges, click-to-navigate), the Projects page (folders,
   projects, the empty state, adding a folder), the Hub page (a section per source, a kind filter that asks
   only the sources it includes, the read-only preview, the reviewed install request with `confirm: true`, a
   required value gating it, the tags on a card and the tag filter that reaches the backend, the owners an
   entry is already installed for with the name a chosen owner already holds refused, and the entry
-  context menu), the terminal tab store (buffered output, finishing and closing a tab, an exit that beat its
-  tab, and reconciling with the backend in both directions), `TerminalView` (the scheme it paints the panel
-  with, and that a remount shows the session's own emulator again rather than a fresh, blank one), the
+  context menu — plus a long collection mounted a batch at a time and grown as its sentinel comes into
+  view, and the card-shaped placeholders a collection, the next page of one and the page itself wear while
+  they are read), the Library page (the same for its own lists: one batch of a long library mounted and grown
+  as its sentinel comes into view, and a group the batch cuts keeping its heading with the cards under it
+  while the groups past the cut stay unheaded), the shell (`AppShell`: the rail as it was left and remembered
+  before its write lands, the screen the window is on remembered, and a screen mounting with the click rather
+  than after the last one's exit), the terminal tab store (buffered output, finishing and closing a tab, an exit that beat
+  its tab, and reconciling with the backend in both directions), `TerminalView` (the scheme it paints the
+  panel with, and that a remount shows the session's own emulator again rather than a fresh, blank one), the
   window's own header (`TitleBar`: nothing where the OS frames the window, a press on the bar dragging it
   while a press on a button does not, the second press maximizing instead of dragging, and the middle
   button turning into a restore as its answer lands), the animated
   list (the row order it renders, and a removed row staying in
   the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
-  composed within one tick, and one key not leaking into another), the Settings areas (appearance,
+  composed within one tick, and one key not leaking into another), `useLazyRows` (a batch at a time, never
+  more rows than the list has, and another list starting over at its first batch), the Settings areas (appearance,
   window & tray: what the document says, and that a hidden window needs the tray icon, and Cloud sync:
   a token that connects without touching the settings file, the account a verification names, the sync
   block carried through the one Save button, and a restore that previews before it confirms), the per-card
@@ -698,7 +762,18 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   takes, the chrome it drops, the ids it renames, the images it hands to the proxy), the image proxy's
   deduplication and its concurrency limit, and the modal end to end (a link of a document opening it, a link
   inside it navigating in the same window, Back, an address typed into the bar, and the images arriving from
-  the backend). Feature hooks are not tested otherwise.
+  the backend). `AgentPage` (its own header actions, the tab strip with its counts, which tab is
+  handed an owner and which dialog an action opens), the shell's own wiring — `app/router.test.tsx`
+  holds every path the sidebar, the tray and the routes declare against the router's own matcher so
+  a path that stops existing cannot quietly fall through to the home screen, and
+  `app/providers.test.tsx` drives each event bridge into the query cache and the stores, plus the
+  one reconciliation of the terminal sessions per page load — `TerminalDock` (the strip stays
+  mounted, a collapsed body keeps its element and loses the keyboard, closing a tab ends its
+  session), `McpTab`, `SettingsTerminalPage`, and the cross-boundary contracts no compiler checks
+  (`shared/api/contract.test.ts`: every IPC wrapper names a command the backend registers and
+  no registered command is unreachable, the event names are `state::events`', and
+  `shared/lib/mask.ts`/`features/sync/lib/fileFormat.ts` are held against their Rust originals).
+  Feature hooks are not tested otherwise.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.
   Use `PlatformContext::for_tests(os, home, app_data, app_config)` with a `tempfile::tempdir()` — never touch
   the real environment or network. Manifest fixtures use `catalog::parse_manifest(toml, "test")`.
@@ -715,7 +790,17 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   terminal environment a GUI launch has to supply.
   `services::web` is tested on its pure parts only — which URLs it refuses (`file:`, a bare path, a URL with
   credentials in it), what a `Content-Type` means, and the charset it decodes with, header or `<meta>` — since
-  no test in the suite touches the network.
+  no test in the suite touches the network. `services::hub` is the exception that proves the rule: it stands
+  up a hand-written HTTP/1.1 stub on `127.0.0.1:0` (no new dependency, nothing but the loopback ever
+  contacted) and pins what the service promises about an origin it cannot otherwise reach — an identical
+  search costing no second request while a different term, a different cursor and `refresh` each cost one,
+  the per-body / per-file / per-repo caps reported as that source's problem instead of read, both paging
+  styles (a cursor the previous page reported, and a locally paged index document read once), one failing
+  source leaving the others answering, oldest-first eviction once the cache is over its budget, and a skill
+  install writing only inside its own directory. `adapters::manifest_adapter` and `adapters::claude` cover
+  the helper rules a manifest cannot express and the refusals of both adapters — a skill entry and its
+  disabled spelling, slugs, YAML frontmatter, array-shaped MCP maps, a payload whose path escapes, and the
+  plugin-managed skills Claude Code must never let Ahabby delete — against the shipped `claude-code.toml`.
   `services::hub::installed` builds its index from a fixture report and asserts what a card is told: the owners
   a name is found for (a project and the shared surface included), a skill compared by the hash of a real
   `SKILL.md` written into a `tempdir`, a server by its recipe, and that a different name or a different kind

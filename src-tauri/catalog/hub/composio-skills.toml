@@ -1,0 +1,24 @@
+# Composio's collection — the largest single source the Hub ships with, and the one that is read
+# with no `path` filter: its layout is two-level and has no common directory above the skills.
+#
+# SOURCE: https://github.com/ComposioHQ/awesome-claude-skills (checked 2026-10-14) — 864
+#   `SKILL.md` directories: `composio-skills/<app>-automation`, one per SaaS app Composio connects,
+#   plus the general-purpose skills at the root (documents, PDF and office files, MCP builder,
+#   artifacts, web app testing). The repository declares no license of its own, so none is claimed
+#   here — each skill carries its own terms in its `SKILL.md`.
+#   `template-skill` is the skeleton contributors copy, not a skill to install, which is why it is
+#   the one path this source excludes.
+id = "composio-skills"
+name = "Composio Skills"
+kind = "githubSkills"
+repository = "ComposioHQ/awesome-claude-skills"
+git_ref = "master"
+provides = ["skill"]
+vendor = "Composio"
+homepage = "https://github.com/ComposioHQ/awesome-claude-skills"
+description = """Hundreds of ready skills in one collection: an agent skill per SaaS app — Stripe,
+HubSpot, Slack, Notion, GitHub and many more — built on Composio's tool connections, plus the
+general-purpose ones: document and PDF pipelines, slide and sheet generation, artifact building,
+MCP servers, and web app testing."""
+tags = ["automation", "ai"]
+exclude = ["template-skill"]

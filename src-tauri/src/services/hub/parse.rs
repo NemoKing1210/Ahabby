@@ -1032,12 +1032,53 @@ struct IndexVariable {
     default: Option<String>,
 }
 
-/// A repository's star count, from the document GitHub answers `GET /repos/{owner}/{repo}` with.
+/// What the Hub keeps of one GitHub repository: how popular it is, and whose it is.
 ///
-/// `None` when the body is not that document — a rate-limit notice, an error — because a star
-/// count is trivia and the Hub screen must render without it.
-pub fn stars(repository: &serde_json::Value) -> Option<u64> {
-    repository.get("stargazers_count")?.as_u64()
+/// Both facts come from the one document GitHub answers `GET /repos/{owner}/{repo}` with, so a
+/// collection that is on GitHub carries a star count *and* the avatar of the account that
+/// publishes it. Like the count, the avatar is trivia: an offline machine leaves both empty and
+/// the screen still renders.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RepoFacts {
+    pub stars: Option<u64>,
+    /// The owner's avatar URL, `https` only — it is fetched through the reader's image proxy.
+    pub avatar: Option<String>,
+}
+
+impl RepoFacts {
+    /// `true` when GitHub answered nothing usable — a rate limit, an error, another document.
+    pub fn is_empty(&self) -> bool {
+        self.stars.is_none() && self.avatar.is_none()
+    }
+
+    /// These facts, with whatever they do not carry taken from `fallback` — a fresh answer that
+    /// named the stars but not the owner keeps the avatar that was read before it.
+    pub fn or(&self, fallback: &RepoFacts) -> RepoFacts {
+        RepoFacts {
+            stars: self.stars.or(fallback.stars),
+            avatar: self.avatar.clone().or_else(|| fallback.avatar.clone()),
+        }
+    }
+}
+
+/// A repository's star count and owner avatar, from the document GitHub answers
+/// `GET /repos/{owner}/{repo}` with.
+///
+/// Both stay `None` when the body is not that document — a rate-limit notice, an error — because
+/// they are trivia and the Hub screen must render without them.
+pub fn repo_facts(repository: &serde_json::Value) -> RepoFacts {
+    RepoFacts {
+        stars: repository
+            .get("stargazers_count")
+            .and_then(|stars| stars.as_u64()),
+        avatar: repository
+            .get("owner")
+            .and_then(|owner| owner.get("avatar_url"))
+            .and_then(|avatar| avatar.as_str())
+            .map(str::trim)
+            .filter(|avatar| avatar.starts_with("https://"))
+            .map(str::to_string),
+    }
 }
 
 #[cfg(test)]
@@ -1070,20 +1111,42 @@ provides = ["mcp"]
     }
 
     #[test]
-    fn a_star_count_comes_only_from_the_field_github_sends() {
-        let body = serde_json::json!({ "full_name": "owner/repo", "stargazers_count": 18432 });
-        assert_eq!(stars(&body), Some(18432));
+    fn a_repository_is_read_for_its_stars_and_its_owners_avatar() {
+        let body = serde_json::json!({
+            "full_name": "owner/repo",
+            "stargazers_count": 18432,
+            "owner": { "login": "owner", "avatar_url": "https://avatars.githubusercontent.com/u/1?v=4" }
+        });
         assert_eq!(
-            stars(&serde_json::json!({ "stargazers_count": 0 })),
-            Some(0)
+            repo_facts(&body),
+            RepoFacts {
+                stars: Some(18432),
+                avatar: Some("https://avatars.githubusercontent.com/u/1?v=4".to_string()),
+            }
+        );
+        assert_eq!(
+            repo_facts(&serde_json::json!({ "stargazers_count": 0 })),
+            RepoFacts {
+                stars: Some(0),
+                avatar: None,
+            }
         );
 
-        // A rate-limit notice or any other document is not a count — the Hub reads without it.
-        assert_eq!(
-            stars(&serde_json::json!({ "message": "API rate limit exceeded" })),
-            None
+        // A rate-limit notice or any other document says nothing about the repository — the Hub
+        // reads the screen without it rather than inventing a count or a picture.
+        let nothing = RepoFacts::default();
+        assert!(
+            repo_facts(&serde_json::json!({ "message": "API rate limit exceeded" })).is_empty()
         );
-        assert_eq!(stars(&serde_json::json!("nope")), None);
+        assert_eq!(repo_facts(&serde_json::json!("nope")), nothing);
+        // An avatar is fetched through the reader's image proxy, which speaks `http(s)` — and the
+        // one GitHub sends is `https`, so a document claiming otherwise is not believed.
+        assert_eq!(
+            repo_facts(&serde_json::json!({
+                "owner": { "avatar_url": "data:image/svg+xml,<svg/>" }
+            })),
+            nothing
+        );
     }
 
     /// A `tar.gz` shaped like GitHub's: every path under one `repo-ref/` directory.

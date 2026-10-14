@@ -764,6 +764,8 @@ pub const SYNC_DESCRIPTION_PREFIX: &str = "[Ahabby] ";
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The reader of the document a provider stores: what a push writes and a pull reads.
+    use crate::services::sync::plan::{decode_file, decode_marker, payload_file};
 
     #[test]
     fn every_kind_round_trips_through_its_name() {
@@ -778,6 +780,8 @@ mod tests {
         let settings = SyncSettings::default();
         assert!(!settings.include_secrets);
         assert!(!settings.enabled);
+        // A scan is the moment the local set changes, so saving right after one is the default.
+        assert!(settings.auto_on_scan);
         assert_eq!(settings.auto_kinds, SyncKind::SYNCABLE.to_vec());
         assert!(!settings.auto_kinds.contains(&SyncKind::Extension));
         assert!(settings.auto_kinds.contains(&SyncKind::Skill));
@@ -792,5 +796,157 @@ mod tests {
         ] {
             assert_eq!(SyncOwnerKind::from_name(kind.name()), Some(kind));
         }
+        // A document naming a surface this build does not have is refused, never folded into one.
+        assert_eq!(SyncOwnerKind::from_name("workspace"), None);
+    }
+
+    #[test]
+    fn a_provider_id_is_the_wire_id_the_document_declares() {
+        // Gist is the only variant; the match in `label` is exhaustive, so a second backend
+        // cannot be added without giving it one.
+        assert_eq!(SyncProviderId::default(), SyncProviderId::Gist);
+        assert_eq!(SyncProviderId::Gist.label(), "GitHub Gist");
+        // The id a settings document and a payload carry is the lowercase name, not the label.
+        assert_eq!(
+            serde_json::to_string(&SyncProviderId::Gist).unwrap(),
+            "\"gist\""
+        );
+        assert_eq!(
+            serde_json::from_str::<SyncProviderId>("\"gist\"").unwrap(),
+            SyncProviderId::Gist
+        );
+
+        // A document naming a provider this build does not implement is refused, never read as
+        // the one backend that exists: pushing to the wrong account is worse than not pushing.
+        assert!(serde_json::from_str::<SyncProviderId>("\"gitlab\"").is_err());
+        let error =
+            serde_json::from_value::<SyncSettings>(serde_json::json!({ "provider": "gitlab" }))
+                .unwrap_err();
+        assert!(error.to_string().contains("gitlab"));
+
+        // Absent, by contrast, is the documented default: a settings file written before sync
+        // existed still loads, with the only backend selected.
+        let old = serde_json::from_value::<SyncSettings>(serde_json::json!({})).unwrap();
+        assert_eq!(old.provider, SyncProviderId::Gist);
+    }
+
+    #[test]
+    fn an_untouched_item_and_an_unread_file_claim_nothing() {
+        // What the UI lists before anything was pushed: no remote copy, nothing on disk and no
+        // secret flag the scan has not set — the three things that gate a push.
+        let item = SyncItem::default();
+        assert_eq!(item.status, SyncItemStatus::Unsynced);
+        assert!(item.editable);
+        assert!(!item.exists);
+        assert!(!item.has_secrets);
+        assert!(item.remote_id.is_none());
+        assert!(item.synced_at_ms.is_none());
+        assert_eq!(item.size_bytes, 0);
+        assert_eq!(item.owner_kind, SyncOwnerKind::Agent);
+        assert_eq!(item.kind, SyncKind::Config);
+
+        // The record of a cloud copy: a listing that never read a size or a secret must not show
+        // one, and an empty hash must not be mistaken for the hash of an empty item.
+        let remote = RemoteItem::default();
+        assert!(!remote.has_secrets);
+        assert_eq!(remote.size_bytes, 0);
+        assert!(remote.hash.is_empty());
+        assert_eq!(remote.updated_at_ms, 0);
+
+        // A file nobody read carries no text and no hash: the viewer must not render an empty
+        // file, and a compare must not treat two unread files as identical.
+        let content = SyncFileContent::default();
+        assert!(content.text.is_none());
+        assert!(content.hash.is_none());
+        assert!(!content.binary);
+        assert!(!content.truncated);
+        assert_eq!(content.size_bytes, 0);
+    }
+
+    #[test]
+    fn a_comparison_that_was_never_run_reports_nothing_changed() {
+        // `Same` is the one status that does not mark an item as changed, so a row that was never
+        // diffed must not claim a difference the user would be offered to restore over.
+        let file = SyncComparedFile::default();
+        assert_eq!(file.status, SyncFileStatus::Same);
+        assert!(!file.binary);
+        assert!(file.left.is_none() && file.right.is_none());
+        assert!(file.local_size_bytes.is_none() && file.cloud_size_bytes.is_none());
+        assert!(!file.truncated);
+
+        let comparison = SyncComparison::default();
+        assert!(comparison.identical);
+        assert_eq!(comparison.changed, 0);
+        assert!(comparison.files.is_empty());
+        assert_eq!(comparison.kind, SyncKind::Config);
+        // Neither side has been read yet, and both start from the same neutral empty content.
+        assert_eq!(comparison.local, SyncContent::default());
+        assert_eq!(comparison.cloud, SyncContent::default());
+    }
+
+    /// The one document a provider stores, with one text file and one binary file.
+    fn sample_payload() -> SyncPayload {
+        SyncPayload {
+            schema: SYNC_SCHEMA,
+            app: "ahabby".to_string(),
+            kind: SyncKind::Skill,
+            key: "skill|pdf".to_string(),
+            owner_kind: SyncOwnerKind::Agent,
+            owner_id: "claude-code".to_string(),
+            owner_name: "Claude Code".to_string(),
+            name: "pdf".to_string(),
+            label: "PDF".to_string(),
+            relative_path: ".claude/skills/pdf".to_string(),
+            is_directory: true,
+            files: vec![
+                payload_file("SKILL.md", b"# PDF\n"),
+                // Not valid UTF-8, so the codec has to store it base64.
+                payload_file("assets/logo.png", &[0x00, 0x9F, 0x92, 0x96, 0xFF]),
+            ],
+            hash: "sha256:0f1e2d".to_string(),
+            pushed_at_ms: 1_700_000_000_000,
+            source_path: "/home/u/.claude/skills/pdf".to_string(),
+            app_version: "0.2.0".to_string(),
+            os: "windows".to_string(),
+            has_secrets: false,
+        }
+    }
+
+    #[test]
+    fn the_stored_document_keeps_its_metadata_and_its_binary_files() {
+        let payload = sample_payload();
+        assert_eq!(payload.files[0].encoding, "utf8");
+        assert_eq!(payload.files[1].encoding, "base64");
+
+        // The provider only ever hands the document over as JSON, so this round trip is the
+        // contract between a push on one machine and a pull on another.
+        let json = serde_json::to_string(&payload).unwrap();
+        let parsed: SyncPayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, payload);
+        // The metadata a listing and a restore read, still there and still in camelCase.
+        assert_eq!(parsed.schema, SYNC_SCHEMA);
+        assert_eq!(parsed.owner_kind, SyncOwnerKind::Agent);
+        assert_eq!(parsed.owner_id, "claude-code");
+        assert_eq!(parsed.key, "skill|pdf");
+        assert_eq!(parsed.pushed_at_ms, 1_700_000_000_000);
+        assert!(!parsed.has_secrets);
+        assert_eq!(
+            serde_json::to_value(&parsed).unwrap()["pushedAtMs"],
+            serde_json::json!(1_700_000_000_000i64)
+        );
+        // A binary file comes back as the bytes it was: base64 is only its carrier.
+        assert_eq!(
+            decode_file(&parsed.files[1]).unwrap(),
+            vec![0x00, 0x9F, 0x92, 0x96, 0xFF]
+        );
+
+        // SYNC_SCHEMA is the version a reader compares against: this document is accepted, and
+        // the same one with a bumped schema is refused, so a newer writer is never read as this
+        // one — a mis-read restore would overwrite files this build cannot describe.
+        let document = serde_json::to_value(&payload).unwrap();
+        assert_eq!(decode_marker(&document).unwrap(), payload);
+        let mut newer = document;
+        newer["schema"] = serde_json::json!(SYNC_SCHEMA + 1);
+        assert!(decode_marker(&newer).is_err());
     }
 }

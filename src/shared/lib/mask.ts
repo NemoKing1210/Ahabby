@@ -7,7 +7,11 @@
  * `src/shared/lib/mask.test.ts`.
  */
 
-const SECRET_HINTS = [
+/**
+ * Exported so `mask.test.ts` can hold it against the Rust list itself: a hint added on one side
+ * only is exactly the drift these two implementations must not have.
+ */
+export const SECRET_HINTS = [
   'token',
   'secret',
   'password',

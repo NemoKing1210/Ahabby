@@ -1,0 +1,79 @@
+# `taste-skill` — art direction for the frontend, distilled from a study of curated sites, so an
+# agent designs a page instead of shipping the look every model produces by default.
+#
+# SOURCE: https://github.com/Leonxlnx/taste-skill (checked 2026-10-14) — `skills/<name>/SKILL.md`;
+#   the repository declares the MIT license. Three entries are earlier versions of the flagship
+#   `design-taste-frontend` skill, kept for projects that depend on their exact behaviour.
+id = "taste-skill"
+name = "Taste Skill"
+kind = "githubSkills"
+repository = "Leonxlnx/taste-skill"
+path = "skills"
+provides = ["skill"]
+vendor = "Leonxlnx"
+homepage = "https://github.com/Leonxlnx/taste-skill"
+license = "MIT"
+description = """Design taste for coding agents: art direction, layout variance and motion rules for
+websites, image-direction skills that produce the design references before the code, brand kits,
+minimalist and industrial interface styles, and a redesign skill that audits what is already there
+and lifts it to the quality of a good agency's work."""
+
+tags = ["design", "frontend"]
+
+# What each skill is *for*, so the Hub can be browsed and filtered by subject instead of by
+# directory layout. The prefixes are the repository's own directories (see `catalog/HUB.md`).
+[[tag_rules]]
+prefix = "skills/taste-skill"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/taste-skill-v1"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/taste-skill-v2-experimental"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/gpt-tasteskill"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/brandkit"
+tags = ["design", "media"]
+
+[[tag_rules]]
+prefix = "skills/minimalist-skill"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/brutalist-skill"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/soft-skill"
+tags = ["design"]
+
+[[tag_rules]]
+prefix = "skills/stitch-skill"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/redesign-skill"
+tags = ["design", "frontend", "refactoring"]
+
+[[tag_rules]]
+prefix = "skills/image-to-code-skill"
+tags = ["design", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/imagegen-frontend-web"
+tags = ["design", "frontend", "media"]
+
+[[tag_rules]]
+prefix = "skills/imagegen-frontend-mobile"
+tags = ["design", "mobile", "media"]
+
+[[tag_rules]]
+prefix = "skills/output-skill"
+tags = ["agents"]

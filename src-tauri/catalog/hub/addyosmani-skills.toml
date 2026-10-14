@@ -1,0 +1,123 @@
+# Addy Osmani's production-grade engineering skills — the method an agent is meant to follow from a
+# written spec to a launch.
+#
+# SOURCE: https://github.com/addyosmani/agent-skills (checked 2026-10-14) — 25
+#   `skills/<name>/SKILL.md` directories; the repository declares the MIT license. It also carries
+#   `agents/`, `commands/` and `hooks/` for other harnesses, which `path` leaves out of the Hub.
+id = "addyosmani-skills"
+name = "Addy Osmani's Skills"
+kind = "githubSkills"
+repository = "addyosmani/agent-skills"
+path = "skills"
+provides = ["skill"]
+vendor = "Addy Osmani"
+homepage = "https://github.com/addyosmani/agent-skills"
+license = "MIT"
+description = """A full engineering method for coding agents: spec-, constraint- and source-driven
+development, planning and task breakdown, incremental implementation, test-driven work, review and
+simplification, debugging and error recovery, security hardening, observability, performance,
+documentation, and the launch that follows."""
+
+# The whole collection is one working method, so that much is declared for every entry; the rules
+# below add the subject each skill is about. The prefixes are the repository's own directories.
+tags = ["development", "workflow"]
+
+[[tag_rules]]
+prefix = "skills/api-and-interface-design"
+tags = ["api", "development"]
+
+[[tag_rules]]
+prefix = "skills/browser-testing-with-devtools"
+tags = ["testing", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/ci-cd-and-automation"
+tags = ["ci", "ops"]
+
+[[tag_rules]]
+prefix = "skills/code-review-and-quality"
+tags = ["review"]
+
+[[tag_rules]]
+prefix = "skills/code-simplification"
+tags = ["refactoring"]
+
+[[tag_rules]]
+prefix = "skills/constraint-driven-development"
+tags = ["planning", "development"]
+
+[[tag_rules]]
+prefix = "skills/context-engineering"
+tags = ["agents", "ai"]
+
+[[tag_rules]]
+prefix = "skills/debugging-and-error-recovery"
+tags = ["debugging"]
+
+[[tag_rules]]
+prefix = "skills/deprecation-and-migration"
+tags = ["refactoring", "planning"]
+
+[[tag_rules]]
+prefix = "skills/documentation-and-adrs"
+tags = ["docs"]
+
+[[tag_rules]]
+prefix = "skills/doubt-driven-development"
+tags = ["review", "planning"]
+
+[[tag_rules]]
+prefix = "skills/frontend-ui-engineering"
+tags = ["frontend", "design"]
+
+[[tag_rules]]
+prefix = "skills/git-workflow-and-versioning"
+tags = ["git"]
+
+[[tag_rules]]
+prefix = "skills/idea-refine"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/incremental-implementation"
+tags = ["development", "planning"]
+
+[[tag_rules]]
+prefix = "skills/interview-me"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/observability-and-instrumentation"
+tags = ["ops", "debugging"]
+
+[[tag_rules]]
+prefix = "skills/performance-optimization"
+tags = ["performance"]
+
+[[tag_rules]]
+prefix = "skills/planning-and-task-breakdown"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/security-and-hardening"
+tags = ["security"]
+
+[[tag_rules]]
+prefix = "skills/shipping-and-launch"
+tags = ["ops", "planning"]
+
+[[tag_rules]]
+prefix = "skills/source-driven-development"
+tags = ["docs", "development"]
+
+[[tag_rules]]
+prefix = "skills/spec-driven-development"
+tags = ["planning"]
+
+[[tag_rules]]
+prefix = "skills/test-driven-development"
+tags = ["testing"]
+
+[[tag_rules]]
+prefix = "skills/using-agent-skills"
+tags = ["agents"]

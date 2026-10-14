@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import { memo, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pencil, Sparkles, Trash2 } from 'lucide-react'
 
@@ -23,8 +23,12 @@ import { SkillContextMenu } from './SkillContextMenu'
  *
  * `agents` is what turns the card into a library card — the agent page already knows whose
  * list it is showing, so it leaves the owners off.
+ *
+ * Memoized: a library holds hundreds of these, and every handler it receives is a stable callback
+ * of the screen above it (`LibraryPage`), so a keystroke in a filter or another card's switch
+ * redraws that card alone.
  */
-export function SkillCard({
+export const SkillCard = memo(function SkillCard({
   skill,
   agents,
   onOpen,
@@ -185,4 +189,4 @@ export function SkillCard({
       </Card>
     </SkillContextMenu>
   )
-}
+})

@@ -1,0 +1,221 @@
+# Marketing skills for coding agents — the marketing toolkit of a small company, one skill per job.
+#
+# SOURCE: https://github.com/coreyhaines31/marketingskills (checked 2026-10-14) — 50
+#   `skills/<name>/SKILL.md` directories; the repository declares the MIT license.
+id = "marketing-skills"
+name = "Marketing Skills"
+kind = "githubSkills"
+repository = "coreyhaines31/marketingskills"
+path = "skills"
+provides = ["skill"]
+vendor = "Corey Haines"
+homepage = "https://github.com/coreyhaines31/marketingskills"
+license = "MIT"
+description = """Marketing work an agent can actually do: conversion optimisation and landing pages,
+copywriting and copy editing, SEO and programmatic SEO, paid ads and ad creative, email and cold
+outreach, pricing, onboarding, analytics and attribution, launches and events — and the growth loops
+that tie them together."""
+
+# What each skill is *for*, so the Hub can be browsed and filtered by subject instead of by
+# directory layout. The prefixes are the repository's own directories (see `catalog/HUB.md`).
+tags = ["marketing"]
+
+[[tag_rules]]
+prefix = "skills/ab-testing"
+tags = ["testing", "growth"]
+
+[[tag_rules]]
+prefix = "skills/ad-creative"
+tags = ["ads", "copywriting"]
+
+[[tag_rules]]
+prefix = "skills/ads"
+tags = ["ads"]
+
+[[tag_rules]]
+prefix = "skills/ai-seo"
+tags = ["seo", "ai"]
+
+[[tag_rules]]
+prefix = "skills/analytics"
+tags = ["analytics", "data"]
+
+[[tag_rules]]
+prefix = "skills/aso"
+tags = ["aso", "mobile"]
+
+[[tag_rules]]
+prefix = "skills/attribution"
+tags = ["analytics"]
+
+[[tag_rules]]
+prefix = "skills/churn-prevention"
+tags = ["retention", "growth"]
+
+[[tag_rules]]
+prefix = "skills/co-marketing"
+tags = ["marketing", "partnerships"]
+
+[[tag_rules]]
+prefix = "skills/cold-email"
+tags = ["outreach", "sales"]
+
+[[tag_rules]]
+prefix = "skills/community-marketing"
+tags = ["community", "growth"]
+
+[[tag_rules]]
+prefix = "skills/competitor-profiling"
+tags = ["research"]
+
+[[tag_rules]]
+prefix = "skills/competitors"
+tags = ["seo", "research"]
+
+[[tag_rules]]
+prefix = "skills/content-strategy"
+tags = ["content"]
+
+[[tag_rules]]
+prefix = "skills/copy-editing"
+tags = ["copywriting", "content"]
+
+[[tag_rules]]
+prefix = "skills/copywriting"
+tags = ["copywriting", "content"]
+
+[[tag_rules]]
+prefix = "skills/cro"
+tags = ["conversion", "growth"]
+
+[[tag_rules]]
+prefix = "skills/customer-research"
+tags = ["research"]
+
+[[tag_rules]]
+prefix = "skills/directory-submissions"
+tags = ["seo", "growth"]
+
+[[tag_rules]]
+prefix = "skills/emails"
+tags = ["outreach"]
+
+[[tag_rules]]
+prefix = "skills/events"
+tags = ["events", "sales"]
+
+[[tag_rules]]
+prefix = "skills/free-tools"
+tags = ["growth", "seo"]
+
+[[tag_rules]]
+prefix = "skills/image"
+tags = ["media", "design"]
+
+[[tag_rules]]
+prefix = "skills/influencer-marketing"
+tags = ["partnerships", "social"]
+
+[[tag_rules]]
+prefix = "skills/launch"
+tags = ["launch", "planning"]
+
+[[tag_rules]]
+prefix = "skills/lead-magnets"
+tags = ["growth", "outreach"]
+
+[[tag_rules]]
+prefix = "skills/marketing-council"
+tags = ["marketing", "planning"]
+
+[[tag_rules]]
+prefix = "skills/marketing-ideas"
+tags = ["marketing"]
+
+[[tag_rules]]
+prefix = "skills/marketing-loops"
+tags = ["marketing", "workflow"]
+
+[[tag_rules]]
+prefix = "skills/marketing-plan"
+tags = ["marketing", "planning"]
+
+[[tag_rules]]
+prefix = "skills/marketing-psychology"
+tags = ["marketing", "writing"]
+
+[[tag_rules]]
+prefix = "skills/offers"
+tags = ["sales", "pricing"]
+
+[[tag_rules]]
+prefix = "skills/onboarding"
+tags = ["onboarding", "growth"]
+
+[[tag_rules]]
+prefix = "skills/paywalls"
+tags = ["pricing", "growth"]
+
+[[tag_rules]]
+prefix = "skills/popups"
+tags = ["conversion", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/pricing"
+tags = ["pricing"]
+
+[[tag_rules]]
+prefix = "skills/product-marketing"
+tags = ["marketing", "docs"]
+
+[[tag_rules]]
+prefix = "skills/programmatic-seo"
+tags = ["seo", "development"]
+
+[[tag_rules]]
+prefix = "skills/prospecting"
+tags = ["sales"]
+
+[[tag_rules]]
+prefix = "skills/public-relations"
+tags = ["pr", "writing"]
+
+[[tag_rules]]
+prefix = "skills/referrals"
+tags = ["growth", "retention"]
+
+[[tag_rules]]
+prefix = "skills/revops"
+tags = ["ops", "data"]
+
+[[tag_rules]]
+prefix = "skills/sales-enablement"
+tags = ["sales"]
+
+[[tag_rules]]
+prefix = "skills/schema"
+tags = ["seo", "development"]
+
+[[tag_rules]]
+prefix = "skills/seo-audit"
+tags = ["seo"]
+
+[[tag_rules]]
+prefix = "skills/signup"
+tags = ["onboarding", "conversion"]
+
+[[tag_rules]]
+prefix = "skills/site-architecture"
+tags = ["seo", "frontend"]
+
+[[tag_rules]]
+prefix = "skills/sms"
+tags = ["sms", "outreach"]
+
+[[tag_rules]]
+prefix = "skills/social"
+tags = ["social"]
+
+[[tag_rules]]
+prefix = "skills/video"
+tags = ["media", "video"]

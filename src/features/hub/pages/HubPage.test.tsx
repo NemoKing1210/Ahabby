@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +8,7 @@ import type { HubEntry } from '@/shared/bindings/HubEntry'
 import type { HubEntryDetail } from '@/shared/bindings/HubEntryDetail'
 import type { HubPage as HubPageResult } from '@/shared/bindings/HubPage'
 import type { HubSource } from '@/shared/bindings/HubSource'
+import type { HubSourceCatalog } from '@/shared/bindings/HubSourceCatalog'
 import type { HubSourceReport } from '@/shared/bindings/HubSourceReport'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
 import type { Settings } from '@/shared/bindings/Settings'
@@ -27,8 +28,17 @@ vi.mock('@/shared/api/ipc', () => ({
     cachedAgents: vi.fn(),
     getSettings: vi.fn(),
     openUrl: vi.fn(),
+    fetchWebImage: vi.fn(),
   },
 }))
+
+// The stub has to be published before `lazyRows` is imported, which a hoisted callback does — see
+// `@/test/intersectionObserver` for why the module is reached through a dynamic import.
+const { FakeIntersectionObserver } = await vi.hoisted(async () => {
+  const stub = await import('@/test/intersectionObserver')
+  stub.installFakeIntersectionObserver()
+  return { FakeIntersectionObserver: stub.FakeIntersectionObserver }
+})
 
 // Radix opens the list on pointerdown and scrolls the active row into view; jsdom has neither
 // pointer capture nor `scrollIntoView` (see `shared/ui/Select.test.tsx`).
@@ -292,6 +302,11 @@ function serverDetail(): HubEntryDetail {
   }
 }
 
+/**
+ * The page over a fresh query client. Each source paints its heading as soon as its source file is
+ * known and its entries a moment later, when the collection itself answers — so a case waits for
+ * the entry it means to assert on (or the card it means to click), never for the heading alone.
+ */
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return renderWithProviders(
@@ -301,8 +316,39 @@ function renderPage() {
   )
 }
 
+/**
+ * The entry rows actually mounted: one per card or placeholder, which is what `useLazyRows` bounds
+ * — the entries behind the ones on screen are the caller's data, not the list's markup. Counted
+ * inside a section: the page's own list of sources is a card run too, and a source is not an entry.
+ */
+function mountedRows(container: HTMLElement): number {
+  return container.querySelectorAll('.ah-card-group .ah-card-group > *').length
+}
+
+/**
+ * Opens one source's section. The Hub opens with every collection folded, so a case that means to
+ * read entries opens the one it reads from — the heading, and with it the control, is on screen
+ * already.
+ */
+async function openSource(container: HTMLElement, name: string) {
+  const user = userEvent.setup()
+  await user.click(await within(container).findByRole('button', { name: `Expand ${name}` }))
+}
+
+/**
+ * The card a heading of the Hub wears — the section around it. Every level of the screen is one:
+ * a source, and the plugin groups inside it.
+ */
+function cardOf(container: HTMLElement, name: string): HTMLElement {
+  const title = within(container).getByRole('heading', { name })
+  const card = title.closest('section')
+  if (!card) throw new Error(`the heading of ${name} is not in a section`)
+  return card
+}
+
 describe('HubPage', () => {
   beforeEach(() => {
+    FakeIntersectionObserver.reset()
     vi.mocked(ipc.cachedAgents).mockResolvedValue(scanReport())
     // The pinned agent is the one an agent picker offers first.
     vi.mocked(ipc.getSettings).mockResolvedValue({ ...SETTINGS, favoriteAgents: ['warp'] })
@@ -342,13 +388,178 @@ describe('HubPage', () => {
   it('renders one section per source and installs nothing on its own', async () => {
     const { container } = renderPage()
 
+    // Every source is one folded section: its heading is on screen, its collection behind it.
     expect(await within(container).findByText('Example Skills')).toBeTruthy()
     expect(within(container).getByText('MCP Registry')).toBeTruthy()
-    expect(within(container).getByText('Read and fill PDF forms.')).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'Expand Example Skills' })).toBeTruthy()
+
+    await openSource(container, 'Example Skills')
+    expect(await within(container).findByText('Read and fill PDF forms.')).toBeTruthy()
     expect(within(container).getByText('Runs scripts')).toBeTruthy()
     expect(ipc.installHubResource).not.toHaveBeenCalled()
     // The folder the user's own sources go in is shown, so a collection can be added by hand.
     expect(within(container).getByText('/home/me/.config/ahabby/hub')).toBeTruthy()
+  })
+
+  it('opens with every collection folded, and opens one from its heading', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+
+    // The Hub opens as the list of collections it can read — one heading each — rather than as a
+    // wall of every entry of every one of them.
+    await within(container).findByText('Example Skills')
+    expect(within(container).getByRole('button', { name: 'Expand Example Skills' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'Expand MCP Registry' })).toBeTruthy()
+    // Nothing of a folded collection is mounted, so its cards cannot be read before it is opened.
+    expect(within(container).queryByText('Read and fill PDF forms.')).toBeNull()
+
+    await user.click(within(container).getByRole('button', { name: 'Expand Example Skills' }))
+    expect(await within(container).findByText('Read and fill PDF forms.')).toBeTruthy()
+    // The other collection stays as it was left.
+    expect(within(container).getByRole('button', { name: 'Expand MCP Registry' })).toBeTruthy()
+
+    await user.click(within(container).getByRole('button', { name: 'Collapse Example Skills' }))
+    await waitFor(() =>
+      expect(within(container).queryByText('Read and fill PDF forms.')).toBeNull(),
+    )
+  })
+
+  it('joins the sources into one card run, on the surface their fold calls for', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    // Every source is a card of the page's own run — `--group-gap` apart, with the full radius only
+    // at the ends of the stack — the way the Settings index wears its areas.
+    const card = cardOf(container, 'Example Skills')
+    expect(card.classList.contains('border')).toBe(true)
+    expect(cardOf(container, 'MCP Registry').parentElement?.parentElement).toBe(
+      card.parentElement?.parentElement,
+    )
+
+    // Folded, that card is the plain surface of the list; opened, its strip is the tinted caption
+    // band its collection hangs under — and for the most starred collection of the Hub that band
+    // wears the accent. The section's actions stay on the card either way.
+    const folded = card.firstElementChild
+    expect(folded?.classList.contains('bg-surface-2')).toBe(false)
+    expect(folded?.classList.contains('bg-accent-soft')).toBe(false)
+    expect(await within(card).findByRole('button', { name: 'Select 1 skill' })).toBeTruthy()
+
+    await user.click(within(container).getByRole('button', { name: 'Expand Example Skills' }))
+    await within(container).findByText('Read and fill PDF forms.')
+
+    expect(card.firstElementChild?.classList.contains('bg-accent-soft')).toBe(true)
+  })
+
+  it('ranks the three most starred collections of the Hub, and only those', async () => {
+    // The Hub is its own leaderboard: the order the sources arrive in — the backend hands them over
+    // most-starred first — decides who wears a rank, and a collection past the third wears none.
+    const starred = (id: string, stars: number): HubSource => ({
+      ...SKILLS_SOURCE,
+      id,
+      name: id,
+      repository: `owner/${id}`,
+      stars,
+    })
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [
+        starred('first', 298665),
+        starred('second', 180927),
+        starred('third', 162751),
+        starred('fourth', 106201),
+      ],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub).mockImplementation((sourceId) =>
+      Promise.resolve(
+        page({ entries: [], report: report({ id: sourceId, name: sourceId, total: 0, count: 0 }) }),
+      ),
+    )
+
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByText('first')
+
+    expect(within(cardOf(container, 'first')).getByLabelText('Top 1 by stars')).toBeTruthy()
+    expect(within(cardOf(container, 'second')).getByLabelText('Top 2 by stars')).toBeTruthy()
+    expect(within(cardOf(container, 'third')).getByLabelText('Top 3 by stars')).toBeTruthy()
+    expect(within(cardOf(container, 'fourth')).queryByLabelText(/^Top \d by stars$/)).toBeNull()
+    // The edge of the card says the same: the leader wears the full accent, the two behind it a
+    // quieter one, and the fourth keeps the border of any other collection.
+    expect(cardOf(container, 'first').classList.contains('border-accent/40')).toBe(true)
+    expect(cardOf(container, 'third').classList.contains('border-accent/20')).toBe(true)
+    expect(cardOf(container, 'fourth').classList.contains('border-accent/40')).toBe(false)
+
+    // A filter narrows what is on screen, never who is in the lead: narrowed to the fourth
+    // collection there is still one rank on the page, and it is the third collection's.
+    await user.click(screen.getByRole('combobox', { name: 'Source' }))
+    const options = await screen.findAllByRole('option')
+    const fourth = options.find((option) => option.textContent === 'fourth')
+    if (!fourth) throw new Error('the source filter lists no fourth collection')
+    await user.click(fourth)
+
+    await waitFor(() => expect(within(container).queryByText('first')).toBeNull())
+    expect(within(cardOf(container, 'fourth')).queryByLabelText(/^Top \d by stars$/)).toBeNull()
+  })
+
+  it('paints the avatar GitHub keeps for a collection, and a monogram where there is none', async () => {
+    const avatar = 'https://avatars.githubusercontent.com/u/1?v=4'
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [{ ...SKILLS_SOURCE, avatar }, REGISTRY_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.fetchWebImage).mockResolvedValue({ mime: 'image/png', base64: 'AAAA' })
+
+    const { container } = renderPage()
+    await within(container).findByText('Example Skills')
+
+    // The bytes arrive from the backend as a `data:` URL — the window's CSP loads nothing else — and a
+    // source that is not on GitHub, or whose picture could not be read, keeps the monogram tile.
+    const image = await waitFor(() => {
+      const painted = cardOf(container, 'Example Skills').querySelector('img')
+      if (!painted) throw new Error('the source painted no avatar')
+      return painted
+    })
+    expect(image.getAttribute('src')).toBe('data:image/png;base64,AAAA')
+    expect(ipc.fetchWebImage).toHaveBeenCalledWith(avatar)
+    expect(cardOf(container, 'MCP Registry').querySelector('img')).toBeNull()
+  })
+
+  it('wears a plugin group as a card of its own, welded inside its source', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    const grouped = (name: string) =>
+      entry({
+        id: `example-skills/plugins/teams/skills/${name}`,
+        name,
+        group: 'teams',
+        hasScripts: false,
+      })
+    vi.mocked(ipc.searchHub).mockResolvedValue(
+      page({ entries: [grouped('review'), grouped('plan')] }),
+    )
+
+    const { container } = renderPage()
+    await openSource(container, 'Example Skills')
+
+    // The group wears the same card one level in, and the source welds its groups into a run of
+    // their own.
+    const group = cardOf(container, 'Teams')
+    expect(group.classList.contains('border')).toBe(true)
+    expect(group.parentElement?.classList.contains('ah-card-stack')).toBe(true)
+    expect(group.firstElementChild?.classList.contains('bg-surface-2')).toBe(false)
+
+    await user.click(within(container).getByRole('button', { name: 'Expand Teams' }))
+    expect(await within(container).findByRole('button', { name: 'review' })).toBeTruthy()
+    expect(group.firstElementChild?.classList.contains('bg-surface-2')).toBe(true)
+    // Its skills are inside that card, on the canvas it frames.
+    expect(within(group).getByRole('button', { name: 'plan' })).toBeTruthy()
   })
 
   it('opens Recommendations with role chips and asks for curated entries', async () => {
@@ -380,8 +591,8 @@ describe('HubPage', () => {
   it('folds a whole source while keeping its heading', async () => {
     const user = userEvent.setup()
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
-    expect(within(container).getByText('Read and fill PDF forms.')).toBeTruthy()
+    await openSource(container, 'Example Skills')
+    expect(await within(container).findByText('Read and fill PDF forms.')).toBeTruthy()
 
     await user.click(within(container).getByRole('button', { name: 'Collapse Example Skills' }))
     await waitFor(() =>
@@ -422,8 +633,8 @@ describe('HubPage', () => {
     vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [entry(), held] }))
 
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
-    expect(within(container).getByRole('button', { name: 'pdf' })).toBeTruthy()
+    await openSource(container, 'Example Skills')
+    expect(await within(container).findByRole('button', { name: 'pdf' })).toBeTruthy()
     expect(within(container).getByRole('button', { name: 'invoice' })).toBeTruthy()
 
     const group = screen.getByRole('group', { name: 'Filter by installed state' })
@@ -453,7 +664,7 @@ describe('HubPage', () => {
     vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [entry()] }))
 
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
     const group = screen.getByRole('group', { name: 'Filter by installed state' })
     await user.click(within(group).getByRole('button', { name: 'Installed' }))
@@ -469,9 +680,9 @@ describe('HubPage', () => {
       userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
-    await user.click(within(container).getByRole('button', { name: 'Install' }))
+    await user.click(await within(container).findByRole('button', { name: 'Install' }))
 
     // The review step: every file, and the warning about what an agent may run.
     expect(await screen.findByText('What will be written')).toBeTruthy()
@@ -511,9 +722,9 @@ describe('HubPage', () => {
       userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
-    await within(container).findByText('MCP Registry')
+    await openSource(container, 'MCP Registry')
 
-    await user.click(within(container).getByRole('button', { name: 'Install' }))
+    await user.click(await within(container).findByRole('button', { name: 'Install' }))
 
     // The recipe is pre-filled from what the publisher declared.
     expect(await screen.findByLabelText('Command')).toHaveValue('npx')
@@ -549,10 +760,10 @@ describe('HubPage', () => {
       userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
     // The body of the card is the preview: what the payload *is*, with no form and no write.
-    await user.click(within(container).getByRole('button', { name: 'pdf' }))
+    await user.click(await within(container).findByRole('button', { name: 'pdf' }))
 
     expect(await screen.findByText('Instructions')).toBeTruthy()
     expect(screen.getByText('Fill the form in one pass.')).toBeTruthy()
@@ -577,11 +788,11 @@ describe('HubPage', () => {
     vi.mocked(ipc.getHubEntry).mockResolvedValue({ ...skillDetail(), entry: installedEntry() })
 
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
     // The card says it is installed and names every owner the scan found it for — the agent-neutral
     // shared surface included, and a copy that is switched off.
-    const card = within(container).getByRole('button', { name: 'pdf' })
+    const card = await within(container).findByRole('button', { name: 'pdf' })
     expect(within(card).getByText('Installed')).toBeTruthy()
     expect(within(card).getByText('Shared')).toBeTruthy()
     expect(within(card).getByText('Demo Agent')).toBeTruthy()
@@ -637,10 +848,10 @@ describe('HubPage', () => {
     })
 
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
     // The "differs" icon on the card is itself a compare shortcut.
-    const card = within(container).getByRole('button', { name: 'pdf' })
+    const card = await within(container).findByRole('button', { name: 'pdf' })
     expect(
       within(card).getByRole('button', {
         name: /Different from what the collection publishes/,
@@ -657,11 +868,11 @@ describe('HubPage', () => {
     expect(screen.getByText('This copy')).toBeTruthy()
     expect(screen.getByText(/Local edit/)).toBeTruthy()
 
-    // The card shortcut opens the same dialog.
+    // The card shortcut opens the same dialog. The section was left open, and an open collection is
+    // kept for the session, so the second mount finds the entries without opening it again.
     cleanup()
     const again = renderPage()
-    await within(again.container).findByText('Example Skills')
-    const cardAgain = within(again.container).getByRole('button', { name: 'pdf' })
+    const cardAgain = await within(again.container).findByRole('button', { name: 'pdf' })
     await user.click(
       within(cardAgain).getByRole('button', {
         name: /Different from what the collection publishes/,
@@ -681,10 +892,10 @@ describe('HubPage', () => {
       ),
     )
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
     // The entry's own tags are on its card, next to what it is.
-    const card = within(container).getByRole('button', { name: 'pdf' })
+    const card = await within(container).findByRole('button', { name: 'pdf' })
     expect(within(card).getByText('documents')).toBeTruthy()
     expect(within(card).getByText('design')).toBeTruthy()
 
@@ -767,9 +978,9 @@ describe('HubPage', () => {
       userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
-    fireEvent.contextMenu(within(container).getByRole('button', { name: 'pdf' }))
+    fireEvent.contextMenu(await within(container).findByRole('button', { name: 'pdf' }))
 
     expect(await screen.findByRole('menuitem', { name: 'View' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Install' })).toBeTruthy()
@@ -780,7 +991,7 @@ describe('HubPage', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Re-read from the collection' }))
     expect(ipc.getHubEntry).toHaveBeenCalledWith('example-skills/skills/pdf', true)
 
-    fireEvent.contextMenu(within(container).getByRole('button', { name: 'pdf' }))
+    fireEvent.contextMenu(await within(container).findByRole('button', { name: 'pdf' }))
     await user.click(await screen.findByRole('menuitem', { name: 'View' }))
     expect(await screen.findByText('Instructions')).toBeTruthy()
   })
@@ -853,19 +1064,23 @@ describe('HubPage', () => {
     )
 
     const { container } = renderPage()
-    await within(container).findByText('Example Skills')
+    await openSource(container, 'Example Skills')
 
     // Plugin skills share a heading with select-all / install-all; an ungrouped skill stays under
-    // "Other entries".
-    expect(within(container).getByText('Teams')).toBeTruthy()
+    // "Other entries". The group opens folded, so its heading and its actions are there and the
+    // cards are one click away — the actions never need the cards open.
+    expect(await within(container).findByText('Teams')).toBeTruthy()
     expect(within(container).getByRole('button', { name: 'Select all 2' })).toBeTruthy()
     expect(within(container).getByRole('button', { name: 'Install all' })).toBeTruthy()
     expect(within(container).getByText('Other entries')).toBeTruthy()
-    expect(within(container).getByRole('button', { name: 'review' })).toBeTruthy()
-    expect(within(container).getByRole('button', { name: 'plan' })).toBeTruthy()
     expect(within(container).getByRole('button', { name: 'pdf' })).toBeTruthy()
+    expect(within(container).queryByRole('button', { name: 'review' })).toBeNull()
 
-    // Folding the group hides the cards; Select all / Install all stay on the header.
+    await user.click(within(container).getByRole('button', { name: 'Expand Teams' }))
+    expect(await within(container).findByRole('button', { name: 'review' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'plan' })).toBeTruthy()
+
+    // Folding the group hides the cards again; Select all / Install all stay on the header.
     await user.click(within(container).getByRole('button', { name: 'Collapse Teams' }))
     await waitFor(() =>
       expect(within(container).queryByRole('button', { name: 'review' })).toBeNull(),
@@ -950,6 +1165,7 @@ describe('HubPage', () => {
     )
 
     const { container } = renderPage()
+    await openSource(container, 'Example Skills')
     await within(container).findByText('Teams')
 
     await user.click(within(container).getByRole('button', { name: 'Install all' }))
@@ -976,5 +1192,95 @@ describe('HubPage', () => {
         confirm: true,
       },
     ])
+  })
+
+  it('mounts a long collection a batch at a time and grows it as the sentinel comes into view', async () => {
+    const collection = Array.from({ length: 60 }, (_, index) =>
+      entry({
+        id: `example-skills/skills/skill-${index}`,
+        name: `skill-${index}`,
+        description: `Skill number ${index}.`,
+      }),
+    )
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub).mockResolvedValue(
+      page({ entries: collection, report: report({ count: 60, total: 60 }) }),
+    )
+
+    const { container } = renderPage()
+    await openSource(container, 'Example Skills')
+    await within(container).findByText('skill-0')
+
+    // One batch, not the whole collection: the rows nobody is looking at stay unmounted.
+    expect(mountedRows(container)).toBe(24)
+    expect(within(container).queryByText('skill-24')).toBeNull()
+
+    act(() => FakeIntersectionObserver.latest().intersect())
+    expect(mountedRows(container)).toBe(48)
+    expect(within(container).getByText('skill-24')).toBeTruthy()
+  })
+
+  it('shows card-shaped placeholders while a collection is being read', async () => {
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    // A request that never answers: the pending state held still for the assertion.
+    vi.mocked(ipc.searchHub).mockReturnValue(new Promise<HubPageResult>(() => {}))
+
+    const { container } = renderPage()
+    // The source is known and its collection is not: the section is opened, and the placeholders
+    // under its heading carry the shape of the cards.
+    await openSource(container, 'Example Skills')
+
+    expect(mountedRows(container)).toBe(3)
+    expect(container.querySelector('[aria-busy="true"]')).toBeTruthy()
+    expect(within(container).queryByText('skill-0')).toBeNull()
+  })
+
+  it('grows the list with placeholders while the next page of a collection is read', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub)
+      .mockResolvedValueOnce(
+        page({ entries: [entry()], report: report({ count: 1, total: 40, nextCursor: 'page-2' }) }),
+      )
+      // The second page never answers: the pending state held still for the assertion.
+      .mockReturnValueOnce(new Promise<HubPageResult>(() => {}))
+
+    const { container } = renderPage()
+    await openSource(container, 'Example Skills')
+    await within(container).findByRole('button', { name: 'pdf' })
+
+    await user.click(within(container).getByRole('button', { name: 'Load more' }))
+
+    // The rows already read stay where they are and the ones being read announce themselves under
+    // them, in the shape of the cards they will become.
+    expect(within(container).getByRole('button', { name: 'pdf' })).toBeTruthy()
+    expect(within(container).queryByRole('button', { name: 'Load more' })).toBeNull()
+    expect(mountedRows(container)).toBe(3)
+  })
+
+  it('wears its own shape while the list of sources is being read', () => {
+    // A request that never answers: the pending state held still for the assertion.
+    vi.mocked(ipc.listHubSources).mockReturnValue(new Promise<HubSourceCatalog>(() => {}))
+
+    const { container } = renderPage()
+
+    // No source is known yet, so the page is the shape of one — the heading, the toolbar and the
+    // collections to come — and not an empty screen the sources then move: two collections' worth
+    // of placeholder cards, six rows and no source of the page's own run among them.
+    expect(container.querySelector('[aria-busy="true"]')).toBeTruthy()
+    expect(container.querySelectorAll('.ah-card-group > *')).toHaveLength(6)
+    expect(within(container).queryByText('Example Skills')).toBeNull()
   })
 })

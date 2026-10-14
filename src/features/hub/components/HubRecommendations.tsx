@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { memo } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
@@ -25,7 +26,6 @@ import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/EmptyState'
-import { SkeletonList } from '@/shared/ui/Primitives'
 
 import {
   RECOMMENDATION_ROLES,
@@ -35,6 +35,7 @@ import {
 import { useRecommendations } from '../recommendations/useRecommendations'
 import { isBatchable } from '../lib/grouping'
 import { HubEntryCard } from './HubEntryCard'
+import { HubEntrySkeletons } from './HubSkeletons'
 
 const ROLE_ICONS: Record<RecommendationRoleId, LucideIcon> = {
   everyday: Sparkles,
@@ -53,8 +54,11 @@ const ROLE_ICONS: Record<RecommendationRoleId, LucideIcon> = {
 /**
  * Role-based skill picks: pick what you do, then install the shortlist through the same dialogs
  * the catalogue uses.
+ *
+ * Memoized for the same reason a card is: the shortlist is built from `HubEntryCard`s, and ticking
+ * one of them must not redraw the role chips and every other pick around it.
  */
-export function HubRecommendations({
+export const HubRecommendations = memo(function HubRecommendations({
   roleId,
   onRoleChange,
   sources,
@@ -142,7 +146,7 @@ export function HubRecommendations({
       </div>
 
       {pending && items.every((item) => item.entry === null) ? (
-        <SkeletonList rows={4} />
+        <HubEntrySkeletons rows={4} />
       ) : items.length === 0 ? (
         <EmptyState
           icon={Boxes}
@@ -212,7 +216,7 @@ export function HubRecommendations({
       )}
     </div>
   )
-}
+})
 
 function WhyLine({ text, installed }: { text: string; installed: boolean }) {
   const { t } = useTranslation()

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, FolderOpen } from 'lucide-react'
 
+import { cn } from '@/shared/lib/cn'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Tooltip } from '@/shared/ui/Tooltip'
@@ -14,6 +15,10 @@ import { HubBatchActions } from './HubBatchActions'
  *
  * Batch actions stay visible while the group is folded: installing or selecting does not need the
  * cards open.
+ *
+ * It is the *strip* of the group's card, not a card of its own — the bordered surface around it
+ * belongs to `HubGroupBlock`, which is what lets a group weld to its neighbours the way a source
+ * does. Open, the strip is the tinted caption band its skills hang under; folded, it is the card.
  */
 export function HubGroupHeader({
   groupId,
@@ -46,13 +51,18 @@ export function HubGroupHeader({
     : t('hub.collapseGroup', { name: title })
 
   return (
-    <div className="border-border bg-surface-2/60 flex flex-col gap-3 rounded-xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-2">
+    <div
+      className={cn(
+        'ease-warm flex min-w-0 flex-col gap-3 px-3 py-2.5 transition-colors duration-150 sm:flex-row sm:items-center sm:justify-between',
+        !collapsed && 'bg-surface-2',
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2">
         <Tooltip content={toggleLabel}>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="mt-0.5 shrink-0"
+            className="shrink-0"
             aria-expanded={!collapsed}
             aria-label={toggleLabel}
             onClick={onToggleCollapsed}
@@ -66,7 +76,7 @@ export function HubGroupHeader({
         </Tooltip>
         <span
           aria-hidden
-          className="border-border bg-surface text-muted mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg border"
+          className="border-border bg-surface text-muted inline-flex size-8 shrink-0 items-center justify-center rounded-lg border"
         >
           <FolderOpen className="size-4" />
         </span>

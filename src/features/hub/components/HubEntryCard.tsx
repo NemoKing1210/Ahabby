@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent } from 'react'
+import { memo, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ExternalLink, Server, Sparkles } from 'lucide-react'
 
@@ -28,8 +28,13 @@ import { HubInstalled, HubTagList } from './HubEntryParts'
  *
  * Installable skills also carry a checkbox: selecting several feeds the page's batch install bar
  * without opening a dialog for each one.
+ *
+ * The card is memoized — one row is a lot of markup, and a hub page holds hundreds of them — so it
+ * redraws when its own entry, its own selected/refreshing state or the handlers change, and stays
+ * put when a filter, a scroll position or another row's checkbox moves. That is why every handler a
+ * card receives is a stable callback of the screen above it.
  */
-export function HubEntryCard({
+export const HubEntryCard = memo(function HubEntryCard({
   entry,
   source,
   onView,
@@ -183,4 +188,4 @@ export function HubEntryCard({
       </Card>
     </HubContextMenu>
   )
-}
+})

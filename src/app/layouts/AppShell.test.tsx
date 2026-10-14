@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
@@ -203,6 +203,19 @@ describe('AppShell', () => {
 
     expect(await screen.findByText('agents screen')).toBeInTheDocument()
     expect(ipc.setLastRoute).not.toHaveBeenCalled()
+  })
+
+  it('mounts the screen that was asked for instead of waiting for the last one to leave', async () => {
+    renderShell(settings(), '/agents')
+    await screen.findByText('agents screen')
+
+    fireEvent.click(screen.getByRole('link', { name: 'Library' }))
+
+    // The incoming screen is on screen with the click, and the outgoing one is not kept around to
+    // animate out: an exit in front of the new screen is the window answering the click a fifth of
+    // a second later, and every query the new screen starts waits behind it.
+    expect(screen.getByText('library screen')).toBeInTheDocument()
+    expect(screen.queryByText('agents screen')).toBeNull()
   })
 
   it('keeps the rail as tall as the window, with the header beside it', () => {

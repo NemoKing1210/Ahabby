@@ -233,17 +233,20 @@ export function HubEntryLinks({ entry, docs }: { entry: HubEntry; docs?: string 
  * strings the toolbar filters by, so translating them would break the one link between the two.
  * Each one wears its own colour — the same hue on the card, in the filter row and in every dialog,
  * because the colour is hashed out of the tag's name rather than assigned by position.
+ *
+ * A plain row rather than an animated list: a tag never moves, and one motion element per tag on
+ * every card of a long collection is a price the entrance would never pay back.
  */
 export function HubTagList({ entry }: { entry: HubEntry }) {
   if (entry.tags.length === 0) return null
   return (
-    <AnimatedList grouped={false} className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       {entry.tags.map((tag) => (
         <Badge key={tag} tone="outline" className="ah-tag" style={tagColor(tag)}>
           {tag}
         </Badge>
       ))}
-    </AnimatedList>
+    </div>
   )
 }
 

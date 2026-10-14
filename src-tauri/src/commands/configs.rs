@@ -303,8 +303,13 @@ mod tests {
     fn a_read_only_document_is_refused_by_every_write_path() {
         // The same guard serves `preview_config_save` / `save_config` / `restore_backup` and the
         // quick-settings pair, so a call that skips the UI is refused whatever it tried to write.
-        let error = require_editable(&target(false), "/home/u/.codex/config.toml").unwrap_err();
+        let read_only = target(false);
+        let error = require_editable(&read_only, "/home/u/.codex/config.toml").unwrap_err();
         assert_eq!(error.code(), "command_not_allowed");
+        // The refusal names the document, so the UI can tell the user which file it refused to
+        // write — a code alone would leave the user without the file to look at.
+        assert!(error.to_string().contains("/home/u/.codex/config.toml"));
+
         assert!(require_editable(&target(true), "/home/u/.codex/config.toml").is_ok());
     }
 }

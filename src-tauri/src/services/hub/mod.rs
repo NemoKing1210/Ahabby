@@ -17,7 +17,7 @@
 
 pub mod installed;
 mod parse;
-mod stars_cache;
+mod repo_cache;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -37,8 +37,8 @@ use crate::error::{AppError, Result};
 use crate::platform::now_ms;
 
 use super::http;
-use parse::{IndexItem, RegistryItem, RepoSkill, TarFile};
-use stars_cache::{resolve_star_count, StarsCache};
+use parse::{IndexItem, RegistryItem, RepoFacts, RepoSkill, TarFile};
+use repo_cache::{resolve_repo_facts, RepoCache};
 
 /// Repository payloads kept in memory before the oldest one is dropped.
 const CACHE_BUDGET_BYTES: u64 = 96 * 1024 * 1024;
@@ -61,19 +61,19 @@ const GITHUB_API: &str = "https://api.github.com";
 pub struct HubService {
     client: RwLock<reqwest::Client>,
     cache: Mutex<Cache>,
-    stars: Mutex<StarsCache>,
+    repos: Mutex<RepoCache>,
 }
 
 impl HubService {
     /// `proxy` decides how requests leave the machine, exactly as it does for version checks.
     ///
-    /// `app_data` holds the on-disk star-count cache (`cache/hub-stars.json`), so a rate-limited
-    /// or offline open still keeps the last known popularity order.
+    /// `app_data` holds the on-disk repository cache (`cache/hub-repos.json`), so a rate-limited
+    /// or offline open still keeps the last known popularity order and avatars.
     pub fn new(proxy: &Proxy, app_data: &Path) -> Self {
         Self {
             client: RwLock::new(http::client(proxy, REQUEST_TIMEOUT, MAX_REDIRECTS)),
             cache: Mutex::new(Cache::default()),
-            stars: Mutex::new(StarsCache::load(app_data)),
+            repos: Mutex::new(RepoCache::load(app_data)),
         }
     }
 
@@ -90,28 +90,28 @@ impl HubService {
         catalog_hub::load(Some(user_dir))
     }
 
-    /// The hub's sources for the screen: every source with the star count of its GitHub
-    /// repository, ordered by popularity.
+    /// The hub's sources for the screen: every source with what GitHub says about its repository
+    /// — the star count and the owner's avatar — ordered by popularity.
     ///
-    /// The count is third-party trivia read over the network, so a failed refresh is not fatal:
-    /// the last known count (memory, then the on-disk cache) stays on the source and the
-    /// popularity order is kept. A source that never had a count, or that is not on GitHub,
-    /// simply carries none. Any other command keeps using [`HubService::sources`]: resolving an
-    /// entry needs no count, and no request.
-    pub async fn sources_with_stars(&self, user_dir: &Path) -> HubSourceCatalog {
+    /// Both are third-party trivia read over the network, so a failed refresh is not fatal: what
+    /// was read before (memory, then the on-disk cache) stays on the source and the popularity
+    /// order is kept. A source that is not on GitHub, or whose repository was never read, simply
+    /// carries neither. Any other command keeps using [`HubService::sources`]: resolving an entry
+    /// needs neither, and no request.
+    pub async fn sources_for_screen(&self, user_dir: &Path) -> HubSourceCatalog {
         let mut catalog = catalog_hub::load(Some(user_dir));
-        self.annotate_stars(&mut catalog.sources).await;
+        self.annotate_repositories(&mut catalog.sources).await;
         sort_by_popularity(&mut catalog.sources);
         catalog
     }
 
-    /// Fill in the star count of every GitHub source, one request per distinct repository.
+    /// Fill in what GitHub knows about every source's repository, one request per distinct one.
     ///
-    /// Fresh counts are served from the star cache without a network round trip. Stale or missing
-    /// ones are asked for together — several collections, one after another, would otherwise be
-    /// several round trips of latency on a cold cache — and a failed ask keeps the last known
-    /// value so the sort does not collapse.
-    async fn annotate_stars(&self, sources: &mut [HubSource]) {
+    /// Fresh answers are served from the cache without a network round trip. Stale or missing ones
+    /// are asked for together — several collections, one after another, would otherwise be several
+    /// round trips of latency on a cold cache — and a failed ask keeps the last known values, so
+    /// neither the sort nor the avatars collapse.
+    async fn annotate_repositories(&self, sources: &mut [HubSource]) {
         let mut repositories: Vec<String> = Vec::new();
         for source in sources.iter() {
             if source.kind != HubSourceKind::GithubSkills {
@@ -127,17 +127,16 @@ impl HubService {
             return;
         }
 
-        let counts = futures::future::join_all(
+        let answers = futures::future::join_all(
             repositories
                 .iter()
-                .map(|repository| self.star_count(repository)),
+                .map(|repository| self.repo_facts(repository)),
         )
         .await;
-        let stars: HashMap<&str, u64> = repositories
+        let facts: HashMap<&str, RepoFacts> = repositories
             .iter()
             .map(String::as_str)
-            .zip(counts)
-            .filter_map(|(repository, count)| count.map(|count| (repository, count)))
+            .zip(answers)
             .collect();
 
         for source in sources.iter_mut() {
@@ -145,43 +144,49 @@ impl HubService {
                 continue;
             }
             if let Some(repository) = source.repository() {
-                source.stars = stars.get(repository).copied();
+                let facts = facts.get(repository).cloned().unwrap_or_default();
+                source.stars = facts.stars;
+                source.avatar = facts.avatar;
             }
         }
     }
 
-    /// A repository's star count: fresh cache → GitHub → last known (stale) cache.
+    /// One repository's facts: fresh cache → GitHub → last known (stale) cache.
     ///
-    /// `None` only when nothing has ever been read for this repository — a rate limit or an
-    /// offline machine must not erase a count that already ordered the Hub once.
-    async fn star_count(&self, repository: &str) -> Option<u64> {
+    /// Empty only when nothing has ever been read for this repository — a rate limit or an offline
+    /// machine must not erase a count that already ordered the Hub once, nor the picture that came
+    /// with it.
+    async fn repo_facts(&self, repository: &str) -> RepoFacts {
         let fresh = {
-            let stars = self.stars.lock().unwrap_or_else(PoisonError::into_inner);
-            stars.get_fresh(repository)
+            let repos = self.repos.lock().unwrap_or_else(PoisonError::into_inner);
+            repos.get_fresh(repository)
         };
-        if fresh.is_some() {
-            return fresh;
+        if let Some(facts) = fresh {
+            return facts;
         }
 
         let stale = {
-            let stars = self.stars.lock().unwrap_or_else(PoisonError::into_inner);
-            stars.get_any(repository)
+            let repos = self.repos.lock().unwrap_or_else(PoisonError::into_inner);
+            repos.get_any(repository)
         };
 
-        let fetched = self.fetch_star_count(repository).await;
-        if let Some(count) = fetched {
-            let mut stars = self.stars.lock().unwrap_or_else(PoisonError::into_inner);
-            stars.put(repository, count);
+        let answer = self.fetch_repo_facts(repository).await;
+        let fetched = (!answer.is_empty()).then_some(answer);
+        if let Some(facts) = &fetched {
+            let mut repos = self.repos.lock().unwrap_or_else(PoisonError::into_inner);
+            repos.put(repository, facts);
         }
 
-        resolve_star_count(None, fetched, stale)
+        resolve_repo_facts(None, fetched, stale)
     }
 
-    /// Ask GitHub for one repository's star count. Failures are `None`, never an error.
-    async fn fetch_star_count(&self, repository: &str) -> Option<u64> {
+    /// Ask GitHub about one repository. A failure is an empty answer, never an error.
+    async fn fetch_repo_facts(&self, repository: &str) -> RepoFacts {
         let url = format!("{GITHUB_API}/repos/{repository}");
-        let body = self.get_json(&url).await.ok()?;
-        parse::stars(&body)
+        match self.get_json(&url).await {
+            Ok(body) => parse::repo_facts(&body),
+            Err(_) => RepoFacts::default(),
+        }
     }
 
     /// One page of one source.
@@ -464,7 +469,14 @@ impl HubService {
 
         if !query.refresh {
             if let Some(cached) = self.cached_page(&key) {
-                return Ok(tagged(cached, &query.tags));
+                // `from_cache` describes *this* answer, and the stored page carries the `false` it
+                // was written with — the flag belongs to the reply, not to the record, which is why
+                // it is set here rather than stored. Without this a page served from memory claims
+                // it was just fetched, and the screen reports a fetch duration the user never paid.
+                return Ok(Page {
+                    from_cache: true,
+                    ..tagged(cached, &query.tags)
+                });
             }
         }
 
@@ -899,7 +911,7 @@ fn fresh(at_ms: i64) -> bool {
 ///
 /// A GitHub source whose count was never known carries none and so keeps the name-ordered place
 /// of the second group. Once a count has been cached, a failed refresh must not drop it — that is
-/// what [`stars_cache::resolve_star_count`] enforces before this runs.
+/// what [`repo_cache::resolve_repo_facts`] enforces before this runs.
 fn sort_by_popularity(sources: &mut [HubSource]) {
     sources.sort_by(|a, b| match (a.stars, b.stars) {
         (Some(a_stars), Some(b_stars)) => b_stars.cmp(&a_stars).then_with(|| by_name(a, b)),
@@ -1374,5 +1386,759 @@ tags = ["mcp"]
 
         // A tag the source does declare goes on to the registry as usual.
         assert!(tags_match(&source.tag_vocabulary(), &["mcp".to_string()]));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // The network layer, driven by a loopback stub. Every source below points at 127.0.0.1, so
+    // these tests prove the request handling, the caching and the limits without any internet.
+    // -----------------------------------------------------------------------------------------
+
+    use std::fs;
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::{SocketAddr, TcpListener, TcpStream};
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::thread::JoinHandle;
+
+    /// One canned answer for one request.
+    enum Canned {
+        /// A 200 with this body.
+        Ok(String),
+        /// A body too large to hold: `chunk` written `times` (the per-body cap test).
+        Stream { chunk: Vec<u8>, times: usize },
+        /// This status with an empty body.
+        Status(u16),
+    }
+
+    type Route = Arc<dyn Fn(&str) -> Canned + Send + Sync>;
+
+    /// A loopback HTTP/1.1 server answering `route` and counting every request it served.
+    ///
+    /// Hand-written on purpose: the Hub reads a source with a real HTTP client, so a mocked
+    /// transport would not prove the body cap, the status handling or the streaming read.
+    struct Stub {
+        addr: SocketAddr,
+        hits: Arc<AtomicUsize>,
+        stop: Arc<AtomicBool>,
+        thread: Option<JoinHandle<()>>,
+    }
+
+    impl Stub {
+        fn start(route: impl Fn(&str) -> Canned + Send + Sync + 'static) -> Self {
+            let listener = TcpListener::bind(("127.0.0.1", 0)).expect("a loopback port");
+            let addr = listener.local_addr().expect("an address");
+            let hits = Arc::new(AtomicUsize::new(0));
+            let stop = Arc::new(AtomicBool::new(false));
+            let route: Route = Arc::new(route);
+            let thread = {
+                let hits = Arc::clone(&hits);
+                let stop = Arc::clone(&stop);
+                std::thread::spawn(move || {
+                    for stream in listener.incoming() {
+                        if stop.load(Ordering::SeqCst) {
+                            break;
+                        }
+                        let Ok(stream) = stream else { break };
+                        let route = Arc::clone(&route);
+                        let hits = Arc::clone(&hits);
+                        std::thread::spawn(move || {
+                            let _ = serve(stream, &*route, &hits);
+                        });
+                    }
+                })
+            };
+            Self {
+                addr,
+                hits,
+                stop,
+                thread: Some(thread),
+            }
+        }
+
+        /// `http://127.0.0.1:<port>`, as a source's `url` spells it.
+        fn base(&self) -> String {
+            format!("http://{}", self.addr)
+        }
+
+        fn hits(&self) -> usize {
+            self.hits.load(Ordering::SeqCst)
+        }
+    }
+
+    impl Drop for Stub {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            // Wake the accept loop so its thread ends instead of holding the port forever.
+            let _ = TcpStream::connect(self.addr);
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+        }
+    }
+
+    /// Answer one request: read the request line and headers, then write the canned body.
+    fn serve(
+        mut stream: TcpStream,
+        route: &(dyn Fn(&str) -> Canned + Send + Sync),
+        hits: &AtomicUsize,
+    ) -> std::io::Result<()> {
+        let mut reader = BufReader::new(stream.try_clone()?);
+        let mut request_line = String::new();
+        reader.read_line(&mut request_line)?;
+        if request_line.trim().is_empty() {
+            return Ok(()); // the wake-connect of `Drop`, not a request.
+        }
+        loop {
+            let mut header = String::new();
+            if reader.read_line(&mut header)? == 0 || header == "\r\n" {
+                break;
+            }
+        }
+        let target = request_line.split_whitespace().nth(1).unwrap_or("/");
+        hits.fetch_add(1, Ordering::SeqCst);
+        match route(target) {
+            Canned::Ok(body) => write_body(&mut stream, 200, body.as_bytes()),
+            Canned::Status(status) => write_body(&mut stream, status, b""),
+            Canned::Stream { chunk, times } => {
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    chunk.len() * times
+                );
+                stream.write_all(head.as_bytes())?;
+                for _ in 0..times {
+                    // The client stops reading at its own cap and closes; that is the point.
+                    if stream.write_all(&chunk).is_err() {
+                        break;
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn write_body(stream: &mut TcpStream, status: u16, body: &[u8]) -> std::io::Result<()> {
+        let head = format!(
+            "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        stream.write_all(head.as_bytes())?;
+        stream.write_all(body)
+    }
+
+    /// A temp app-data directory, a service over it, and the user hub directory to drop sources in.
+    fn service_and_hub() -> (tempfile::TempDir, HubService, PathBuf) {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let hub = dir.path().join("hub");
+        fs::create_dir_all(&hub).expect("the hub source directory");
+        let service = HubService::new(&Proxy::none(), dir.path());
+        (dir, service, hub)
+    }
+
+    fn write_source(hub: &Path, file: &str, raw: &str) {
+        fs::write(hub.join(file), raw).expect("write a hub source");
+    }
+
+    /// A `mcpRegistry` source over `url`, as a user would drop it into the hub directory.
+    fn registry_toml(id: &str, url: &str) -> String {
+        format!(
+            "id = \"{id}\"\nname = \"{id}\"\nkind = \"mcpRegistry\"\nurl = \"{url}\"\nprovides = [\"mcp\"]\n"
+        )
+    }
+
+    /// One `tar.gz` shaped like GitHub's: every member under a `repo-main/` directory.
+    fn tar_gz(files: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
+            Vec::new(),
+            flate2::Compression::fast(),
+        ));
+        for (path, bytes) in files {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(bytes.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, format!("repo-main/{path}"), *bytes)
+                .expect("append");
+        }
+        builder
+            .into_inner()
+            .expect("finish the tar")
+            .finish()
+            .expect("finish the gzip")
+    }
+
+    /// One file of a repository already read, as `parse::read_tarball` would yield it.
+    fn tar(path: &str, text: &str) -> TarFile {
+        TarFile {
+            path: path.to_string(),
+            bytes: text.as_bytes().to_vec(),
+        }
+    }
+
+    const REGISTRY_PAGE_1: &str = r#"{
+      "servers": [{
+        "server": {
+          "name": "com.example/files",
+          "description": "Read and write files",
+          "version": "1.0.0",
+          "packages": [{
+            "registryType": "npm",
+            "identifier": "@example/files",
+            "version": "1.0.0"
+          }]
+        }
+      }],
+      "metadata": { "nextCursor": "cursor-2" }
+    }"#;
+
+    const REGISTRY_PAGE_2: &str = r#"{
+      "servers": [{
+        "server": {
+          "name": "com.example/other",
+          "version": "2.0.0",
+          "remotes": [{ "type": "sse", "url": "https://mcp.example/other" }]
+        }
+      }],
+      "metadata": {}
+    }"#;
+
+    const INDEX_DOCUMENT: &str = r#"{
+      "entries": [
+        { "id": "a", "name": "Alpha", "mcp": { "command": "npx", "args": ["alpha"] } },
+        { "id": "b", "name": "Bravo", "mcp": { "url": "https://mcp.example/b" } },
+        { "id": "c", "name": "Charlie", "mcp": { "command": "uvx", "args": ["c"] } },
+        { "id": "d", "name": "Delta", "mcp": { "url": "https://mcp.example/d", "protocol": "sse" } },
+        { "id": "e", "name": "Echo", "mcp": { "command": "docker", "args": ["e"] } }
+      ]
+    }"#;
+
+    #[tokio::test]
+    async fn an_identical_search_is_answered_from_the_cache_and_a_new_one_is_not() {
+        let stub = Stub::start(|_target| Canned::Ok(REGISTRY_PAGE_1.to_string()));
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "registry.toml",
+            &registry_toml("loop-registry", &stub.base()),
+        );
+        let catalog = service.sources(&hub);
+
+        let first = service
+            .search(&catalog, "loop-registry", &HubQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(first.entries.len(), 1);
+        assert_eq!(first.entries[0].name, "com.example/files");
+        assert_eq!(first.report.next_cursor.as_deref(), Some("cursor-2"));
+        assert_eq!(stub.hits(), 1, "the first page is one request");
+
+        // The same query, cursor and limit answer from memory: browsing costs one request.
+        let again = service
+            .search(&catalog, "loop-registry", &HubQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(again.entries, first.entries);
+        assert_eq!(stub.hits(), 1, "a repeated query costs no second request");
+        // …and says so. Not an idle flag: a source that claims a fresh read prints the duration it
+        // did not spend (`hub.reading`'s sibling in `HubSourceSection`).
+        assert!(!first.report.from_cache, "the first page was fetched");
+        assert!(again.report.from_cache, "the second page came from memory");
+
+        // A different search term is a different page: it goes to the registry.
+        let searched = HubQuery {
+            query: "files".to_string(),
+            ..HubQuery::default()
+        };
+        service
+            .search(&catalog, "loop-registry", &searched)
+            .await
+            .unwrap();
+        assert_eq!(stub.hits(), 2);
+
+        // A different cursor is a different page too.
+        let next = HubQuery {
+            cursor: Some("cursor-2".to_string()),
+            ..HubQuery::default()
+        };
+        service
+            .search(&catalog, "loop-registry", &next)
+            .await
+            .unwrap();
+        assert_eq!(stub.hits(), 3);
+
+        // Refresh ignores the cache by design — and must not claim otherwise.
+        let refreshed = HubQuery {
+            refresh: true,
+            ..HubQuery::default()
+        };
+        let refetched = service
+            .search(&catalog, "loop-registry", &refreshed)
+            .await
+            .unwrap();
+        assert_eq!(stub.hits(), 4);
+        assert!(
+            !refetched.report.from_cache,
+            "a refresh is never a cache hit"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_page_carries_the_cursor_the_previous_page_reported() {
+        let stub = Stub::start(|target| {
+            if target.contains("cursor=cursor-2") {
+                Canned::Ok(REGISTRY_PAGE_2.to_string())
+            } else {
+                Canned::Ok(REGISTRY_PAGE_1.to_string())
+            }
+        });
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "registry.toml",
+            &registry_toml("loop-registry", &stub.base()),
+        );
+        let catalog = service.sources(&hub);
+
+        let first = service
+            .search(&catalog, "loop-registry", &HubQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(first.entries[0].id, "loop-registry/com.example/files");
+        assert_eq!(first.report.next_cursor.as_deref(), Some("cursor-2"));
+
+        // The cursor the first page reported is what the next request carries; the registry
+        // answers the following page, and says there is none after it.
+        let next = HubQuery {
+            cursor: Some("cursor-2".to_string()),
+            ..HubQuery::default()
+        };
+        let page = service
+            .search(&catalog, "loop-registry", &next)
+            .await
+            .unwrap();
+        assert_eq!(page.entries.len(), 1);
+        assert_eq!(page.entries[0].id, "loop-registry/com.example/other");
+        assert!(
+            page.report.next_cursor.is_none(),
+            "the last page reports no cursor"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_index_document_is_paged_locally_and_read_once() {
+        let stub = Stub::start(|_target| Canned::Ok(INDEX_DOCUMENT.to_string()));
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "index.toml",
+            &format!(
+                "id = \"loop-index\"\nname = \"Loop Index\"\nkind = \"index\"\nurl = \"{}/doc.json\"\nprovides = [\"mcp\"]\n",
+                stub.base()
+            ),
+        );
+        let catalog = service.sources(&hub);
+
+        let first = service
+            .search(
+                &catalog,
+                "loop-index",
+                &HubQuery {
+                    limit: Some(4),
+                    ..HubQuery::default()
+                },
+            )
+            .await
+            .unwrap();
+        let names: Vec<&str> = first
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
+        assert_eq!(names, ["Alpha", "Bravo", "Charlie", "Delta"]);
+        assert_eq!(first.report.total, Some(5));
+        assert_eq!(first.report.next_cursor.as_deref(), Some("4"));
+
+        // The second page is cut from the same document: an index is one request per refresh.
+        let second = service
+            .search(
+                &catalog,
+                "loop-index",
+                &HubQuery {
+                    limit: Some(4),
+                    cursor: Some("4".to_string()),
+                    ..HubQuery::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(second.report.total, Some(5));
+        assert!(
+            second.report.from_cache,
+            "the second page is cut from the cached document"
+        );
+        let names: Vec<&str> = second
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
+        assert_eq!(names, ["Echo"]);
+        assert!(
+            second.report.next_cursor.is_none(),
+            "the last page reports no cursor"
+        );
+        assert_eq!(stub.hits(), 1, "both pages came from one document");
+    }
+
+    #[tokio::test]
+    async fn a_body_over_the_download_cap_is_reported_not_read() {
+        // 65 MiB over the 64 MiB a source may deliver: the read stops at the cap.
+        let stub = Stub::start(|_target| Canned::Stream {
+            chunk: vec![b'x'; 1024 * 1024],
+            times: 65,
+        });
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "index.toml",
+            &format!(
+                "id = \"loop-index\"\nname = \"Loop Index\"\nkind = \"index\"\nurl = \"{}/huge.json\"\nprovides = [\"mcp\"]\n",
+                stub.base()
+            ),
+        );
+        let catalog = service.sources(&hub);
+
+        let page = service
+            .search(&catalog, "loop-index", &HubQuery::default())
+            .await
+            .unwrap();
+        assert!(page.entries.is_empty());
+        let error = page
+            .report
+            .error
+            .expect("a failed read is reported on the source");
+        assert!(error.contains("larger than"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn one_failing_source_does_not_empty_the_others() {
+        let stub = Stub::start(|target| {
+            if target.starts_with("/missing/") {
+                Canned::Status(404)
+            } else if target.starts_with("/boom/") {
+                Canned::Status(500)
+            } else if target.starts_with("/garbage/") {
+                Canned::Ok("this is not a registry page".to_string())
+            } else {
+                Canned::Ok(REGISTRY_PAGE_1.to_string())
+            }
+        });
+        // A port nothing listens on: the connection itself is refused.
+        let refused = {
+            let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            let addr = listener.local_addr().unwrap();
+            drop(listener);
+            format!("http://{addr}")
+        };
+
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "a.toml",
+            &registry_toml("loop-404", &format!("{}/missing", stub.base())),
+        );
+        write_source(
+            &hub,
+            "b.toml",
+            &registry_toml("loop-500", &format!("{}/boom", stub.base())),
+        );
+        write_source(
+            &hub,
+            "c.toml",
+            &registry_toml("loop-garbage", &format!("{}/garbage", stub.base())),
+        );
+        write_source(&hub, "d.toml", &registry_toml("loop-refused", &refused));
+        write_source(
+            &hub,
+            "e.toml",
+            &registry_toml("loop-ok", &format!("{}/ok", stub.base())),
+        );
+        let catalog = service.sources(&hub);
+
+        // Each failure is the *source's own*: an empty page with this source's problem, never an
+        // error that takes the screen down.
+        let failures = [
+            ("loop-404", "404"),
+            ("loop-500", "500"),
+            ("loop-garbage", "did not answer JSON"),
+            ("loop-refused", "network request failed"),
+        ];
+        for (id, needle) in failures {
+            let page = service
+                .search(&catalog, id, &HubQuery::default())
+                .await
+                .unwrap();
+            assert!(page.entries.is_empty(), "{id} answered entries");
+            assert_eq!(page.report.id, id);
+            let error = page.report.error.unwrap_or_default();
+            assert!(error.contains(needle), "{id} reported '{error}'");
+        }
+
+        // The healthy source still answers: a failing neighbor is a note, not a broken screen.
+        let page = service
+            .search(&catalog, "loop-ok", &HubQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(page.report.error, None);
+        assert_eq!(page.entries.len(), 1);
+    }
+
+    #[test]
+    fn the_cache_drops_the_oldest_repository_once_it_is_over_budget() {
+        let mut cache = Cache::default();
+        // Half the budget each, so three of them cross it and exactly one has to go.
+        let one = CACHE_BUDGET_BYTES / 2;
+        let repo = |at: i64| Cached {
+            at_ms: at,
+            value: Repository {
+                files: Arc::new(Vec::new()),
+                truncated: false,
+            },
+        };
+        let view = |truncated: bool| {
+            Cached::new(Arc::new(Snapshot {
+                files: Arc::new(Vec::new()),
+                skills: Arc::new(Vec::new()),
+                truncated,
+            }))
+        };
+        // Three repositories of half the budget each: together they cross it, oldest first.
+        let now = now_ms();
+        for (key, at) in [("owner/a@main", now - 3), ("owner/b@main", now - 2)] {
+            cache.repositories.insert(key.to_string(), repo(at));
+            cache.weights.insert(key.to_string(), one);
+        }
+        // A snapshot is a view of a repository: it must not outlive the bytes it reads.
+        cache
+            .snapshots
+            .insert("owner/a@main||".to_string(), view(false));
+        cache
+            .snapshots
+            .insert("owner/b@main||".to_string(), view(false));
+        cache
+            .repositories
+            .insert("owner/c@main".to_string(), repo(now));
+        cache.weights.insert("owner/c@main".to_string(), one);
+
+        cache.evict("owner/c@main");
+
+        assert!(
+            !cache.repositories.contains_key("owner/a@main"),
+            "the oldest is dropped first"
+        );
+        assert!(cache.repositories.contains_key("owner/b@main"));
+        assert!(
+            cache.repositories.contains_key("owner/c@main"),
+            "the repository just added is always kept"
+        );
+        assert!(!cache.weights.contains_key("owner/a@main"));
+        assert!(
+            !cache.snapshots.contains_key("owner/a@main||"),
+            "a view goes with the bytes it was parsed from"
+        );
+        assert!(cache.snapshots.contains_key("owner/b@main||"));
+
+        // Even alone over the budget, the repository just read cannot evict itself.
+        let huge = CACHE_BUDGET_BYTES * 3;
+        cache
+            .repositories
+            .insert("owner/d@main".to_string(), repo(now));
+        cache.weights.insert("owner/d@main".to_string(), huge);
+        cache.evict("owner/d@main");
+        assert!(cache.repositories.contains_key("owner/d@main"));
+        assert!(!cache.repositories.contains_key("owner/b@main"));
+    }
+
+    #[test]
+    fn a_cached_answer_is_fresh_only_inside_the_ttl() {
+        assert!(fresh(now_ms()));
+        assert!(!fresh(now_ms() - CACHE_TTL_MS - 1));
+    }
+
+    #[test]
+    fn a_file_over_the_cap_is_dropped_and_its_skill_never_appears() {
+        let over = vec![b'x'; (parse::MAX_FILE_BYTES + 1) as usize];
+        let (files, truncated) =
+            parse::read_tarball(&tar_gz(&[("skills/huge/SKILL.md", &over)])).unwrap();
+        assert!(
+            truncated,
+            "a file over the cap marks the collection incomplete"
+        );
+        assert!(files.is_empty(), "the oversized file is not kept");
+
+        // The skill whose entry file was dropped is never offered at all.
+        let source = catalog_hub::parse_source(
+            r#"
+id = "unit-repo"
+name = "Unit Repo"
+kind = "githubSkills"
+repository = "owner/collection"
+provides = ["skill"]
+"#,
+            "test",
+        )
+        .expect("a valid source");
+        assert!(parse::repo_skills(&files, &source).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_collection_that_hit_a_limit_is_still_shown_but_reported_incomplete() {
+        // Files each under the per-file cap, whose total crosses the per-repo cap.
+        let filler = vec![b'y'; parse::MAX_FILE_BYTES as usize];
+        let filler = filler.as_slice();
+        let skill = b"---\nname: PDF\ndescription: Fill forms\n---\n".as_slice();
+        let (files, truncated) = parse::read_tarball(&tar_gz(&[
+            ("skills/pdf/SKILL.md", skill),
+            ("f1.bin", filler),
+            ("f2.bin", filler),
+            ("f3.bin", filler),
+            ("f4.bin", filler),
+            ("f5.bin", filler),
+            ("f6.bin", filler),
+        ]))
+        .unwrap();
+        assert!(truncated, "the repository stopped at its own cap");
+        let files = Arc::new(files);
+
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "repo.toml",
+            "id = \"loop-repo\"\nname = \"Loop Repo\"\nkind = \"githubSkills\"\nrepository = \"owner/collection\"\nprovides = [\"skill\"]\n",
+        );
+        let catalog = service.sources(&hub);
+
+        // The repository is already read, as `repository()` caches it: what is under test is that
+        // the service still offers the collection *and* says it is incomplete.
+        service.cache().repositories.insert(
+            "owner/collection@main".to_string(),
+            Cached {
+                at_ms: now_ms(),
+                value: Repository {
+                    files: Arc::clone(&files),
+                    truncated,
+                },
+            },
+        );
+
+        let page = service
+            .search(&catalog, "loop-repo", &HubQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(page.report.error, None);
+        assert_eq!(
+            page.entries.len(),
+            1,
+            "the skill that survived is still offered"
+        );
+        assert!(
+            page.report
+                .problems
+                .iter()
+                .any(|problem| problem.contains("incomplete")),
+            "{:?}",
+            page.report.problems
+        );
+    }
+
+    #[tokio::test]
+    async fn a_hub_skill_writes_only_its_own_directory() {
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "repo.toml",
+            "id = \"loop-repo\"\nname = \"Loop Repo\"\nkind = \"githubSkills\"\nrepository = \"owner/collection\"\nprovides = [\"skill\"]\n",
+        );
+        let catalog = service.sources(&hub);
+
+        // A repository as a tarball would yield it: the skill's own files, a file elsewhere in
+        // the repository, and a member that walked out of it.
+        let files = Arc::new(vec![
+            tar(
+                "skills/pdf/SKILL.md",
+                "---\nname: PDF\ndescription: Fill forms\n---\n",
+            ),
+            tar("skills/pdf/scripts/fill.py", "print(1)\n"),
+            tar("other/secret.md", "not this skill's\n"),
+            tar("../escape.md", "nope\n"),
+        ]);
+        service.cache().repositories.insert(
+            "owner/collection@main".to_string(),
+            Cached {
+                at_ms: now_ms(),
+                value: Repository {
+                    files: Arc::clone(&files),
+                    truncated: false,
+                },
+            },
+        );
+
+        let install = service
+            .skill_install(&catalog, "loop-repo/skills/pdf", "PDF Toolkit".to_string())
+            .await
+            .unwrap();
+        assert_eq!(install.name, "PDF Toolkit");
+        let paths: Vec<&str> = install
+            .files
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect();
+        assert_eq!(paths, ["SKILL.md", "scripts/fill.py"]);
+        assert!(
+            install
+                .files
+                .iter()
+                .all(|file| !file.path.contains("..") && !file.path.starts_with("other")),
+            "a file outside the skill's directory would have escaped: {paths:?}"
+        );
+
+        // Nothing of the skill survives the filter: the install is refused, not half-written.
+        let refused = service
+            .skill_install(&catalog, "loop-repo/skills/absent", "Absent".to_string())
+            .await
+            .unwrap_err();
+        assert_eq!(refused.code(), "not_found");
+    }
+
+    #[tokio::test]
+    async fn a_detail_of_a_listed_entry_needs_no_second_request() {
+        let stub = Stub::start(|_target| Canned::Ok(REGISTRY_PAGE_1.to_string()));
+        let (_dir, service, hub) = service_and_hub();
+        write_source(
+            &hub,
+            "registry.toml",
+            &registry_toml("loop-registry", &stub.base()),
+        );
+        let catalog = service.sources(&hub);
+
+        service
+            .search(&catalog, "loop-registry", &HubQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(stub.hits(), 1);
+
+        // The page kept the record: opening or installing one entry is free.
+        let detail = service
+            .detail(&catalog, "loop-registry/com.example/files", false)
+            .await
+            .unwrap();
+        assert_eq!(stub.hits(), 1, "the detail came from the page's cache");
+        assert_eq!(detail.entry.name, "com.example/files");
+        assert_eq!(
+            detail.transport,
+            Some(McpTransport::Stdio {
+                command: "npx".to_string(),
+                args: vec!["@example/files@1.0.0".to_string()],
+            })
+        );
     }
 }

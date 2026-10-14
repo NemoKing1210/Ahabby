@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { memo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, FileCode2, Trash2 } from 'lucide-react'
 
@@ -31,8 +31,13 @@ function TransportBadge({ server }: { server: McpServer }) {
   return <Badge tone={tone}>{server.transport.type}</Badge>
 }
 
-/** One MCP server, with its transport, secrets and the file it lives in. */
-export function McpCard({
+/**
+ * One MCP server, with its transport, secrets and the file it lives in.
+ *
+ * Memoized like `SkillCard`: the library shows every server of every agent, and the handlers it
+ * receives are stable callbacks of the page, so a filter that leaves it in place does not redraw it.
+ */
+export const McpCard = memo(function McpCard({
   server,
   agents,
   sourceDocument,
@@ -241,4 +246,4 @@ export function McpCard({
       </Card>
     </McpContextMenu>
   )
-}
+})

@@ -417,8 +417,9 @@ impl AppState {
 
     /// The hub's sources: the builtin ones merged with the user's own from `<config>/hub`.
     ///
-    /// Without star counts and in name order: this is what resolving an entry reads, and it asks
-    /// nothing of the network. The screen's own read is [`HubService::sources_with_stars`].
+    /// Without star counts or avatars, and in name order: this is what resolving an entry reads,
+    /// and it asks nothing of the network. The screen's own read is
+    /// [`HubService::sources_for_screen`].
     pub fn hub_sources(&self) -> crate::domain::HubSourceCatalog {
         self.hub().sources(&self.hub_source_dir())
     }

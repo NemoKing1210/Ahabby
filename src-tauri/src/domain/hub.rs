@@ -165,6 +165,15 @@ pub struct HubSource {
     #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
     #[ts(type = "number | null")]
     pub stars: Option<u64>,
+    /// Avatar of the account that publishes the source's GitHub repository, as the Hub last read
+    /// it — the URL GitHub itself names, not the picture.
+    ///
+    /// Runtime data like [`HubSource::stars`], and read from the same answer: `None` for a source
+    /// that is not on GitHub, or whose repository could not be read (an offline machine, a rate
+    /// limit). The screen paints it through the reader's image proxy, falling back to a monogram
+    /// tile; the bytes are never part of a source file.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
     /// `githubSkills`: only skills under this repository directory are offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
@@ -666,6 +675,7 @@ mod tests {
             repository: Some(repository.to_string()),
             git_ref: None,
             stars: None,
+            avatar: None,
             path: None,
             exclude: Vec::new(),
             tags: Vec::new(),
