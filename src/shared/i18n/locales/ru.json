@@ -512,6 +512,13 @@
     "cached": "из кеша",
     "reading": "Читаем…",
     "yourSource": "Ваш источник",
+    "sourceKind": {
+      "githubSkills": "Репозиторий GitHub",
+      "index": "Индексный документ",
+      "mcpRegistry": "Реестр MCP"
+    },
+    "installedOfRead": "Установлено {{installed}} из {{read}} прочитанных",
+    "progressLabel": "Доля прочитанных записей, которые уже есть на этой машине",
     "starsHint": "Звёзд на GitHub",
     "topRank": "{{rank}}-е место по звёздам",
     "noSources": "Нет коллекций для чтения",

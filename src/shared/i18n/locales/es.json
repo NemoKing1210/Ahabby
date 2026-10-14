@@ -512,6 +512,13 @@
     "cached": "almacenado en caché",
     "reading": "Leyendo…",
     "yourSource": "tu fuente",
+    "sourceKind": {
+      "githubSkills": "Repositorio de GitHub",
+      "index": "Documento índice",
+      "mcpRegistry": "Registro MCP"
+    },
+    "installedOfRead": "{{installed}} de {{read}} leídas instaladas",
+    "progressLabel": "Proporción de las entradas leídas que ya están instaladas",
     "starsHint": "Estrellas en GitHub",
     "topRank": "Nº {{rank}} por estrellas",
     "noSources": "No hay colecciones para leer",

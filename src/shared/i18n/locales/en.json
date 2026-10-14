@@ -512,6 +512,13 @@
     "cached": "cached",
     "reading": "Reading…",
     "yourSource": "Your source",
+    "sourceKind": {
+      "githubSkills": "GitHub repository",
+      "index": "Index document",
+      "mcpRegistry": "MCP registry"
+    },
+    "installedOfRead": "Installed {{installed}} of {{read}} read",
+    "progressLabel": "Share of the entries read that this machine already holds",
     "starsHint": "Stars on GitHub",
     "topRank": "Top {{rank}} by stars",
     "noSources": "No collections to read",

@@ -5,6 +5,19 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.1] - 2026-10-14
+
+### Changed
+
+- **A Hub source card says what the collection is and where the machine stands.** The card's heading is
+  now two rows: the collection's name, rank, star count and read state on top, and under it what the
+  source offers (skills, MCP servers, or both), how it is read (a GitHub repository, an index document,
+  a registry), its publisher, license and repository, and its description — moved up from the body, so
+  even a folded collection tells you what it is. Beside those facts a progress bar shows how much of the
+  collection this machine already holds, measured against the entries read so far ("installed 3 of 12
+  read"): a collection is paged in and the backend does not know what is on disk, so the figure grows as
+  `Load more` reads on instead of guessing at a total it has never seen.
+
 ## [0.54.0] - 2026-10-14
 
 ### Added

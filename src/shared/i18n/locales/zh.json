@@ -512,6 +512,13 @@
     "cached": "已缓存",
     "reading": "读取中…",
     "yourSource": "你的消息来源",
+    "sourceKind": {
+      "githubSkills": "GitHub 仓库",
+      "index": "索引文档",
+      "mcpRegistry": "MCP 注册表"
+    },
+    "installedOfRead": "已读取 {{read}} 项，其中 {{installed}} 项已安装",
+    "progressLabel": "已读取条目中本机已安装的比例",
     "starsHint": "GitHub 上的星星数",
     "topRank": "按星标排名第 {{rank}} 位",
     "noSources": "没有要读的收藏",

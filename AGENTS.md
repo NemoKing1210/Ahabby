@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
 
-Version: `0.54.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.54.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -268,7 +268,13 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   count, and, for the three most starred collections of the whole catalog, a rank — the leader wears the
   accent chip, the accent edge and, while open, the accent band, the two behind it a quieter chip and edge.
   The rank is what the repository is, not where a filter left the card: it is taken from the catalog's own
-  order (`HubPage`'s `ranks`), so a screen narrowed to one source still names its real place.
+  order (`HubPage`'s `ranks`), so a screen narrowed to one source still names its real place. Under the
+  heading the strip carries the collection's own facts — what it offers, how it is read, its publisher,
+  license and repository, and its description (moved out of the body, so a folded source still says what it
+  is) — beside a `Progress` bar of how much of the collection this machine already holds. That share is
+  measured against the entries the section has read, never the source's total: a collection is paged in and
+  the backend does not know what is on disk, so it reads "installed N of M read" and grows as `Load more`
+  reads on.
 - **A long list is mounted a batch at a time.** `shared/lib/lazyRows.ts` (`useLazyRows`) reveals its rows as
   the sentinel under them comes into view, so the Hub's source sections and plugin groups — and the
   **Library**, which is one card per skill and per MCP server the machine holds — mount only what the user

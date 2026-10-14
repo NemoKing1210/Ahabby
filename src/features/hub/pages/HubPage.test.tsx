@@ -672,6 +672,51 @@ describe('HubPage', () => {
     expect(await within(container).findByText('No entries match this filter')).toBeTruthy()
   })
 
+  it('says how much of a collection the machine already holds, out of what it has read', async () => {
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    // Four entries read, one of them already on this machine: a quarter of what the section read.
+    const held = { ...installedEntry(), id: 'example-skills/skills/invoice', name: 'invoice' }
+    const missing = ['alpha', 'beta', 'gamma'].map((name) =>
+      entry({ id: `example-skills/skills/${name}`, name }),
+    )
+    vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [held, ...missing] }))
+
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'Example Skills' })
+    const card = cardOf(container, 'Example Skills')
+
+    // The bar lives on the strip, so a folded collection still says where it stands.
+    const bar = await within(card).findByRole('progressbar')
+    expect(bar.getAttribute('aria-valuenow')).toBe('25')
+    expect(within(card).getByText('Installed 1 of 4 read')).toBeTruthy()
+
+    // What the collection offers, and how it is read, are named under the heading.
+    expect(within(card).getByText('Skills')).toBeTruthy()
+    expect(within(card).getByText('GitHub repository')).toBeTruthy()
+  })
+
+  it('shows no progress bar for a collection it has not read', async () => {
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub).mockResolvedValue(
+      page({ entries: [], report: report({ count: 0, total: 0 }) }),
+    )
+
+    const { container } = renderPage()
+    await openSource(container, 'Example Skills')
+    const card = cardOf(container, 'Example Skills')
+    await within(card).findByText('Nothing here yet')
+
+    expect(within(card).queryByRole('progressbar')).toBeNull()
+  })
+
   it('reviews a skill and confirms the install for the chosen owner', async () => {
     const user = userEvent.setup()
     vi.mocked(ipc.listHubSources).mockResolvedValue({

@@ -512,6 +512,13 @@
     "cached": "キャッシュされた",
     "reading": "読み込み中…",
     "yourSource": "あなたのソース",
+    "sourceKind": {
+      "githubSkills": "GitHub リポジトリ",
+      "index": "インデックス文書",
+      "mcpRegistry": "MCP レジストリ"
+    },
+    "installedOfRead": "読み込み済み {{read}} 件中 {{installed}} 件がインストール済み",
+    "progressLabel": "読み込んだ項目のうち、このマシンにすでにある割合",
     "starsHint": "GitHubでスターズ",
     "topRank": "スター数第{{rank}}位",
     "noSources": "読まれないコレクション",
