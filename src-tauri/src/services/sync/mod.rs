@@ -14,6 +14,7 @@
 //! which are the app's own path-checked writes — a remote payload never names a path that lands
 //! outside a surface the manifest declared.
 
+pub mod crypto;
 pub mod gist;
 pub mod plan;
 pub mod store;

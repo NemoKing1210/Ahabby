@@ -68,8 +68,8 @@ pub use sync::{
     SyncContentSide, SyncEvent, SyncFileAction, SyncFileContent, SyncFileStatus, SyncItem,
     SyncItemList, SyncItemRef, SyncItemResult, SyncItemStatus, SyncKind, SyncMode, SyncOwnerKind,
     SyncPayload, SyncPayloadFile, SyncPreview, SyncPreviewFile, SyncProviderId, SyncPullTarget,
-    SyncRun, SyncRunKind, SyncSettings, SyncStatus, SYNC_DESCRIPTION_PREFIX, SYNC_MARKER_FILE,
-    SYNC_SCHEMA,
+    SyncRun, SyncRunKind, SyncSettings, SyncStatus, ENVELOPE_SCHEMA, SYNC_DESCRIPTION_PREFIX,
+    SYNC_MARKER_FILE, SYNC_SCHEMA,
 };
 pub use tag::{normalize_tags, MAX_TAGS, MAX_TAG_LEN};
 pub use terminal::{

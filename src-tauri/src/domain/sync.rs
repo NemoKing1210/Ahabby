@@ -755,6 +755,10 @@ pub struct SyncPayload {
 /// The schema version of [`SyncPayload`]. A reader refuses a document from a newer schema.
 pub const SYNC_SCHEMA: u32 = 1;
 
+/// The schema version of an encrypted envelope, which holds no payload: its fields are the KDF
+/// parameters, the salt, the nonce and the ciphertext. A reader that has no key refuses one.
+pub const ENVELOPE_SCHEMA: u32 = 2;
+
 /// The one file a gist holds.
 pub const SYNC_MARKER_FILE: &str = "ahabby.json";
 

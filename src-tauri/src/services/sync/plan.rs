@@ -456,6 +456,25 @@ pub fn payload_hash(files: &[SyncPayloadFile]) -> String {
 
 // --- marker document -----------------------------------------------------------------------
 
+/// `true` for a stored document that is an envelope: a sealed payload, which only a key can open.
+///
+/// This is the shape check and nothing more — no key, no derivation — because "is this sealed?" has
+/// to be answerable before anything can be done about it: the service chooses its reader with it,
+/// the UI decides whether the library is locked, and the migration decides whether an old gist is
+/// even readable. The keys themselves live in `services::sync::crypto`.
+pub fn is_envelope(value: &serde_json::Value) -> bool {
+    value.get("app").and_then(serde_json::Value::as_str) == Some("ahabby")
+        && value.get("encrypted").and_then(serde_json::Value::as_bool) == Some(true)
+        && value
+            .get("enc")
+            .map(serde_json::Value::is_object)
+            .unwrap_or(false)
+        && value
+            .get("data")
+            .map(serde_json::Value::is_string)
+            .unwrap_or(false)
+}
+
 /// The document a provider stores, as JSON.
 pub fn encode_marker(payload: &SyncPayload) -> Result<serde_json::Value> {
     Ok(serde_json::to_value(payload)?)
