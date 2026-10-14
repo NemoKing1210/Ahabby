@@ -512,6 +512,8 @@
     "cached": "Cache",
     "reading": "Lese…",
     "yourSource": "Deine Quelle",
+    "userSources": "Deine Quellen",
+    "userSourcesHint": "Ahabby liest die Sammlungen oben und jede Quelldatei, die du hier ablegst.",
     "sourceKind": {
       "githubSkills": "GitHub-Repository",
       "index": "Index-Dokument",
@@ -992,6 +994,7 @@
     "manual": "Handbuch"
   },
   "terminal": {
+    "title": "Terminal-Aktionen",
     "panel": "Terminal",
     "tabs": "Terminalsitzungen",
     "expand": "Erweitern Sie das Terminal",

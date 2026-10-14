@@ -512,6 +512,8 @@
     "cached": "已缓存",
     "reading": "读取中…",
     "yourSource": "你的消息来源",
+    "userSources": "你的来源",
+    "userSourcesHint": "Ahabby 会读取上方的集锦以及你在此处添加的任何来源文件。",
     "sourceKind": {
       "githubSkills": "GitHub 仓库",
       "index": "索引文档",
@@ -992,6 +994,7 @@
     "manual": "手动"
   },
   "terminal": {
+    "title": "终端操作",
     "panel": "终端",
     "tabs": "终端会话",
     "expand": "扩展终端",

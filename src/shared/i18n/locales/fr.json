@@ -512,6 +512,8 @@
     "cached": "mis en cache",
     "reading": "Lecture…",
     "yourSource": "Votre source",
+    "userSources": "Vos sources",
+    "userSourcesHint": "Ahabby lit les collections ci-dessus et tout fichier source que vous ajoutez ici.",
     "sourceKind": {
       "githubSkills": "Dépôt GitHub",
       "index": "Document d’index",
@@ -992,6 +994,7 @@
     "manual": "Manuel"
   },
   "terminal": {
+    "title": "Actions du terminal",
     "panel": "Terminal",
     "tabs": "Séances terminales",
     "expand": "Élargir le terminal",

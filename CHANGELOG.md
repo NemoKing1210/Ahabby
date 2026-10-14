@@ -5,6 +5,16 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.1] - 2026-10-14
+
+### Fixed
+
+- **No more raw translation keys in the Hub and the terminal.** The heading and hint above the user's own
+  hub source directory, and the terminal menu's accessibility label, asked for keys the locales never
+  defined — so they read as "hub.userSources", "hub.userSourcesHint" and "terminal.title". All seven
+  languages carry them now, and a new test holds every `t('…')` the code uses against the English file so
+  an untranslated string cannot ship again.
+
 ## [0.55.0] - 2026-10-14
 
 ### Added

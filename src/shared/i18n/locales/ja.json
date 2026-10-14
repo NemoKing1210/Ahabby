@@ -512,6 +512,8 @@
     "cached": "キャッシュされた",
     "reading": "読み込み中…",
     "yourSource": "あなたのソース",
+    "userSources": "あなたのソース",
+    "userSourcesHint": "Ahabby は上のコレクションと、ここに追加したソースファイルを読み込みます。",
     "sourceKind": {
       "githubSkills": "GitHub リポジトリ",
       "index": "インデックス文書",
@@ -992,6 +994,7 @@
     "manual": "マニュアル"
   },
   "terminal": {
+    "title": "ターミナルの操作",
     "panel": "ターミナル",
     "tabs": "ターミナルセッション",
     "expand": "ターミナルを拡大",
