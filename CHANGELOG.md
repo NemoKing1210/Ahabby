@@ -5,6 +5,29 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.65.0] - 2026-10-15
+
+### Changed
+
+- **The sidebar is the window's own left edge now, and every entry in it wears the same row.** It was a card
+  floating over the window with an accented pill gliding under the screen the window was on; it is now a
+  full-height panel of its own tone behind a hairline, and a screen, a pinned agent, a terminal and the scan
+  all wear one shape: an icon, a name, and quietly what the row counts. What a row is _for_ decides where it
+  sits — folding the rail and opening a terminal at its head, the screens and the pinned agents in the middle,
+  the last scan and Settings at its foot, where the app's own controls belong rather than among the screens.
+  The row the window is on is filled one step off the rail's own surface instead of accented, so the accent
+  stays with the screen it points at, and folding keeps the very same rows with their names dropped.
+
+### Fixed
+
+- **The folded sidebar's icons were different sizes and off the line.** The fold and Terminal controls were
+  smaller and dimmer than the screens' icons, and a pinned agent's tile was a third size. Every icon now sits
+  in one 20px column, so folded or not they are one size on one axis, and the rail's controls no longer carry
+  button padding that pushed their names a pixel off the screens'. The pinned agents were worse off: their
+  row lost every style to the tooltip around it, so each was a bare 20px tile hugging the rail's left edge with
+  no padding; they are now the same row as the screens, and the run button floats over the row's end on hover
+  instead of taking room from the name.
+
 ## [0.64.4] - 2026-10-15
 
 ### Changed

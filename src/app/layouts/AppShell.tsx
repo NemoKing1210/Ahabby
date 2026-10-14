@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   useMemo,
+  type ReactNode,
   type RefObject,
 } from 'react'
 
@@ -28,11 +29,10 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation, useOutlet } from 'react-router-dom'
 
 import { formatDuration, formatRelative } from '@/shared/lib/format'
-import { glideTransition, softTransition, useSoftSlide } from '@/shared/lib/motion'
+import { softTransition, useSoftSlide } from '@/shared/lib/motion'
 import { cn } from '@/shared/lib/cn'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
-import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import {
   ContextMenu,
@@ -59,19 +59,17 @@ import { TourProvider } from '@/features/tour/TourProvider'
 import { TrayBridge } from './TrayBridge'
 import { TitleBar } from './TitleBar'
 
+/**
+ * The screens the rail leads to. Settings is not one of them: it belongs to the app rather than to
+ * the machine, so it sits in the rail's foot with the scan, exactly where the reference this rail
+ * is drawn from keeps "how do I change this" — one row under the list, one row above the edge.
+ */
 const NAV_ITEMS = [
   { to: '/', labelKey: 'nav.home', icon: House, end: true, tour: 'nav-home' },
   { to: '/agents', labelKey: 'nav.agents', icon: Boxes, end: false, tour: 'nav-agents' },
   { to: '/projects', labelKey: 'nav.projects', icon: FolderGit2, end: false, tour: 'nav-projects' },
   { to: '/library', labelKey: 'nav.library', icon: Library, end: false, tour: 'nav-library' },
   { to: '/hub', labelKey: 'nav.hub', icon: Store, end: false, tour: 'nav-hub' },
-  {
-    to: '/settings',
-    labelKey: 'nav.settings',
-    icon: SettingsIcon,
-    end: false,
-    tour: 'nav-settings',
-  },
 ] as const
 
 /**
@@ -136,10 +134,48 @@ function PageTransition({ scrollRef }: { scrollRef: RefObject<HTMLElement | null
   )
 }
 
-/** Small uppercase label that names a run of sidebar links. */
+/**
+ * The rail's one row, and there is only one: a column for the icon, the row's own name, and
+ * whatever the row counts pushed to its far end.
+ *
+ * A screen, a favourite, a terminal and the scan are all this shape, which is what makes a rail of
+ * them read as a list rather than as a set of buttons — and a folded rail is the same row with its
+ * name dropped, never a second row design. `active` is the fill of the row the window is on: one
+ * step of the surface the rail itself wears, not an accent, because an accent here would compete
+ * with the accent of the screen it points at.
+ */
+function railRow(collapsed: boolean, active = false) {
+  return cn(
+    'ease-warm flex shrink-0 items-center rounded-lg text-[0.8125rem] font-medium outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+    // Folded, the row is a square the width of the icon column's own centre line, so every icon in
+    // the rail sits on one vertical axis whatever the row is — a screen, a pinned agent, a button.
+    collapsed ? 'mx-auto size-9 justify-center' : 'h-9 w-full gap-2.5 px-2.5',
+    active
+      ? 'bg-surface-3 text-foreground'
+      : 'text-muted hover:bg-surface-3/60 hover:text-foreground',
+  )
+}
+
+/**
+ * The icon column of a row: one 20px square that every icon in the rail is drawn in, a line glyph
+ * and a pinned agent's tile alike. It is what keeps the icons one size — the glyph is centred in it
+ * rather than sized against its neighbours — and what puts every row's name on one left edge.
+ */
+function RailIcon({ children }: { children: ReactNode }) {
+  return (
+    <span className="grid size-5 shrink-0 place-items-center [&>svg]:size-[18px]">{children}</span>
+  )
+}
+
+/** What a row counts, in the quietest ink the rail has: metadata, never a badge. */
+function RailCount({ children }: { children: number }) {
+  return <span className="text-faint ml-auto text-[0.6875rem] tabular-nums">{children}</span>
+}
+
+/** Names a run of the rail's rows — a caption, not a headline, and never an accented one. */
 function NavSection({ children }: { children: string }) {
   return (
-    <h2 className="text-faint px-3 pt-1 pb-1.5 text-[0.6875rem] font-medium tracking-wider uppercase">
+    <h2 className="text-faint px-2 pt-3 pb-1 text-[0.6875rem] font-medium tracking-wide">
       {children}
     </h2>
   )
@@ -178,7 +214,7 @@ function ScanSummary() {
   const duration = formatDuration(data.durationMs)
 
   return (
-    <div className="text-faint flex flex-col gap-1 text-[0.6875rem] leading-relaxed">
+    <div className="text-faint flex flex-col gap-1 px-2 pt-1 pb-1.5 text-[0.6875rem] leading-relaxed">
       {isScanning ? (
         <span className="text-accent-strong inline-flex items-center gap-1.5">
           <Spinner className="size-2.5" />
@@ -221,52 +257,33 @@ const SidebarNav = memo(function SidebarNav({
   const { t } = useTranslation()
 
   return (
-    <nav aria-label={label} className="flex flex-col gap-1">
-      {NAV_ITEMS.map((item) => (
-        <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
-          {/* The Radix trigger must be a plain element: `asChild` merges `className`,
-            which would stringify NavLink's className function and drop every class. */}
-          <div className="flex">
-            <NavLink
-              to={item.to}
-              end={item.end}
-              data-tour={item.tour}
-              aria-label={collapsed ? t(item.labelKey) : undefined}
-              className={({ isActive }) =>
-                cn(
-                  'ease-warm relative flex items-center rounded-xl text-[0.9375rem] font-medium transition-colors duration-150',
-                  collapsed ? 'mx-auto size-11 justify-center' : 'flex-1 gap-3 px-3 py-2.5',
-                  isActive
-                    ? 'text-accent-strong'
-                    : 'text-muted hover:bg-surface-2 hover:text-foreground',
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  {isActive ? (
-                    <motion.span
-                      aria-hidden
-                      layoutId="nav-active-pill"
-                      transition={glideTransition}
-                      className="bg-accent-soft absolute inset-0 rounded-xl"
-                    />
-                  ) : null}
-                  <item.icon className="relative size-5 shrink-0" aria-hidden />
-                  {collapsed ? null : (
-                    <span className="relative flex-1 truncate">{t(item.labelKey)}</span>
-                  )}
-                  {!collapsed && counts[item.to] ? (
-                    <Badge tone={isActive ? 'accent' : 'neutral'} className="relative tabular-nums">
-                      {counts[item.to]}
-                    </Badge>
-                  ) : null}
-                </>
-              )}
-            </NavLink>
-          </div>
-        </Tooltip>
-      ))}
+    <nav aria-label={label} className="flex flex-col gap-0.5">
+      {NAV_ITEMS.map((item) => {
+        const count = counts[item.to]
+        return (
+          <Tooltip key={item.to} content={collapsed ? t(item.labelKey) : null} side="right">
+            {/* The Radix trigger must be a plain element: `asChild` merges `className`,
+              which would stringify NavLink's className function and drop every class. */}
+            <div className="flex">
+              <NavLink
+                to={item.to}
+                end={item.end}
+                data-tour={item.tour}
+                aria-label={collapsed ? t(item.labelKey) : undefined}
+                className={({ isActive }) => railRow(collapsed, isActive)}
+              >
+                <RailIcon>
+                  <item.icon aria-hidden />
+                </RailIcon>
+                {collapsed ? null : (
+                  <span className="min-w-0 flex-1 truncate">{t(item.labelKey)}</span>
+                )}
+                {!collapsed && count ? <RailCount>{count}</RailCount> : null}
+              </NavLink>
+            </div>
+          </Tooltip>
+        )
+      })}
     </nav>
   )
 })
@@ -344,48 +361,71 @@ export function AppShell() {
     [report, library],
   )
 
-  // The window is one flat background; the sidebar floats over it as an inset panel, so the rail
-  // never fuses with the window edges and reads as its own surface — and it is as tall as the
-  // window's padding allows, which is why the header is not above it: the bar is the content
-  // column's own top row, and the rail runs from the top inset to the bottom one beside it.
+  // The rail is the window's own left edge: a full-height panel of its own tone, held apart from
+  // the screens by a hairline and nothing else. Everything in it is the same row — `railRow` — and
+  // the rows are grouped by what they are: what the rail does at its head (fold itself, open a
+  // terminal), where it leads in the middle, and what the app itself does at its foot (scan the
+  // machine, open Settings). The header is not above it but beside it — the content column's own
+  // top row — so the rail keeps the window's full height.
   return (
     <TourProvider>
-      <div className="bg-background flex h-full gap-3 p-3">
+      <div className="bg-background flex h-full">
         <RouteMemory />
         <TrayBridge />
         <aside
           className={cn(
-            'border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col gap-2 rounded-2xl border p-2.5 transition-[width] duration-200',
-            collapsed ? 'w-[4.5rem]' : 'w-64',
+            'bg-surface-2 border-border ease-warm flex shrink-0 flex-col border-r transition-[width] duration-200',
+            collapsed ? 'w-16' : 'w-64',
             // A terminal that took the window takes the rail with it; the dock's own restore
             // button is the way back, and the rail keeps its state while it stands down.
             maximized && 'hidden',
           )}
         >
-          <div
-            className={cn(
-              'flex shrink-0 items-center',
-              collapsed ? 'justify-center' : 'justify-end',
-            )}
-          >
-            <Tooltip content={toggleLabel} side="right">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={toggleLabel}
+          {/* The head: the rail's own controls. The one action a rail can offer that is not a
+              screen — a terminal — sits here, under the fold, the way "new chat" does. */}
+          <div className="flex shrink-0 flex-col gap-0.5 p-2">
+            <Tooltip content={toggleLabel} side={collapsed ? 'right' : 'top'}>
+              <button
+                type="button"
+                aria-label={collapsed ? toggleLabel : undefined}
                 aria-expanded={!collapsed}
                 onClick={() => setSidebarCollapsed.mutate(!collapsed)}
+                className={railRow(collapsed)}
               >
-                {collapsed ? (
-                  <PanelLeftOpen className="size-4.5" aria-hidden />
-                ) : (
-                  <PanelLeftClose className="size-4.5" aria-hidden />
+                <RailIcon>
+                  {collapsed ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}
+                </RailIcon>
+                {collapsed ? null : (
+                  <span className="min-w-0 flex-1 truncate text-left">{toggleLabel}</span>
                 )}
-              </Button>
+              </button>
+            </Tooltip>
+
+            <Tooltip content={t('nav.terminal')} side={collapsed ? 'right' : 'top'}>
+              <button
+                type="button"
+                data-tour="nav-terminal"
+                aria-label={collapsed ? t('nav.terminal') : undefined}
+                aria-expanded={workspaces.length > 0 ? expanded : undefined}
+                onClick={openTerminal}
+                className={railRow(collapsed)}
+              >
+                <RailIcon>
+                  <TerminalIcon aria-hidden />
+                </RailIcon>
+                {collapsed ? null : (
+                  <span className="min-w-0 flex-1 truncate text-left">{t('nav.terminal')}</span>
+                )}
+                {!collapsed && workspaces.length > 0 ? (
+                  <RailCount>{workspaces.length}</RailCount>
+                ) : null}
+              </button>
             </Tooltip>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
+          <div className="border-border mx-2 shrink-0 border-t" aria-hidden />
+
+          <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto px-2 py-2">
             <div className="flex flex-col">
               {collapsed ? null : <NavSection>{t('nav.sections')}</NavSection>}
               <SidebarNav collapsed={collapsed} counts={navCounts} label={t('nav.sections')} />
@@ -399,45 +439,41 @@ export function AppShell() {
                   <NavSection>{t('nav.favorites')}</NavSection>
                 )}
                 <nav aria-label={t('nav.favorites')}>
-                  <AnimatedList grouped={false} className="flex flex-col gap-1">
+                  <AnimatedList grouped={false} className="flex flex-col gap-0.5">
                     {favoriteAgents.map((agent) => (
                       <ContextMenu key={agent.id}>
                         <ContextMenuTrigger asChild>
-                          <div className={cn('group flex items-center', !collapsed && 'gap-1')}>
+                          <div className="group relative flex">
                             <Tooltip content={collapsed ? agent.name : null} side="right">
-                              <NavLink
-                                to={`/agents/${agent.id}`}
-                                aria-label={collapsed ? agent.name : undefined}
-                                className={({ isActive }) =>
-                                  cn(
-                                    'ease-warm relative flex items-center rounded-xl text-[0.8125rem] transition-colors duration-150',
-                                    collapsed
-                                      ? 'mx-auto size-10 justify-center'
-                                      : 'min-w-0 flex-1 gap-2.5 px-3 py-2',
-                                    isActive
-                                      ? 'bg-accent-soft text-accent-strong'
-                                      : 'text-muted hover:bg-surface-2 hover:text-foreground',
-                                  )
-                                }
-                              >
-                                <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
-                                {collapsed ? null : (
-                                  <span className="relative min-w-0 flex-1 truncate">
-                                    {agent.name}
-                                  </span>
-                                )}
-                              </NavLink>
+                              {/* A plain element for the Radix trigger, as in the screens above:
+                                  `asChild` would merge into NavLink's `className` function and
+                                  drop every class of the row. */}
+                              <div className="flex w-full">
+                                <NavLink
+                                  to={`/agents/${agent.id}`}
+                                  aria-label={collapsed ? agent.name : undefined}
+                                  className={({ isActive }) => railRow(collapsed, isActive)}
+                                >
+                                  <RailIcon>
+                                    <AgentIcon name={agent.name} icon={agent.icon} size="xs" />
+                                  </RailIcon>
+                                  {collapsed ? null : (
+                                    <span className="min-w-0 flex-1 truncate">{agent.name}</span>
+                                  )}
+                                </NavLink>
+                              </div>
                             </Tooltip>
 
-                            {/* A favourite is one click away from running: the button keeps its place
-                            (so nothing shifts on hover) and only the installed agents get one, so
-                            the row never offers a command that would be refused. */}
+                            {/* A favourite is one click away from running: the button floats over the
+                            row's far end on hover (so the name keeps the whole row and nothing
+                            shifts) and only the installed agents get one, so the row never offers
+                            a command that would be refused. */}
                             {!collapsed && agent.status === 'installed' ? (
                               <Tooltip content={t('agents.runInTerminal')} side="left">
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
-                                  className="size-7 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
+                                  className="absolute top-1 right-1 size-7 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
                                   aria-label={`${t('agents.runInTerminal')} — ${agent.name}`}
                                   onClick={() => runInTerminal(agent)}
                                 >
@@ -467,49 +503,50 @@ export function AppShell() {
             </Reveal>
           </div>
 
-          <div
-            className={cn(
-              'border-border flex shrink-0 flex-col gap-2 border-t pt-2.5',
-              collapsed && 'items-center',
-            )}
-          >
+          {/* The foot: what the app itself does — read the machine again, and change how it
+              behaves. The scan is a sentence about the machine, not a control, so it sits above
+              the rows the way a plan does above an account. */}
+          <div className="border-border flex shrink-0 flex-col gap-0.5 border-t p-2">
             {collapsed ? null : <ScanSummary />}
-            <Tooltip content={t('nav.terminal')} side={collapsed ? 'right' : 'top'}>
-              <Button
-                variant="subtle"
-                size="sm"
-                className={cn('w-full', collapsed && 'justify-center px-0')}
-                data-tour="nav-terminal"
-                aria-label={collapsed ? t('nav.terminal') : undefined}
-                aria-expanded={workspaces.length > 0 ? expanded : undefined}
-                onClick={openTerminal}
-              >
-                <TerminalIcon className="size-3.5" aria-hidden />
-                {collapsed ? null : <span>{t('nav.terminal')}</span>}
-                {!collapsed && workspaces.length > 0 ? (
-                  <Badge tone="neutral" className="ml-auto tabular-nums">
-                    {workspaces.length}
-                  </Badge>
-                ) : null}
-              </Button>
-            </Tooltip>
             <Tooltip content={t('agents.rescan')} side={collapsed ? 'right' : 'top'}>
-              <Button
-                variant="subtle"
-                size="sm"
-                className={cn('w-full', collapsed && 'justify-center px-0')}
+              <button
+                type="button"
+                className={railRow(collapsed)}
                 aria-label={collapsed ? t('agents.rescan') : undefined}
+                aria-busy={isScanning || undefined}
+                disabled={isScanning}
                 onClick={rescan}
-                loading={isScanning}
               >
-                {isScanning ? null : <RefreshCw className="size-3.5" aria-hidden />}
-                {collapsed ? null : <span>{t('agents.rescan')}</span>}
-              </Button>
+                <RailIcon>
+                  {isScanning ? <Spinner className="size-4" /> : <RefreshCw aria-hidden />}
+                </RailIcon>
+                {collapsed ? null : (
+                  <span className="min-w-0 flex-1 truncate text-left">{t('agents.rescan')}</span>
+                )}
+              </button>
+            </Tooltip>
+
+            <Tooltip content={t('nav.settings')} side={collapsed ? 'right' : 'top'}>
+              <div className="flex">
+                <NavLink
+                  to="/settings"
+                  data-tour="nav-settings"
+                  aria-label={collapsed ? t('nav.settings') : undefined}
+                  className={({ isActive }) => railRow(collapsed, isActive)}
+                >
+                  <RailIcon>
+                    <SettingsIcon aria-hidden />
+                  </RailIcon>
+                  {collapsed ? null : (
+                    <span className="min-w-0 flex-1 truncate">{t('nav.settings')}</span>
+                  )}
+                </NavLink>
+              </div>
             </Tooltip>
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 p-3">
           <TitleBar />
           {/* A maximized terminal takes the screen's room, not its place in the tree: hidden and
               never unmounted, so the page it covered comes back as it was — same scroll position,

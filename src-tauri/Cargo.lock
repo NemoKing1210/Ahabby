@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "ahabby"
-version = "0.64.4"
+version = "0.65.0"
 dependencies = [
  "aes-gcm",
  "argon2",

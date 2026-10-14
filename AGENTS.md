@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI ships in seven languages (`src/shared/i18n/locales/`).
 
-Version: `0.64.4`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.65.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -452,9 +452,23 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   window dims them, and the middle one follows `maximized` from `window://state`, which is how a maximize
   the OS performed behind the webview's back (a snap, a double click, Win+Up) still turns the icon around.
   The labels live under `window.*` in the locales. The bar is the content column's **top row**, not a strip
-  across the window: the rail beside it runs the window's full height — from the shell's top inset to its
-  bottom one — so nothing is ever drawn above the sidebar and the window's controls stay where a caption's
+  across the window: the rail beside it is the window's own left edge — the full height of the window, with no
+  inset around it — so nothing is ever drawn above the rail and the window's controls stay where a caption's
   are.
+- **The rail is one kind of row, grouped by what each group is for (`AppShell`).** The sidebar is that left
+  edge: a full-height panel of `bg-surface-2` behind a hairline, with no card, no shadow and no rounding, and
+  every entry in it wears the same shape (`railRow`) — an icon column, the row's name, and whatever it counts
+  as a quiet number at its far end. The groups are the head (fold the rail, open a terminal), the screens it
+  leads to, the favourite agents, and the foot (what the last scan found, scan again, Settings). A screen is a
+  row and so is a button, which is what makes a rail read as a list rather than as a row of buttons; the row
+  the window is on is filled with a step of the surface the rail itself wears (`bg-surface-3`, never an
+  accent — the accent belongs to the screen it points at) and is the one row marked `aria-current`; and folding
+  keeps the very same rows with their names dropped, so there is no second row design to keep in sync. Every
+  icon is drawn in `RailIcon`, one 20px column — a line glyph at 18px and an agent's tile alike — so the icons
+  are one size and sit on one axis, folded or not; a row is a plain `<button>` or link, never a `Button`
+  (whose own padding and border are what pushed the rail's controls off the line of its screens).
+  Settings sits in the foot with the scan rather than among the screens: it belongs to the app, not to the
+  machine.
 - **A filter header is the one shared strip (`shared/ui/FilterBar`).** Every screen that narrows a list —
   Agents, the Library, the Hub, Settings → Cloud sync and an agent's or a project's Skills, MCP and Extensions
   tabs — wears the same bar, and the same control sits in the same place on all of them: the inputs (the search

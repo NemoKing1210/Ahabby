@@ -60,7 +60,7 @@
   --ah-overlay: rgb(20 20 19 / 0.42);
   --ah-ring: var(--ah-accent);
   --ah-shadow-popover: 0 12px 32px -12px rgb(20 20 19 / 0.22);
-  /* A persistent floating panel (the sidebar): a wide soft drop plus a hairline contact
+  /* A persistent floating panel (the terminal dock): a wide soft drop plus a hairline contact
      shadow, deliberately weaker than a popover so a dialog still reads as the top layer. */
   --ah-shadow-panel: 0 20px 44px -30px rgb(20 20 19 / 0.3), 0 2px 6px -3px rgb(20 20 19 / 0.07);
 

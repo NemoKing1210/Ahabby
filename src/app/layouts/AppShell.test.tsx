@@ -144,6 +144,7 @@ function renderShell(stored = settings(), route = '/agents', customChrome = fals
         children: [
           { path: 'agents', element: <p>agents screen</p> },
           { path: 'library', element: <p>library screen</p> },
+          { path: 'settings', element: <p>settings screen</p> },
         ],
       },
     ],
@@ -247,6 +248,35 @@ describe('AppShell', () => {
     // a second later, and every query the new screen starts waits behind it.
     expect(screen.getByText('library screen')).toBeInTheDocument()
     expect(screen.queryByText('agents screen')).toBeNull()
+  })
+
+  // The rail says where the window is with `aria-current` rather than with its own accent — the row
+  // is filled with a step of the surface the rail itself wears — so what a screen reader reads is
+  // one row claiming the screen, and exactly one.
+  it('marks the screen the window is on, and only that one', async () => {
+    renderShell(settings(), '/agents')
+
+    await screen.findByText('agents screen')
+    const marked = within(screen.getByRole('complementary')).getAllByRole('link', {
+      current: 'page',
+    })
+
+    expect(marked).toHaveLength(1)
+    expect(marked[0]).toHaveAccessibleName('Agents')
+  })
+
+  // Settings wears a screen's own row although it sits in the rail's foot with the scan: it is a
+  // link wherever it is, and it is the screen it opens that is marked.
+  it('marks Settings, whose row lives in the rail foot', async () => {
+    renderShell(settings(), '/settings')
+
+    await screen.findByText('settings screen')
+    const marked = within(screen.getByRole('complementary')).getAllByRole('link', {
+      current: 'page',
+    })
+
+    expect(marked).toHaveLength(1)
+    expect(marked[0]).toHaveAccessibleName('Settings')
   })
 
   it('keeps the rail as tall as the window, with the header beside it', () => {
