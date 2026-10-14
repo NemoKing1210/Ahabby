@@ -5,6 +5,16 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.2] - 2026-10-14
+
+### Fixed
+
+- **A collection whose skills sit in plugin groups can be taken whole from its heading.** The Hub hid
+  the section's own Select all / Install all as soon as a collection held any plugin group, leaving only
+  the per-group buttons — so a collection made of groups had no way to install everything it showed in
+  one go. The heading carries those actions again, and they now say what they cover ("Install all 12 on
+  screen") so they are never confused with a group's "Install all", which fetches its whole group first.
+
 ## [0.54.1] - 2026-10-14
 
 ### Changed

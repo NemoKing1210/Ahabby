@@ -176,9 +176,11 @@ export const HubSourceSection = memo(function HubSourceSection({
   const link = source.homepage ?? source.docs
   const visibleSelected = visibleSkills.filter((entry) => selectedIds.has(entry.id)).length
   const visibleAllSelected = visibleSkills.length > 0 && visibleSelected >= visibleSkills.length
-  // When the page already has plugin groups, each group owns its own buttons — the section
-  // actions would only duplicate "select everything on screen".
-  const showSectionActions = groups.length === 0 && visibleSkills.length > 0
+  // The section's own actions sit on the heading whether or not the page holds plugin groups: a
+  // group offers "install all" for itself, and the collection must still be takeable whole from the
+  // top — the two are different sets, not duplicates. It installs what the section has read, the
+  // accent button is the same "download all" the flat list has always had.
+  const showSectionActions = visibleSkills.length > 0
 
   const installGroup = useCallback(
     async (groupId: string) => {

@@ -443,7 +443,7 @@ describe('HubPage', () => {
     const folded = card.firstElementChild
     expect(folded?.classList.contains('bg-surface-2')).toBe(false)
     expect(folded?.classList.contains('bg-accent-soft')).toBe(false)
-    expect(await within(card).findByRole('button', { name: 'Select 1 skill' })).toBeTruthy()
+    expect(await within(card).findByRole('button', { name: 'Select 1 on screen' })).toBeTruthy()
 
     await user.click(within(container).getByRole('button', { name: 'Expand Example Skills' }))
     await within(container).findByText('Read and fill PDF forms.')
@@ -560,6 +560,37 @@ describe('HubPage', () => {
     expect(group.firstElementChild?.classList.contains('bg-surface-2')).toBe(true)
     // Its skills are inside that card, on the canvas it frames.
     expect(within(group).getByRole('button', { name: 'plan' })).toBeTruthy()
+  })
+
+  it('takes the whole collection from its heading even when its skills sit in groups', async () => {
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [SKILLS_SOURCE],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    const grouped = (name: string) =>
+      entry({
+        id: `example-skills/plugins/teams/skills/${name}`,
+        name,
+        group: 'teams',
+        hasScripts: false,
+      })
+    vi.mocked(ipc.searchHub).mockResolvedValue(
+      page({ entries: [grouped('review'), grouped('plan')] }),
+    )
+
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'Example Skills' })
+    const card = cardOf(container, 'Example Skills')
+
+    // The section's own actions are not the group's: a collection whose skills all sit in plugin
+    // groups can still be taken whole from its heading, not only one group at a time.
+    const user = userEvent.setup()
+    await user.click(await within(card).findByRole('button', { name: 'Install all 2 on screen' }))
+
+    // The same reviewed batch dialog the flat list opens, over both group skills.
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Install selected skills')).toBeTruthy()
   })
 
   it('opens Recommendations with role chips and asks for curated entries', async () => {
