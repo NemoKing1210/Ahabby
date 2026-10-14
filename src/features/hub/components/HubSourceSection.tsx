@@ -38,15 +38,13 @@ import { proxiedImage } from '@/features/browser/lib/images'
 import { matchesInstalled, type InstalledFilter } from '../installed'
 import { fetchGroupSkills } from '../lib/fetchGroup'
 import { groupHubEntries, isBatchable } from '../lib/grouping'
+import { PAGE_SIZE } from '../lib/search'
 import { starTint } from '../lib/starTint'
 import { HubBatchActions } from './HubBatchActions'
 import { HubEntryList } from './HubEntryList'
 import { HubEntrySkeletons } from './HubSkeletons'
 import { HubGroupBlock } from './HubGroupBlock'
 import { HubSourceContextMenu } from './HubSourceContextMenu'
-
-/** Entries asked for per request. The MCP registry is slowest with a *small* page, not a large one. */
-export const PAGE_SIZE = 16
 
 /**
  * One source of the hub: its own heading, its own paging, and its own answer.

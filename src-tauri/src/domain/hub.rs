@@ -550,6 +550,18 @@ pub struct HubInstallRequest {
     /// otherwise, so a UI that skips its review cannot put foreign files on disk.
     #[serde(default)]
     pub confirm: bool,
+    /// Whether the command re-reads the machine after the write before it answers.
+    ///
+    /// A batch of installs turns it off for every write and scans once, when the whole set is on
+    /// disk, instead of reading the machine once per file; a single install leaves it on. A request
+    /// that says nothing about it — an older window, a hand-written one — gets the full behaviour.
+    #[serde(default = "scan_by_default")]
+    pub scan: bool,
+}
+
+/// The default for [`HubInstallRequest::scan`]: the flag exists to be turned *off*.
+fn scan_by_default() -> bool {
+    true
 }
 
 /// What an install wrote.
@@ -659,6 +671,23 @@ mod tests {
         assert_eq!(query(Some(0)).page_size(), MIN_LIMIT);
         assert_eq!(query(Some(1_000)).page_size(), MAX_LIMIT);
         assert_eq!(query(Some(40)).page_size(), 40);
+    }
+
+    #[test]
+    fn an_install_scans_the_machine_unless_the_caller_says_otherwise() {
+        let alone: HubInstallRequest = serde_json::from_str(
+            r#"{"ownerId":"demo","entryId":"unit/skills/pdf","confirm":true}"#,
+        )
+        .expect("a request that says nothing about scanning");
+        // A caller that does not know about the flag — an older window, a hand-written request —
+        // gets the whole behaviour: the write is followed by a scan.
+        assert!(alone.scan);
+
+        let batch: HubInstallRequest = serde_json::from_str(
+            r#"{"ownerId":"demo","entryId":"unit/skills/pdf","confirm":true,"scan":false}"#,
+        )
+        .expect("a request that turns the scan off");
+        assert!(!batch.scan);
     }
 
     #[test]

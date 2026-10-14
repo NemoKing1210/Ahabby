@@ -536,6 +536,12 @@
     "loadedOf": "{{loaded}} of {{total}}",
     "install": "Install",
     "installTitle": "Install from the Hub",
+    "quickInstall": "From the Hub",
+    "quickTitle": {
+      "skill": "Install a skill from the Hub",
+      "mcp": "Install an MCP server from the Hub"
+    },
+    "quickBody": "Choose a collection, read what it offers, and install it for {{owner}}.",
     "installBody": "From “{{source}}”. Everything below is written to the owner you choose, exactly as reviewed.",
     "installed": "“{{name}}” installed for {{owner}}",
     "installedBadge": "Installed",

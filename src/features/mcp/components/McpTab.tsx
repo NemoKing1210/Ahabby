@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plug, Plus } from 'lucide-react'
+import { Download, Plug, Plus } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { ConfigFile } from '@/shared/bindings/ConfigFile'
@@ -17,6 +17,7 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
 import { configDocument, type EditorDocument } from '@/features/editor/model'
+import { HubQuickInstallDialog } from '@/features/hub/components/HubQuickInstallDialog'
 import { CloudItemAction, useCloudActions } from '@/features/sync/components/CloudActions'
 import { CloudOnlyCard } from '@/features/sync/components/CloudOnlyCard'
 
@@ -65,11 +66,20 @@ export function McpTab({
   // property of the agent whose tab it is.
   const [activity, setActivity] = useSessionState<ActivityFilter>('mcp.activity', 'all')
   const [createOpen, setCreateOpen] = useState(false)
-  const createButton = owner ? (
-    <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
-      <Plus className="size-3.5" aria-hidden />
-      {t('mcp.create')}
-    </Button>
+  const [hubOpen, setHubOpen] = useState(false)
+  // Where a new server comes from: written by hand here, or taken from a collection this machine
+  // reads. Both are offered only while the agent can hold one (it is installed).
+  const actions = owner ? (
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <Button variant="secondary" size="sm" onClick={() => setHubOpen(true)}>
+        <Download className="size-3.5" aria-hidden />
+        {t('hub.quickInstall')}
+      </Button>
+      <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
+        <Plus className="size-3.5" aria-hidden />
+        {t('mcp.create')}
+      </Button>
+    </div>
   ) : null
 
   // Every card carries a switch, so the list can be narrowed to what is on or off — the state
@@ -102,10 +112,13 @@ export function McpTab({
           title={t('mcp.none')}
           hint={owner ? t('mcp.noneHintCreate') : t('mcp.noneHint')}
           icon={Plug}
-          action={createButton}
+          action={actions}
         />
         {createOpen && owner ? (
           <CreateMcpServerDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+        ) : null}
+        {hubOpen && owner ? (
+          <HubQuickInstallDialog kind="mcp" owner={owner} onClose={() => setHubOpen(false)} />
         ) : null}
       </>
     )
@@ -117,7 +130,7 @@ export function McpTab({
         <FilterBar>
           <FilterRow className="justify-between">
             <ActivityChips items={servers} value={activity} onChange={setActivity} />
-            {createButton}
+            {actions}
           </FilterRow>
         </FilterBar>
         {visible.length === 0 && cloudServers.length === 0 ? (
@@ -153,6 +166,9 @@ export function McpTab({
 
       {createOpen && owner ? (
         <CreateMcpServerDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+      ) : null}
+      {hubOpen && owner ? (
+        <HubQuickInstallDialog kind="mcp" owner={owner} onClose={() => setHubOpen(false)} />
       ) : null}
 
       <McpDetailDialog

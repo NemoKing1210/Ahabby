@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Sparkles } from 'lucide-react'
+import { Download, Plus, Sparkles } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Skill } from '@/shared/bindings/Skill'
@@ -15,6 +15,7 @@ import { FilterBar, FilterRow } from '@/shared/ui/FilterBar'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
+import { HubQuickInstallDialog } from '@/features/hub/components/HubQuickInstallDialog'
 import { CloudItemAction, useCloudActions } from '@/features/sync/components/CloudActions'
 import { CloudOnlyCard } from '@/features/sync/components/CloudOnlyCard'
 
@@ -57,11 +58,20 @@ export function SkillsTab({
   // agent page, a project and the next agent all narrow the same tab.
   const [activity, setActivity] = useSessionState<ActivityFilter>('skills.activity', 'all')
   const [createOpen, setCreateOpen] = useState(false)
-  const createButton = owner ? (
-    <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
-      <Plus className="size-3.5" aria-hidden />
-      {t('skills.create')}
-    </Button>
+  const [hubOpen, setHubOpen] = useState(false)
+  // Where a new skill comes from: written by hand here, or taken from a collection this machine
+  // reads. Both are offered only while the agent can hold one (it is installed).
+  const actions = owner ? (
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <Button variant="secondary" size="sm" onClick={() => setHubOpen(true)}>
+        <Download className="size-3.5" aria-hidden />
+        {t('hub.quickInstall')}
+      </Button>
+      <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
+        <Plus className="size-3.5" aria-hidden />
+        {t('skills.create')}
+      </Button>
+    </div>
   ) : null
 
   // Every card carries a switch, so the list can be narrowed to what is on or off — the state
@@ -89,10 +99,13 @@ export function SkillsTab({
           title={t('skills.none')}
           hint={owner ? t('skills.noneHintCreate') : t('skills.noneHint')}
           icon={Sparkles}
-          action={createButton}
+          action={actions}
         />
         {createOpen && owner ? (
           <CreateSkillDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+        ) : null}
+        {hubOpen && owner ? (
+          <HubQuickInstallDialog kind="skill" owner={owner} onClose={() => setHubOpen(false)} />
         ) : null}
       </>
     )
@@ -104,7 +117,7 @@ export function SkillsTab({
         <FilterBar>
           <FilterRow className="justify-between">
             <ActivityChips items={skills} value={activity} onChange={setActivity} />
-            {createButton}
+            {actions}
           </FilterRow>
         </FilterBar>
         {visible.length === 0 && cloudSkills.length === 0 ? (
@@ -139,6 +152,9 @@ export function SkillsTab({
 
       {createOpen && owner ? (
         <CreateSkillDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
+      ) : null}
+      {hubOpen && owner ? (
+        <HubQuickInstallDialog kind="skill" owner={owner} onClose={() => setHubOpen(false)} />
       ) : null}
 
       <SkillDetailDialog

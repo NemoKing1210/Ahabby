@@ -536,6 +536,12 @@
     "loadedOf": " PH0    の   PH1  ",
     "install": "インストール",
     "installTitle": "ハブからインストールする",
+    "quickInstall": "ハブから",
+    "quickTitle": {
+      "skill": "ハブからスキルをインストール",
+      "mcp": "ハブから MCP サーバーをインストール"
+    },
+    "quickBody": "コレクションを選んで内容を確認し、「{{owner}}」にインストールします。",
     "installBody": "「  PH0  」から 以下のすべてが、あなたが選んだ所有者に書かれています。",
     "installed": "\"  PH0   \" は   PH1   にインストールされています。",
     "installedBadge": "インストール済み",

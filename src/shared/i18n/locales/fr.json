@@ -536,6 +536,12 @@
     "loadedOf": " PH0   de  PH1  ",
     "install": "Installer",
     "installTitle": "Installer à partir du Hub",
+    "quickInstall": "Depuis le Hub",
+    "quickTitle": {
+      "skill": "Installer une compétence depuis le Hub",
+      "mcp": "Installer un serveur MCP depuis le Hub"
+    },
+    "quickBody": "Choisissez une collection, regardez ce qu'elle propose, puis installez-la pour « {{owner}} ».",
     "installBody": "D'après \"  PH0  . Tout ci-dessous est écrit au propriétaire que vous choisissez, exactement comme examiné.",
     "installed": " PH   PH                                                                                                                                                                                                                                                         ",
     "installedBadge": "Installé",

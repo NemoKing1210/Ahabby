@@ -24,6 +24,7 @@ vi.mock('@/shared/api/ipc', () => ({
     getHubEntry: vi.fn(),
     compareHubSkill: vi.fn(),
     installHubResource: vi.fn(),
+    rescan: vi.fn(),
     cachedAgents: vi.fn(),
     getSettings: vi.fn(),
     openUrl: vi.fn(),
@@ -321,6 +322,8 @@ describe('HubPage', () => {
   beforeEach(() => {
     FakeIntersectionObserver.reset()
     vi.mocked(ipc.cachedAgents).mockResolvedValue(scanReport())
+    // A batch of installs scans the machine once, at the end, instead of once per file.
+    vi.mocked(ipc.rescan).mockResolvedValue(scanReport())
     // The pinned agent is the one an agent picker offers first.
     vi.mocked(ipc.getSettings).mockResolvedValue({ ...SETTINGS, favoriteAgents: ['warp'] })
     vi.mocked(ipc.listHubSources).mockResolvedValue({
@@ -766,6 +769,7 @@ describe('HubPage', () => {
       name: null,
       transport: null,
       confirm: true,
+      scan: true,
     })
   })
 
@@ -804,6 +808,7 @@ describe('HubPage', () => {
         env: [{ key: 'ROOT', value: '/srv' }],
       },
       confirm: true,
+      scan: true,
     })
   })
 
@@ -1192,7 +1197,10 @@ describe('HubPage', () => {
       name: null,
       transport: null,
       confirm: true,
+      scan: false,
     })
+    // The batch scans the machine once when the whole set is on disk, not once per file.
+    await waitFor(() => expect(ipc.rescan).toHaveBeenCalledTimes(1))
   })
 
   it('installs every skill of a plugin group after loading the full group', async () => {
@@ -1258,6 +1266,7 @@ describe('HubPage', () => {
         name: null,
         transport: null,
         confirm: true,
+        scan: false,
       },
       {
         ownerId: 'shared',
@@ -1265,8 +1274,10 @@ describe('HubPage', () => {
         name: null,
         transport: null,
         confirm: true,
+        scan: false,
       },
     ])
+    await waitFor(() => expect(ipc.rescan).toHaveBeenCalledTimes(1))
   })
 
   it('mounts a long collection a batch at a time and grows it as the sentinel comes into view', async () => {

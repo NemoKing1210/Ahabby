@@ -62,6 +62,10 @@ pub struct HubService {
     client: RwLock<reqwest::Client>,
     cache: Mutex<Cache>,
     repos: Mutex<RepoCache>,
+    /// Where a repository's tarball comes from. A field rather than the constant itself so a test
+    /// can point the download at a loopback server and see how often it happens; nothing but a test
+    /// ever moves it off [`CODELOAD`].
+    codeload: String,
 }
 
 impl HubService {
@@ -74,6 +78,7 @@ impl HubService {
             client: RwLock::new(http::client(proxy, REQUEST_TIMEOUT, MAX_REDIRECTS)),
             cache: Mutex::new(Cache::default()),
             repos: Mutex::new(RepoCache::load(app_data)),
+            codeload: CODELOAD.to_string(),
         }
     }
 
@@ -635,6 +640,17 @@ impl HubService {
         Ok((snapshot, false))
     }
 
+    /// The gate held while one `repository@ref` is downloaded.
+    ///
+    /// The map is an index of the work in flight, not another cache: a gate nobody is waiting on —
+    /// the map holding it is the only owner left — is dropped by the next call that looks one up.
+    fn download_gate(&self, key: &str) -> Arc<tokio::sync::Mutex<()>> {
+        let mut cache = self.cache();
+        let gate = cache.gates.entry(key.to_string()).or_default().clone();
+        cache.gates.retain(|_, held| Arc::strong_count(held) > 1);
+        gate
+    }
+
     /// The parsed files of a repository, downloaded at most once per ref.
     async fn repository(
         &self,
@@ -648,7 +664,17 @@ impl HubService {
                 return Ok((cached.files, cached.truncated));
             }
         }
-        let url = tarball_url(repository, git_ref)?;
+        // One download per key at a time: installing several skills of one collection at once would
+        // otherwise fetch the very same tarball once per skill.
+        let gate = self.download_gate(&key);
+        let _downloading = gate.lock().await;
+        if !refresh {
+            // Whoever held the gate just before us may have read exactly this tarball.
+            if let Some(cached) = self.cached_repository(&key) {
+                return Ok((cached.files, cached.truncated));
+            }
+        }
+        let url = tarball_url(&self.codeload, repository, git_ref)?;
         let bytes = self.get_bytes(&url).await?;
         let (files, truncated) = parse::read_tarball(&bytes)?;
         if truncated {
@@ -877,6 +903,11 @@ struct Cache {
     snapshots: HashMap<String, Cached<Arc<Snapshot>>>,
     /// Index documents by source id.
     indexes: HashMap<String, Cached<Arc<IndexDocument>>>,
+    /// One download in flight per `repository@ref`, so two callers that want the same tarball wait
+    /// for one fetch instead of making two. The map holds work in flight, not results: a gate nobody
+    /// is waiting on is dropped by the next call (`HubService::download_gate`). It is an async
+    /// mutex because the wait is an `await`, not a parked thread.
+    gates: HashMap<String, Arc<tokio::sync::Mutex<()>>>,
 }
 
 impl Cache {
@@ -987,7 +1018,7 @@ fn registry_url(base: &str, search: &str, cursor: Option<&str>, limit: u32) -> R
     Ok(url.to_string())
 }
 
-fn tarball_url(repository: &str, git_ref: &str) -> Result<String> {
+fn tarball_url(base: &str, repository: &str, git_ref: &str) -> Result<String> {
     if !crate::domain::plain_repository(repository) {
         return Err(AppError::InvalidInput(format!(
             "'{repository}' is not a plain repository"
@@ -998,7 +1029,7 @@ fn tarball_url(repository: &str, git_ref: &str) -> Result<String> {
             "'{git_ref}' is not a plain git ref"
         )));
     }
-    Ok(format!("{CODELOAD}/{repository}/tar.gz/{git_ref}"))
+    Ok(format!("{base}/{repository}/tar.gz/{git_ref}"))
 }
 
 fn snapshot_key(source: &HubSource, repository: &str, git_ref: &str) -> String {
@@ -1404,6 +1435,8 @@ tags = ["mcp"]
     enum Canned {
         /// A 200 with this body.
         Ok(String),
+        /// A 200 with these exact bytes — a repository tarball is not text.
+        Bytes(Vec<u8>),
         /// A body too large to hold: `chunk` written `times` (the per-body cap test).
         Stream { chunk: Vec<u8>, times: usize },
         /// This status with an empty body.
@@ -1498,6 +1531,7 @@ tags = ["mcp"]
         hits.fetch_add(1, Ordering::SeqCst);
         match route(target) {
             Canned::Ok(body) => write_body(&mut stream, 200, body.as_bytes()),
+            Canned::Bytes(body) => write_body(&mut stream, 200, &body),
             Canned::Status(status) => write_body(&mut stream, status, b""),
             Canned::Stream { chunk, times } => {
                 let head = format!(
@@ -2140,5 +2174,24 @@ provides = ["skill"]
                 args: vec!["@example/files@1.0.0".to_string()],
             })
         );
+    }
+
+    #[tokio::test]
+    async fn one_repository_is_downloaded_once_however_many_callers_ask_for_it() {
+        let body = tar_gz(&[("skills/pdf/SKILL.md", &b"# pdf"[..])]);
+        let stub = Stub::start(move |_target| Canned::Bytes(body.clone()));
+        let (_dir, mut service, _hub) = service_and_hub();
+        service.codeload = stub.base();
+
+        let (first, second) = tokio::join!(
+            service.repository("owner/repo", "main", false),
+            service.repository("owner/repo", "main", false),
+        );
+
+        assert!(first.is_ok(), "the first read failed: {first:?}");
+        assert!(second.is_ok(), "the second read failed: {second:?}");
+        // A batch installs several skills of one collection at once: the second caller waits for the
+        // download in flight instead of fetching the same tarball again.
+        assert_eq!(stub.hits(), 1);
     }
 }

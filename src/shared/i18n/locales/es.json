@@ -536,6 +536,12 @@
     "loadedOf": "{{loaded}} de {{total}}",
     "install": "Instalar",
     "installTitle": "Instalar desde el concentrador",
+    "quickInstall": "Desde el concentrador",
+    "quickTitle": {
+      "skill": "Instalar una habilidad desde el concentrador",
+      "mcp": "Instalar un servidor MCP desde el concentrador"
+    },
+    "quickBody": "Elige una colección, mira lo que ofrece e instálala para «{{owner}}».",
     "installBody": "De “{{source}}”. Todo lo que aparece a continuación está escrito para el propietario que usted elija, exactamente como se revisó.",
     "installed": "“{{name}}” instalado para {{owner}}",
     "installedBadge": "Instalado",

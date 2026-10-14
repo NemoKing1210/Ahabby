@@ -25,4 +25,12 @@ transport?: McpDraftTransport | null,
  * `true` only after the dialog listed what will be written. The backend refuses the write
  * otherwise, so a UI that skips its review cannot put foreign files on disk.
  */
-confirm: boolean, };
+confirm: boolean, 
+/**
+ * Whether the command re-reads the machine after the write before it answers.
+ *
+ * A batch of installs turns it off for every write and scans once, when the whole set is on
+ * disk, instead of reading the machine once per file; a single install leaves it on. A request
+ * that says nothing about it — an older window, a hand-written one — gets the full behaviour.
+ */
+scan: boolean, };

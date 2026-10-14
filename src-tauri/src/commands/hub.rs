@@ -237,7 +237,17 @@ pub async fn install_hub_resource(
         }
     };
 
-    let report = state.scan().await;
+    // The write is on disk either way. A caller that scans once for a whole batch is not paying for
+    // a full read of the machine per file — and one that has never scanned still gets a report,
+    // because a report cannot be invented.
+    let report = if request.scan {
+        state.scan().await
+    } else {
+        match state.report() {
+            Ok(report) => report,
+            Err(_) => state.scan().await,
+        }
+    };
     Ok(MutationResult::new(install, report))
 }
 

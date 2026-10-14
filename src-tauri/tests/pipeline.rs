@@ -3799,6 +3799,118 @@ async fn a_migration_without_confirm_writes_nothing() {
     assert!(provider.holds(&old), "the old gist is untouched");
 }
 
+/// The acceptance the whole layout rests on: two machines, one account, one password.
+///
+/// Machine one saves its library and sets a password; a second machine over the same cloud — its own
+/// credentials file, so no key — sees one locked library and no rows, and the password unlocks it
+/// once and derives the very key the library was sealed with. What the second machine writes the
+/// first reads, and what the provider holds is an envelope an item's name and its path are nowhere
+/// in. The one claim a test cannot make — that GitHub's revisions of the plaintext gist are gone —
+/// is what sealing the library into a *fresh* gist is for, so the id moving is its proof here.
+#[tokio::test]
+async fn one_password_on_two_machines_over_one_cloud() {
+    let (fixture, report, first, provider, _target) = sync_fixture().await;
+    let password = "the user's password";
+    let (config, _skill) = plain_items(&first, &report);
+
+    // Machine one saves its library, then seals it: one gist holds one document from here on.
+    let run = first.push_all(&report).await.unwrap();
+    assert_eq!(run.failed, 0);
+    assert!(
+        run.uploaded >= 2,
+        "the fixture's library was saved: {run:?}"
+    );
+    let plain_id = provider.id();
+    let run = first.set_password(password).await.unwrap();
+    assert_eq!(run.failed, 0);
+
+    // The document is an envelope: neither an item's name nor a path is in the text the provider
+    // holds, and the gist whose revisions hold the plaintext went with the sealing.
+    let text = provider.text();
+    assert!(text.contains("\"encrypted\": true"));
+    assert!(
+        !text.contains("prefs.json"),
+        "no item name reaches the cloud"
+    );
+    assert!(!text.contains(".pipeline"), "no path reaches the cloud");
+    assert_ne!(
+        provider.id(),
+        plain_id,
+        "sealing moves the library to a fresh gist"
+    );
+    assert!(
+        !provider.holds(&plain_id),
+        "the gist whose revisions hold the plaintext is deleted with them"
+    );
+
+    // The second machine is the same cloud over a credentials file of its own, so it holds no key:
+    // the library is locked and has no rows, which is an answer here rather than an error.
+    let second = second_service(&fixture, &provider);
+    let locked = second.remote_items(true).await.unwrap();
+    assert!(locked.locked);
+    assert!(locked.items.is_empty());
+    assert!(!second.status().encryption.enabled);
+
+    // One password, entered once, is the way in: it derives the key the first machine sealed with,
+    // which is what lets both machines go on writing the same library.
+    let status = second.unlock(password).await.unwrap();
+    assert!(status.encryption.enabled);
+    assert_eq!(status.encryption.kid, first.status().encryption.kid);
+
+    let rows = second.remote_items(true).await.unwrap();
+    assert!(!rows.locked, "the library is readable now");
+    let row = rows
+        .items
+        .iter()
+        .find(|row| row.key == config.key)
+        .expect("the config machine one saved");
+    let content = second.remote_content(&row.remote_id).await.unwrap();
+    assert_eq!(
+        content.files[0].text.as_deref(),
+        Some("{\n  \"theme\": \"dark\"\n}\n"),
+        "the second machine reads the item machine one wrote"
+    );
+
+    // The second machine changes that item and saves it; the first machine reads the write back,
+    // which is the whole point of one key on two machines.
+    let changed = "{\n  \"theme\": \"light\"\n}\n";
+    fs::write(&config.path, changed).unwrap();
+    let run = second
+        .push(&report, &refs(std::slice::from_ref(&config)))
+        .await
+        .unwrap();
+    assert_eq!(run.uploaded, 1, "the changed item was written: {run:?}");
+    assert_eq!(run.failed, 0);
+
+    let rows = first.remote_items(true).await.unwrap();
+    assert!(!rows.locked);
+    let row = rows
+        .items
+        .iter()
+        .find(|row| row.key == config.key)
+        .expect("the item the second machine wrote");
+    let content = first.remote_content(&row.remote_id).await.unwrap();
+    assert_eq!(content.files[0].text.as_deref(), Some(changed));
+
+    // The password is in neither machine's credentials file: what is stored there is the key it
+    // derived, beside the token — the one thing a sealed library cannot lose.
+    for path in [
+        fixture.app_config.join("sync").join("credentials.json"),
+        fixture
+            .app_config
+            .join("second")
+            .join("sync")
+            .join("credentials.json"),
+    ] {
+        let raw = fs::read_to_string(&path).expect("a credentials file to check");
+        assert!(
+            !raw.contains(password),
+            "the password is stored in {}: {raw}",
+            path.display()
+        );
+    }
+}
+
 /// A payload for one item, used to seed the cloud by hand.
 fn remote_payload(item: &SyncItem, bytes: &[u8]) -> SyncPayload {
     SyncPayload {

@@ -13,6 +13,13 @@ vi.mock('@/shared/api/ipc', () => ({
   ipc: { deleteSkill: vi.fn(), setSkillEnabled: vi.fn() },
 }))
 
+/** The quick install dialog is its own component; what the tab owes it is the kind and the owner. */
+vi.mock('@/features/hub/components/HubQuickInstallDialog', () => ({
+  HubQuickInstallDialog: ({ kind, owner }: { kind: string; owner: AgentRef }) => (
+    <p>{`hub installer ${kind} for ${owner.id}`}</p>
+  ),
+}))
+
 const claude: AgentRef = { id: 'claude-code', name: 'Claude Code', icon: 'claude' }
 
 function skill(name: string, enabled: boolean): Skill {
@@ -34,11 +41,11 @@ function skill(name: string, enabled: boolean): Skill {
   }
 }
 
-function renderTab(skills: Skill[]) {
+function renderTab(skills: Skill[], owner: AgentRef | null = null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return renderWithProviders(
     <QueryClientProvider client={client}>
-      <SkillsTab agentId="claude-code" skills={skills} />
+      <SkillsTab agentId="claude-code" skills={skills} owner={owner} />
     </QueryClientProvider>,
   )
 }
@@ -80,5 +87,31 @@ describe('SkillsTab', () => {
     // An empty list under a filter is not the same as an agent with no skills at all.
     expect(within(container).getByText('Nothing here is switched on')).toBeTruthy()
     expect(within(container).queryByRole('button', { name: 'parked' })).toBeNull()
+  })
+
+  it('offers a skill from the hub to the agent whose tab it is', async () => {
+    const user = userEvent.setup()
+    const { container } = renderTab([skill('alpha', true)], claude)
+
+    await user.click(within(container).getByRole('button', { name: 'From the Hub' }))
+
+    expect(within(container).getByText('hub installer skill for claude-code')).toBeTruthy()
+  })
+
+  it('leaves the hub out of an agent that cannot hold a skill', () => {
+    const { container } = renderTab([skill('alpha', true)])
+
+    expect(within(container).queryByRole('button', { name: 'From the Hub' })).toBeNull()
+  })
+
+  it('offers the hub from an empty list too', async () => {
+    const user = userEvent.setup()
+    const { container } = renderTab([], claude)
+
+    // An agent holding nothing is exactly where a collection is worth reading: the empty state
+    // carries the same two ways in as the list's own toolbar.
+    await user.click(within(container).getByRole('button', { name: 'From the Hub' }))
+
+    expect(within(container).getByText('hub installer skill for claude-code')).toBeTruthy()
   })
 })

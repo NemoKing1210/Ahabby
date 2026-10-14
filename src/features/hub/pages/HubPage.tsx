@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { Store } from 'lucide-react'
@@ -29,12 +29,10 @@ import { HubSourceSection } from '../components/HubSourceSection'
 import { HubToolbar } from '../components/HubToolbar'
 import type { InstalledFilter } from '../installed'
 import { isBatchable } from '../lib/grouping'
+import { useSettledSearch } from '../lib/search'
 import type { RecommendationRoleId } from '../recommendations/catalog'
 
 type HubTab = 'catalog' | 'recommendations'
-
-/** How long typing settles before the sources are asked again. */
-const SEARCH_DEBOUNCE_MS = 350
 
 /** How many of the most starred collections the screen names as the top of the Hub. */
 const TOP_SOURCES = 3
@@ -68,9 +66,7 @@ export function HubPage() {
   const [role, setRole] = useSessionState<RecommendationRoleId>('hub.role', 'everyday')
   const [query, setQuery] = useSessionState('hub.query', '')
   // Typing settles before it reaches the network: a source is a real request, not a local list.
-  // The settled copy starts from the restored query, so a revisit asks for the filtered first
-  // page directly instead of asking twice.
-  const [settled, setSettled] = useState(() => query.trim())
+  const settled = useSettledSearch(query)
   const [kind, setKind] = useSessionState<HubResourceKind | null>('hub.kind', null)
   const [installed, setInstalled] = useSessionState<InstalledFilter>('hub.installed', 'all')
   const [sourceId, setSourceId] = useSessionState('hub.source', 'all')
@@ -118,11 +114,6 @@ export function HubPage() {
     installed !== 'all' ||
     sourceId !== 'all' ||
     tags.length > 0
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setSettled(query.trim()), SEARCH_DEBOUNCE_MS)
-    return () => window.clearTimeout(timer)
-  }, [query])
 
   // The Refresh action is honest about what it does — a *network* read — so the button reports the
   // state of the requests themselves instead of a timer of its own.

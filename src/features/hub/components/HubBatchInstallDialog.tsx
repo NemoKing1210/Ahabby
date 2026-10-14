@@ -7,7 +7,6 @@ import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { HubEntry } from '@/shared/bindings/HubEntry'
-import type { ScanReport } from '@/shared/bindings/ScanReport'
 import { ownerName, projectOwner, SHARED_OWNER } from '@/shared/lib/owners'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -20,6 +19,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/Dialog'
 import { OwnerSelect } from '@/shared/ui/OwnerSelect'
+import { Progress } from '@/shared/ui/Progress'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -31,6 +31,9 @@ import { formatGroupTitle, isBatchable, takenByOwner } from '../lib/grouping'
 
 type ItemStatus = 'pending' | 'skip' | 'running' | 'done' | 'error'
 
+/** How many entries are written at once. Each one is an independent directory and one request. */
+const INSTALL_CONCURRENCY = 3
+
 interface ItemState {
   entry: HubEntry
   status: ItemStatus
@@ -41,17 +44,24 @@ interface ItemState {
  * Review and install several hub skills for one owner.
  *
  * One confirm covers the whole list: each write still goes through `install_hub_resource` with
- * `confirm: true`, sequentially, so a refusal mid-way leaves the rest to finish and the dialog
+ * `confirm: true`, a few at a time, so a refusal mid-way leaves the rest to finish and the dialog
  * reports what happened. Skills the chosen owner already holds are marked to skip and never sent.
+ * None of those writes re-reads the machine — the batch scans once when the whole set is on disk.
  */
 export function HubBatchInstallDialog({
   entries,
   groupId,
+  owner,
   onClose,
 }: {
   entries: HubEntry[]
   /** When the batch is one plugin group, named in the title. */
   groupId?: string | null
+  /**
+   * Locks the whole batch to one owner — what an owner's own page passes, where every entry goes
+   * to the agent or project whose tab it is. The target is then shown as a tag, not offered.
+   */
+  owner?: AgentRef
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -61,20 +71,23 @@ export function HubBatchInstallDialog({
   const projects = useProjects()
 
   const owners = useMemo<AgentRef[]>(
-    () => [
-      SHARED_OWNER,
-      ...orderByFavorite(
-        (agents.data?.agents ?? [])
-          .filter((agent) => agent.status === 'installed')
-          .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
-        favoriteIds,
-      ),
-      ...(projects.data?.projects ?? []).map(projectOwner),
-    ],
-    [agents.data, projects.data, favoriteIds],
+    () =>
+      owner
+        ? [owner]
+        : [
+            SHARED_OWNER,
+            ...orderByFavorite(
+              (agents.data?.agents ?? [])
+                .filter((agent) => agent.status === 'installed')
+                .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
+              favoriteIds,
+            ),
+            ...(projects.data?.projects ?? []).map(projectOwner),
+          ],
+    [owner, agents.data, projects.data, favoriteIds],
   )
 
-  const [ownerId, setOwnerId] = useState(owners[0]?.id ?? '')
+  const [ownerId, setOwnerId] = useState(owner?.id ?? owners[0]?.id ?? '')
   const [running, setRunning] = useState(false)
   const [items, setItems] = useState<ItemState[]>(() =>
     entries.filter(isBatchable).map((entry) => ({ entry, status: 'pending' })),
@@ -103,40 +116,54 @@ export function HubBatchInstallDialog({
     setRunning(true)
 
     let installed = 0
-    let skipped = 0
     let failed = 0
-    let lastReport: ScanReport | null = null
-
+    // What the owner already holds is marked and never sent.
+    const pending: HubEntry[] = []
     for (const item of items) {
-      if (takenByOwner(item.entry, ownerId)) {
-        patch(item.entry.id, { status: 'skip' })
-        skipped += 1
-        continue
-      }
-      patch(item.entry.id, { status: 'running' })
-      try {
-        const result = await ipc.installHubResource({
-          ownerId,
-          entryId: item.entry.id,
-          name: null,
-          transport: null,
-          confirm: true,
-        })
-        lastReport = result.report
-        patch(item.entry.id, { status: 'done' })
-        installed += 1
-      } catch (error) {
-        failed += 1
-        patch(item.entry.id, { status: 'error', error: toAppError(error).message })
-        toastAppError(error)
+      if (takenByOwner(item.entry, ownerId)) patch(item.entry.id, { status: 'skip' })
+      else pending.push(item.entry)
+    }
+    const skipped = items.length - pending.length
+
+    // A few writes at once. Each one is an independent skill directory, so the pool is only about
+    // the waiting: a list of twenty skills finishes in the time of seven. A refusal is still
+    // reported against the entry that caused it, and never stops the rest.
+    const worker = async () => {
+      for (let entry = pending.shift(); entry !== undefined; entry = pending.shift()) {
+        patch(entry.id, { status: 'running' })
+        try {
+          await ipc.installHubResource({
+            ownerId,
+            entryId: entry.id,
+            name: null,
+            transport: null,
+            confirm: true,
+            // The machine is read once for the whole batch, right below.
+            scan: false,
+          })
+          patch(entry.id, { status: 'done' })
+          installed += 1
+        } catch (error) {
+          failed += 1
+          patch(entry.id, { status: 'error', error: toAppError(error).message })
+          toastAppError(error)
+        }
       }
     }
+    await Promise.all(Array.from({ length: Math.min(INSTALL_CONCURRENCY, pending.length) }, worker))
 
-    if (lastReport) {
-      client.setQueryData(queryKeys.agents(), lastReport)
+    // One scan for the whole set, and its report is what the caches are given: each install above
+    // answered with the report as it stood *before* that write.
+    try {
+      const report = await ipc.rescan()
+      client.setQueryData(queryKeys.agents(), report)
       void client.invalidateQueries({ queryKey: queryKeys.library() })
       void client.invalidateQueries({ queryKey: queryKeys.hubSourceAll() })
       void client.invalidateQueries({ queryKey: queryKeys.hubEntryAll() })
+    } catch (error) {
+      // The writes are on disk whatever the scan says, so a failed read is reported and the counts
+      // below still stand.
+      toastAppError(error)
     }
 
     const owner = owners.find((candidate) => candidate.id === ownerId)
@@ -223,10 +250,20 @@ export function HubBatchInstallDialog({
             })}
           </ul>
 
-          {running ? (
-            <p className="text-muted text-[0.75rem] tabular-nums" aria-live="polite">
-              {t('hub.batchProgress', { done: progressDone, total: items.length })}
-            </p>
+          {/* The batch as it stands: a bar for the whole set, and the count beside it as the live
+              text. It stays when the run is over, filled, until the dialog is closed. */}
+          {running || progressDone > 0 ? (
+            <div className="flex items-center gap-3">
+              <Progress
+                value={progressDone}
+                max={items.length}
+                size="md"
+                label={t('hub.batchTitle')}
+              />
+              <span className="text-muted shrink-0 text-[0.75rem] tabular-nums" aria-live="polite">
+                {t('hub.batchProgress', { done: progressDone, total: items.length })}
+              </span>
+            </div>
           ) : null}
         </DialogBody>
 

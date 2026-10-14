@@ -72,8 +72,20 @@ interface ValueRow {
  * would be refused by `install_hub_resource`.
  *
  * What the entry *is* lives in `HubEntryParts`, shared with the preview: this dialog is the form.
+ *
+ * `owner` locks the write to one owner and is what a caller that already *is* an owner passes —
+ * an agent's own page installing into that agent. The target is then shown as a tag rather than
+ * offered as a choice, exactly as a creation form with one owner does.
  */
-export function HubInstallDialog({ entryId, onClose }: { entryId: string; onClose: () => void }) {
+export function HubInstallDialog({
+  entryId,
+  owner,
+  onClose,
+}: {
+  entryId: string
+  owner?: AgentRef
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const detail = useHubEntry(entryId)
 
@@ -105,14 +117,22 @@ export function HubInstallDialog({ entryId, onClose }: { entryId: string; onClos
             </DialogBody>
           </>
         ) : (
-          <InstallForm key={entryId} detail={detail.data} onClose={onClose} />
+          <InstallForm key={entryId} detail={detail.data} owner={owner} onClose={onClose} />
         )}
       </DialogContent>
     </Dialog>
   )
 }
 
-function InstallForm({ detail, onClose }: { detail: HubEntryDetail; onClose: () => void }) {
+function InstallForm({
+  detail,
+  owner,
+  onClose,
+}: {
+  detail: HubEntryDetail
+  owner?: AgentRef
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const install = useInstallHubResource()
   const agents = useAgents()
@@ -124,22 +144,27 @@ function InstallForm({ detail, onClose }: { detail: HubEntryDetail; onClose: () 
   // Owners a payload can be written for: the agent-neutral shared surface first (the general
   // case, and what "install globally" means), then every installed agent — the pinned ones
   // first — and then every project the scan found. A resource written for an agent that is not
-  // installed would not be scanned.
+  // installed would not be scanned. A caller that already named an owner (an agent's own page
+  // installing into that agent) leaves this list with exactly that one owner in it, which is what
+  // turns the field below into a plain statement of where the write goes.
   const owners = useMemo<AgentRef[]>(
-    () => [
-      SHARED_OWNER,
-      ...orderByFavorite(
-        (agents.data?.agents ?? [])
-          .filter((agent) => agent.status === 'installed')
-          .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
-        favoriteIds,
-      ),
-      ...(projects.data?.projects ?? []).map(projectOwner),
-    ],
-    [agents.data, projects.data, favoriteIds],
+    () =>
+      owner
+        ? [owner]
+        : [
+            SHARED_OWNER,
+            ...orderByFavorite(
+              (agents.data?.agents ?? [])
+                .filter((agent) => agent.status === 'installed')
+                .map((agent) => ({ id: agent.id, name: agent.name, icon: agent.icon })),
+              favoriteIds,
+            ),
+            ...(projects.data?.projects ?? []).map(projectOwner),
+          ],
+    [owner, agents.data, projects.data, favoriteIds],
   )
 
-  const [ownerId, setOwnerId] = useState(owners[0]?.id ?? '')
+  const [ownerId, setOwnerId] = useState(owner?.id ?? owners[0]?.id ?? '')
   const [name, setName] = useState(entry.name)
   const [transport, setTransport] = useState<Transport>(source?.type === 'http' ? 'http' : 'stdio')
   const [command, setCommand] = useState(source?.type === 'stdio' ? source.command : '')
@@ -194,6 +219,9 @@ function InstallForm({ detail, onClose }: { detail: HubEntryDetail; onClose: () 
       transport: draft,
       // The user is looking at the list of files (or the recipe) above: this is that confirmation.
       confirm: true,
+      // One write, one report: a single install re-reads the machine so what it answers with is the
+      // truth of the moment. (A batch is the caller that turns this off and scans once for all.)
+      scan: true,
     }
     install.mutate(request, {
       onSuccess: (result) => {
