@@ -101,15 +101,43 @@ describe('SyncEncryptionDialog', () => {
       const user = userEvent.setup()
       const view = renderDialog(mode)
       const submit = screen.getByRole('button', { name: SUBMIT[mode] })
+      // Setting a password and changing one are the two modes that ask for it twice.
+      const sealing = mode === 'set' || mode === 'rotate'
+      const repeat = () => screen.getByLabelText('Repeat the password')
 
       // Empty and one character short of the rule are both refused here, where the backend's
       // own refusal would only arrive after a round trip.
       expect(submit).toBeDisabled()
       await user.type(screen.getByLabelText('Password'), 'seven77')
+      if (sealing) await user.type(repeat(), 'seven77')
       expect(submit).toBeDisabled()
 
       await user.type(screen.getByLabelText('Password'), 'x')
+      if (sealing) await user.type(repeat(), 'x')
       expect(submit).toBeEnabled()
+      view.unmount()
+    }
+  })
+
+  it('refuses to seal the library while the two fields do not agree', async () => {
+    for (const mode of ['set', 'rotate'] as SyncEncryptionMode[]) {
+      const user = userEvent.setup()
+      const view = renderDialog(mode)
+
+      // Long enough, and one character apart — exactly the typo that would seal the library under
+      // a password nobody knows, which is why setting one is the flow that asks twice.
+      await user.type(screen.getByLabelText('Password'), 'a long enough password')
+      await user.type(screen.getByLabelText('Repeat the password'), 'a long enough passwrod')
+
+      expect(screen.getByRole('button', { name: SUBMIT[mode] })).toBeDisabled()
+      expect(screen.getByRole('alert')).toHaveTextContent('The two passwords are not the same.')
+      expect(ipc.setSyncPassword).not.toHaveBeenCalled()
+
+      await user.clear(screen.getByLabelText('Repeat the password'))
+      await user.type(screen.getByLabelText('Repeat the password'), 'a long enough password')
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: SUBMIT[mode] })).toBeEnabled()
       view.unmount()
     }
   })
@@ -123,6 +151,7 @@ describe('SyncEncryptionDialog', () => {
     expect(screen.getByText(/its URL changes/)).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Password'), 'a long enough password')
+    await user.type(screen.getByLabelText('Repeat the password'), 'a long enough password')
     await user.click(screen.getByRole('button', { name: 'Encrypt the cloud' }))
 
     await waitFor(() => expect(ipc.setSyncPassword).toHaveBeenCalledWith('a long enough password'))

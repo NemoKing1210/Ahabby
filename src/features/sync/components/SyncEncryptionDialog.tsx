@@ -36,7 +36,8 @@ const MIN_PASSWORD = 8
  * names: both write the library to a fresh gist, which is why both say the URL changes.
  *
  * The password lives in this component's own state and nowhere else — it is handed to the command
- * as an argument and the component is unmounted with the dialog, so nothing can cache it.
+ * as an argument and the component is unmounted with the dialog, so nothing can cache it. Setting
+ * and changing it ask for it twice; unlocking this machine asks once.
  * Everything that reaches a locked library goes through here, and a caller that was interrupted
  * passes `onUnlocked` to run what it wanted once the password landed.
  */
@@ -57,6 +58,7 @@ export function SyncEncryptionDialog({
   const clear = useClearSyncEncryption()
   const remove = useDeleteRemoteSyncLibrary()
   const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
 
   /** What the cloud holds, as the listing last read it: what the copy is about to change. */
   const copies = remote.data?.items.length ?? 0
@@ -109,6 +111,12 @@ export function SyncEncryptionDialog({
   const sealing = mode === 'set' || mode === 'rotate'
   const pending = seal.isPending || unlock.isPending
   const failed = seal.isError || unlock.isError
+  // A password is usually set once, so a mistyped one seals the whole library under something
+  // nobody knows — and the way out is deleting it. Both fields must agree before the command is
+  // offered; unlocking a library this machine cannot read needs no second field, since a wrong
+  // password is answered by the library itself.
+  const repeated = !sealing || password === confirmation
+  const mismatch = sealing && confirmation.length > 0 && !repeated
 
   const submit = () => {
     if (mode === 'unlock') {
@@ -157,8 +165,29 @@ export function SyncEncryptionDialog({
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
+          {sealing ? (
+            <label className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-sm">
+                <KeyRound className="size-3.5" aria-hidden />
+                {t('sync.encryptionPasswordConfirm')}
+              </span>
+              <Input
+                type="password"
+                value={confirmation}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label={t('sync.encryptionPasswordConfirm')}
+                onChange={(event) => setConfirmation(event.target.value)}
+              />
+            </label>
+          ) : null}
           <p className="text-faint text-[0.75rem]">{t('sync.encryptionPasswordHint')}</p>
 
+          {mismatch ? (
+            <p role="alert" className="text-danger-fg text-[0.8125rem]">
+              {t('sync.encryptionPasswordMismatch')}
+            </p>
+          ) : null}
           {failed ? (
             <p role="alert" className="text-danger-fg text-[0.8125rem]">
               {t('sync.encryptionFailed')}
@@ -170,7 +199,12 @@ export function SyncEncryptionDialog({
           <Button variant="ghost" onClick={onClose} disabled={pending}>
             {t('common.cancel')}
           </Button>
-          <Button variant="primary" disabled={!longEnough} loading={pending} onClick={submit}>
+          <Button
+            variant="primary"
+            disabled={!longEnough || !repeated}
+            loading={pending}
+            onClick={submit}
+          >
             {pending && sealing ? t('sync.encryptionSetting') : title}
           </Button>
         </div>

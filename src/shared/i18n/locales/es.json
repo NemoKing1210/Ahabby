@@ -1512,6 +1512,8 @@
     "encryptionHint": "Una sola contraseña sella toda la biblioteca: se introduce una vez en cada máquina y, hasta entonces, la nube no guarda nada legible.",
     "encryptionPassword": "Contraseña",
     "encryptionPasswordHint": "Al menos 8 caracteres. No se puede recuperar: si la pierdes, hay que eliminar la biblioteca en la nube.",
+    "encryptionPasswordConfirm": "Repite la contraseña",
+    "encryptionPasswordMismatch": "Las dos contraseñas no coinciden.",
     "encryptionSet": "Cifrar la nube",
     "encryptionSetting": "Cifrando…",
     "encryptionUnlock": "Desbloquear esta máquina",

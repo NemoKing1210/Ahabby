@@ -1512,6 +1512,8 @@
     "encryptionHint": "One password seals the whole library: it is entered once on each machine, and until then the cloud holds nothing readable.",
     "encryptionPassword": "Password",
     "encryptionPasswordHint": "At least 8 characters. It cannot be recovered — a lost password means the cloud library has to be deleted.",
+    "encryptionPasswordConfirm": "Repeat the password",
+    "encryptionPasswordMismatch": "The two passwords are not the same.",
     "encryptionSet": "Encrypt the cloud",
     "encryptionSetting": "Encrypting…",
     "encryptionUnlock": "Unlock this machine",

@@ -1512,6 +1512,8 @@
     "encryptionHint": "パスワードはライブラリ全体を封印します。マシンごとに一度だけ入力し、それまではクラウドに読めるものはありません。",
     "encryptionPassword": "パスワード",
     "encryptionPasswordHint": "8 文字以上。復元はできません — 失くすとクラウドのライブラリを削除するしかありません。",
+    "encryptionPasswordConfirm": "パスワードを再入力",
+    "encryptionPasswordMismatch": "2 つのパスワードが一致しません。",
     "encryptionSet": "クラウドを暗号化",
     "encryptionSetting": "暗号化中…",
     "encryptionUnlock": "このマシンをロック解除",

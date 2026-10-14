@@ -1512,6 +1512,8 @@
     "encryptionHint": "Ein Passwort versiegelt die ganze Bibliothek: Es wird einmal pro Rechner eingegeben, und bis dahin liegt in der Cloud nichts Lesbares.",
     "encryptionPassword": "Passwort",
     "encryptionPasswordHint": "Mindestens 8 Zeichen. Es lässt sich nicht wiederherstellen — ein verlorenes Passwort bedeutet, dass die Cloud-Bibliothek gelöscht werden muss.",
+    "encryptionPasswordConfirm": "Passwort wiederholen",
+    "encryptionPasswordMismatch": "Die beiden Passwörter stimmen nicht überein.",
     "encryptionSet": "Cloud verschlüsseln",
     "encryptionSetting": "Wird verschlüsselt…",
     "encryptionUnlock": "Diesen Rechner entsperren",

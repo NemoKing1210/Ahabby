@@ -5,6 +5,16 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.3] - 2026-10-15
+
+### Changed
+
+- **Setting or changing the cloud password asks for it twice.** The password seals the whole library and cannot be
+  recovered, so a mistyped one used to leave a library nobody could open — with deleting it in the cloud as the only
+  way out. The dialog now carries a second field beside the first and offers the command only while both agree, saying
+  so under them when they do not. Unlocking a library this machine cannot read still asks once, since the library
+  itself answers a wrong password.
+
 ## [0.64.2] - 2026-10-15
 
 ### Changed

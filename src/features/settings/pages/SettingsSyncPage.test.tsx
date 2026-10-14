@@ -790,6 +790,7 @@ describe('Settings → cloud sync', () => {
     await user.click(screen.getByRole('button', { name: 'Encrypt the cloud' }))
     const dialog = await screen.findByRole('dialog')
     await user.type(within(dialog).getByLabelText('Password'), 'a long enough password')
+    await user.type(within(dialog).getByLabelText('Repeat the password'), 'a long enough password')
     await user.click(within(dialog).getByRole('button', { name: 'Encrypt the cloud' }))
 
     await waitFor(() => expect(ipc.setSyncPassword).toHaveBeenCalledWith('a long enough password'))

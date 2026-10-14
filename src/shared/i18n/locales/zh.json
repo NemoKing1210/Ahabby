@@ -1512,6 +1512,8 @@
     "encryptionHint": "一个密码就能封存整个库：每台机器输入一次，在此之前云端没有任何可读内容。",
     "encryptionPassword": "密码",
     "encryptionPasswordHint": "至少 8 个字符。它无法找回——密码丢失就意味着必须删除云端的库。",
+    "encryptionPasswordConfirm": "再次输入密码",
+    "encryptionPasswordMismatch": "两次输入的密码不一致。",
     "encryptionSet": "加密云端",
     "encryptionSetting": "正在加密…",
     "encryptionUnlock": "解锁这台机器",
