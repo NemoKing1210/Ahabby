@@ -5,6 +5,72 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.63.0] - 2026-10-14
+
+### Added
+
+- **An MCP server opens like a skill does.** A click on a server card — in the Library, on an agent's page or on a
+  project's — opens the entry itself: how it is spoken to (the command with its arguments, or the URL with its
+  protocol), the file it lives in and the position inside it (`mcpServers.github`), the environment and headers with
+  every masked value revealed one key at a time, and the entry as JSON as it stands. The switch, the config file and
+  the removal sit in the dialog's footer, and the card's right-click menu opens the same reading from its first item.
+
+### Changed
+
+- A server card is a summary now, shaped like a skill card: a tile, the name, the transport in one line, the owning
+  agents and the file with its date. The arguments, the environment, the headers and the raw entry moved into the
+  dialog the card opens instead of unfolding inside the card.
+
+## [0.62.0] - 2026-10-14
+
+### Changed
+
+- **Every filter header is the same strip now.** The screens that narrow a list — Agents, the Library, the Hub,
+  Cloud sync, and an agent's or a project's Skills, MCP and Extensions tabs — wear one shared bar: the search
+  box, the selects and the list's own action on the first row, the chip groups under them, the tags last. The
+  search field is the same one everywhere (same icon, same width, the same clear control), every group of chips
+  carries its own caption instead of a rule drawn between groups, and the row of tags and the row of on/off
+  chips are captioned with the rest.
+- **The Hub has a way out of its filters.** Five filters and no reset was a dead end; the "Clear filters"
+  button every other strip offers now sits in the same corner there too.
+
+### Fixed
+
+- The Japanese window labelled every search box "インフォメーション" (information); it reads 検索 now.
+
+## [0.61.1] - 2026-10-14
+
+### Changed
+
+- **Where a hub source file goes is a setting now, not a footnote to the Hub.** The Hub screen no longer ends
+  with a "Your sources" footer: Settings → **Search & catalog** names that directory beside the manifest one, so
+  both places a file may be dropped into are listed where the rest of Ahabby's locations are.
+
+## [0.61.0] - 2026-10-14
+
+### Added
+
+- **A terminal tab can be split into panes, so several agents share the dock.** A tab is a _workspace_ now: the
+  layout buttons beside the tab strip give it one pane, two side by side, two stacked, or four in a 2×2 grid;
+  each pane holds its own agent session, and the dividers between them are dragged to give one pane the room it
+  needs. A workspace's row names the agent its focused pane holds and carries a count when the workspace is
+  split; pressing a pane puts the keyboard in it, and `Ctrl`/`Cmd`+`1…4` reaches a pane by number from inside a
+  terminal.
+- **A pane that holds nothing says so, and starts an agent in itself.** Its button opens the familiar
+  New-terminal dialog already addressed to that pane — and already in the directory the workspace works in, so
+  four panes in one project do not mean typing the same path four times. Nothing is ever started on its own,
+  and a session wiped out by a reload leaves its pane empty rather than a second session in one slot.
+- **Ending things got its own accounting.** A pane's `✕` ends that pane's agent and leaves the pane standing; a
+  workspace's `✕` ends every agent in it behind a question when there is more than one; and the dock-wide close
+  counts the sessions it will end rather than the rows it can see.
+
+### Changed
+
+- **A layout never costs an agent.** Growing to a wider layout appends empty panes; folding to a narrower one is
+  offered only while every session still fits — the button is disabled and names how many agents stand in the
+  way — and when it is allowed the sessions are gathered into the first panes, keeping the pane each was in
+  where it can. Closing the last agent of a workspace closes the workspace, as closing a tab always did.
+
 ## [0.60.0] - 2026-10-14
 
 ### Added

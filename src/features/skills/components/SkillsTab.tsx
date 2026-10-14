@@ -11,6 +11,7 @@ import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
+import { FilterBar, FilterRow } from '@/shared/ui/FilterBar'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
@@ -100,10 +101,12 @@ export function SkillsTab({
   return (
     <>
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <ActivityChips items={skills} value={activity} onChange={setActivity} />
-          {createButton}
-        </div>
+        <FilterBar>
+          <FilterRow className="justify-between">
+            <ActivityChips items={skills} value={activity} onChange={setActivity} />
+            {createButton}
+          </FilterRow>
+        </FilterBar>
         {visible.length === 0 && cloudSkills.length === 0 ? (
           <EmptyState
             title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}

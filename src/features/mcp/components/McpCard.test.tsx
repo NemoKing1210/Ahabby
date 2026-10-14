@@ -47,6 +47,71 @@ async function openMenu(container: HTMLElement) {
   return within(await screen.findByRole('menu'))
 }
 
+describe('McpCard', () => {
+  it('opens the server from the card itself', () => {
+    const onOpen = vi.fn()
+    const view = renderWithProviders(
+      <McpCard server={server()} onOpen={onOpen} onDelete={vi.fn()} onToggle={vi.fn()} />,
+    )
+
+    // The body is the click target, by mouse and by keyboard alike.
+    const body = within(view.container).getByRole('button', { name: 'github' })
+    fireEvent.click(body)
+    expect(onOpen).toHaveBeenCalledWith(server())
+
+    fireEvent.keyDown(body, { key: 'Enter' })
+    expect(onOpen).toHaveBeenCalledTimes(2)
+
+    view.unmount()
+  })
+
+  it('keeps the actions on the card out of the click that opens it', () => {
+    const onOpen = vi.fn()
+    const onOpenConfig = vi.fn()
+    const onToggle = vi.fn()
+    const onDelete = vi.fn()
+    const view = renderWithProviders(
+      <McpCard
+        server={server()}
+        sourceDocument={document}
+        onOpen={onOpen}
+        onOpenConfig={onOpenConfig}
+        onDelete={onDelete}
+        onToggle={onToggle}
+      />,
+    )
+
+    fireEvent.click(within(view.container).getByRole('switch', { name: 'Switch off' }))
+    expect(onToggle).toHaveBeenCalledWith(server(), false)
+
+    fireEvent.click(within(view.container).getByRole('button', { name: 'Open config file' }))
+    expect(onOpenConfig).toHaveBeenCalledWith(document)
+
+    fireEvent.click(within(view.container).getByRole('button', { name: 'Remove server' }))
+    expect(onDelete).toHaveBeenCalledWith(server())
+
+    // A switch is a way of looking at the list, not a way into the detail view.
+    expect(onOpen).not.toHaveBeenCalled()
+
+    view.unmount()
+  })
+
+  it('offers the config file read-only when the manifest says so', () => {
+    const view = renderWithProviders(
+      <McpCard
+        server={server()}
+        sourceDocument={{ ...document, editable: false }}
+        onOpenConfig={vi.fn()}
+      />,
+    )
+
+    expect(within(view.container).getByRole('button', { name: 'View' })).toBeTruthy()
+    expect(within(view.container).queryByRole('button', { name: 'Open config file' })).toBeNull()
+
+    view.unmount()
+  })
+})
+
 describe('McpCard context menu', () => {
   it('offers the card actions and dispatches the removal', async () => {
     const onDelete = vi.fn()
@@ -55,6 +120,7 @@ describe('McpCard context menu', () => {
         server={server()}
         sourceDocument={document}
         onOpen={() => undefined}
+        onOpenConfig={() => undefined}
         onDelete={onDelete}
         onToggle={vi.fn()}
       />,
@@ -63,6 +129,7 @@ describe('McpCard context menu', () => {
     expect(screen.queryByRole('menu')).toBeNull()
 
     const menu = await openMenu(view.container)
+    expect(menu.getByRole('menuitem', { name: 'Open' })).toBeTruthy()
     expect(menu.getByRole('menuitem', { name: 'Open config file' })).toBeTruthy()
     expect(menu.getByRole('menuitem', { name: 'Switch off' })).toBeTruthy()
     expect(menu.getByRole('menuitem', { name: 'Copy path' })).toBeTruthy()
@@ -86,6 +153,7 @@ describe('McpCard context menu', () => {
     )
 
     const menu = await openMenu(view.container)
+    expect(menu.getByRole('menuitem', { name: 'Open' })).toBeTruthy()
     expect(menu.getByRole('menuitem', { name: 'Copy path' })).toBeTruthy()
     expect(menu.queryByRole('menuitem', { name: 'Switch off' })).toBeNull()
     expect(menu.queryByRole('menuitem', { name: 'Remove server' })).toBeNull()

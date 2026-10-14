@@ -25,8 +25,9 @@ import { toast } from '@/shared/ui/Toast'
 import { useBrowser } from '@/features/browser/context'
 import { useSettings } from '@/features/settings/api/hooks'
 
-import type { TerminalTab } from '../store'
+import type { TerminalSessionState } from '../store'
 import { useTerminalStore } from '../store'
+import { focusPaneFromKey } from '../lib/layout'
 import {
   attachTerminal,
   disposeTerminal,
@@ -36,7 +37,7 @@ import {
 import { terminalTokens } from '../lib/theme'
 
 /**
- * One tab's terminal.
+ * One pane's terminal.
  *
  * This is a real emulator (xterm) over a real PTY: the backend streams bytes, the terminal decodes
  * and paints them, and whatever the user types goes straight back. Everything the user expects
@@ -49,21 +50,21 @@ import { terminalTokens } from '../lib/theme'
  * mount in development — shows the same screen again instead of an empty terminal. What this
  * component owns is the host element, the look, and the keyboard.
  *
- * Every tab mounts its terminal and stays mounted (an inactive one is only made invisible), so a
- * background agent keeps painting into its own buffer instead of losing the frames it printed
- * while the user was looking at another tab. Collapsing the dock is the same trick with a height
- * of zero.
+ * Every pane mounts its terminal and stays mounted (a pane of a workspace the window is not showing
+ * is only made invisible), so a background agent keeps painting into its own buffer instead of
+ * losing the frames it printed while the user was looking elsewhere. Collapsing the dock is the
+ * same trick with a height of zero.
  */
 export function TerminalView({
   session,
-  active,
+  visible,
   focusable = true,
   className,
 }: {
-  session: TerminalTab
-  /** This tab is the one the dock shows. */
-  active: boolean
-  /** The dock is open: only then may the terminal take the keyboard (and be fitted). */
+  session: TerminalSessionState
+  /** This pane is on screen: its workspace is the active one and the dock is open. */
+  visible: boolean
+  /** This pane has the keyboard of the dock (and is the one that gets fitted). */
   focusable?: boolean
   className?: string
 }) {
@@ -123,7 +124,9 @@ export function TerminalView({
     })
 
     fit()
-    handle.term.focus()
+    // The keyboard is not taken here: a pane that is not the focused one of an open dock must not
+    // steal it just by mounting (a second pane, or a workspace opening behind the first). The
+    // effect below is the one that decides, and it runs on this very mount too.
 
     // The container changes size when the window, the sidebar or another tab's presence changes.
     const observer = new ResizeObserver(() => fit())
@@ -140,11 +143,11 @@ export function TerminalView({
       appearance.disconnect()
       resultsSub.dispose()
       handleRef.current = null
-      // The emulator goes with the *tab*, not with this component: React may take the component
+      // The emulator goes with the *session*, not with this component: React may take the component
       // down for reasons of its own (development mounts everything twice), and rebuilding the
-      // terminal then would throw away the screen the agent has already painted. Only a tab the
-      // store no longer lists is really gone.
-      if (!useTerminalStore.getState().tabs.some((tab) => tab.sessionId === sessionId)) {
+      // terminal then would throw away the screen the agent has already painted. Only a session the
+      // store no longer knows is really gone.
+      if (!Object.hasOwn(useTerminalStore.getState().sessions, sessionId)) {
         disposeTerminal(sessionId)
       }
     }
@@ -161,15 +164,16 @@ export function TerminalView({
   }, [applyLook])
 
   useEffect(() => {
-    if (!active || !focusable) {
-      // A collapsed dock has no room for the terminal: it must not keep the keyboard either, or
-      // every key the rest of the app expects would be typed into the PTY instead.
-      if (!focusable) handleRef.current?.term.blur()
+    if (!focusable) {
+      // A pane that is not the focused one of an open dock has no business holding the keyboard:
+      // a pane hidden behind a tab, or beside the focused one, that still owned it would swallow
+      // every key the rest of the app expects.
+      handleRef.current?.term.blur()
       return
     }
     fit()
     handleRef.current?.term.focus()
-  }, [active, focusable, fit])
+  }, [focusable, fit])
 
   const copySelection = useCallback(async () => {
     const term = handleRef.current?.term
@@ -236,6 +240,13 @@ export function TerminalView({
       // `Ctrl+K` is left alone on purpose: readline and PSReadLine use it.
       // `Ctrl+`` belongs to the shell (it toggles the dock), so the PTY never sees it.
       if (mod && event.code === 'Backquote') return false
+      // A pane can be reached by its number, the way an editor numbers its splits. The terminal is
+      // the one the keystroke arrives at, so the number is read here and never reaches the agent.
+      const pane = focusPaneFromKey(event)
+      if (pane !== null) {
+        useTerminalStore.getState().focusPaneAt(pane)
+        return false
+      }
       if (event.code === 'Escape' && finding) {
         closeFindBar()
         return false
@@ -267,7 +278,9 @@ export function TerminalView({
         <div
           className={cn(
             'bg-background absolute inset-0',
-            active ? 'visible' : 'pointer-events-none invisible',
+            // A pane of a workspace the window is not showing stays mounted and invisible, so the
+            // agent in it goes on painting into its own scrollback.
+            !visible && 'pointer-events-none invisible',
             className,
           )}
           style={surface}

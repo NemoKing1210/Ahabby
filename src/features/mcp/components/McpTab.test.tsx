@@ -26,6 +26,11 @@ vi.mock('@/shared/api/ipc', () => ({
   },
 }))
 
+/** CodeMirror is replaced by a pre — what this file is about is what the detail view reads out. */
+vi.mock('@/shared/ui/CodeViewer', () => ({
+  CodeViewer: ({ value }: { value: string }) => <pre>{value}</pre>,
+}))
+
 /**
  * What the editor dialog was handed. The dialog itself is a CodeMirror surface with its own
  * tests, so the tab's contract with it is the document it resolves for the server.
@@ -345,5 +350,45 @@ describe('McpTab', () => {
     await user.click(within(container).getByRole('button', { name: 'View' }))
 
     expect(editor.opened).toEqual({ agentId: claude.id, path: CONFIG_PATH, editable: false })
+  })
+
+  it('opens a server’s detail view from its card, switch and all', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipc.setMcpServerEnabled).mockResolvedValue({
+      data: { serverId: 'srv-1', name: 'github', enabled: false, config: CONFIG_PATH },
+      report: emptyScanReport,
+    })
+    const { container } = renderTab({
+      servers: [server({ id: 'srv-1', name: 'github' })],
+      configs: [config({ id: 'cfg-1' })],
+    })
+
+    await user.click(within(container).getByRole('button', { name: 'github' }))
+
+    const detail = within(await screen.findByRole('dialog'))
+    // What the card has no room for: the arguments, the position in the file, the JSON itself.
+    expect(detail.getByText('-y server-github')).toBeTruthy()
+    expect(detail.getByText('mcpServers.github')).toBeTruthy()
+    // The brand mark ships an SVG `<title>` with the agent name, which is not the visible label.
+    expect(detail.getByText('Claude Code', { ignore: 'script, style, title' })).toBeTruthy()
+
+    // The dialog's switch is the card's switch: the very same backend call.
+    await user.click(detail.getByRole('switch', { name: 'Switch off' }))
+    await waitFor(() =>
+      expect(ipc.setMcpServerEnabled).toHaveBeenCalledWith(claude.id, 'srv-1', false),
+    )
+  })
+
+  it('asks before removing a server from its detail view', async () => {
+    const user = userEvent.setup()
+    const { container } = renderTab({ servers: [server({ id: 'srv-1', name: 'github' })] })
+
+    await user.click(within(container).getByRole('button', { name: 'github' }))
+    const detail = within(await screen.findByRole('dialog'))
+
+    await user.click(detail.getByRole('button', { name: 'Remove server' }))
+
+    expect(await screen.findByText('Remove “github”?')).toBeTruthy()
+    expect(ipc.deleteMcpServer).not.toHaveBeenCalled()
   })
 })

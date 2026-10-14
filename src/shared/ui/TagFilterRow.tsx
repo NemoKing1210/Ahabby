@@ -7,6 +7,7 @@ import { tagColor } from '@/shared/lib/tagColor'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
+import { FilterCaption } from '@/shared/ui/FilterBar'
 
 /**
  * How many tags the row shows before the rest folds away.
@@ -78,10 +79,8 @@ export function TagFilterRow({
 
   return (
     <div role="group" aria-label={t('tags.filter')}>
-      <AnimatedList grouped={false} className="flex flex-wrap items-center gap-2">
-        <span key="label" className="text-faint text-[0.75rem]">
-          {t('tags.label')}
-        </span>
+      <AnimatedList grouped={false} className="flex flex-wrap items-center gap-1.5">
+        <FilterCaption key="label">{t('tags.label')}</FilterCaption>
         {shown.map((tag) => (
           <Chip
             key={tag}

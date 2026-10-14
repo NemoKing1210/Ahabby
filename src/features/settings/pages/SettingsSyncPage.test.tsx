@@ -509,7 +509,7 @@ describe('Settings → cloud sync', () => {
     await openSync({ items: [INSTRUCTION, CONFIG, CURSOR] })
     const user = userEvent.setup()
 
-    await user.type(await screen.findByLabelText('Search items'), 'cursor')
+    await user.type(await screen.findByLabelText('Search'), 'cursor')
 
     await waitFor(() =>
       expect(screen.queryByRole('checkbox', { name: 'AGENTS.md' })).not.toBeInTheDocument(),

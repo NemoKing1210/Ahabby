@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CloudUpload, Download, RefreshCw, Search, UploadCloud } from 'lucide-react'
+import { CloudUpload, Download, RefreshCw, UploadCloud } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { RemoteItem } from '@/shared/bindings/RemoteItem'
@@ -13,7 +13,7 @@ import { Card } from '@/shared/ui/Card'
 import { Chip } from '@/shared/ui/Chip'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
-import { Input } from '@/shared/ui/Input'
+import { FilterChipGroup, FilterRow, FilterSearch } from '@/shared/ui/FilterBar'
 import { SkeletonList } from '@/shared/ui/Primitives'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 import { Tooltip } from '@/shared/ui/Tooltip'
@@ -391,7 +391,7 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
 
   /** The item-kind filter: one chip per kind, with how much it would add to the current slice. */
   const kindChips = (
-    <div className="flex flex-wrap gap-1.5">
+    <FilterChipGroup label={t('sync.kindFilter')}>
       {SYNC_KINDS.map((kind) => (
         <Chip
           key={kind}
@@ -401,7 +401,7 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
           onClick={() => toggleKind(kind)}
         />
       ))}
-    </div>
+    </FilterChipGroup>
   )
 
   const localBody = (
@@ -454,20 +454,12 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex flex-1 items-center gap-2 sm:max-w-80">
-            <label className="relative flex min-w-40 flex-1 items-center">
-              <Search
-                className="text-faint pointer-events-none absolute left-2.5 size-3.5"
-                aria-hidden
-              />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('sync.searchPlaceholder')}
-                aria-label={t('sync.searchPlaceholder')}
-                className="pl-8"
-              />
-            </label>
+          <FilterRow className="flex-1 justify-end">
+            <FilterSearch
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t('sync.searchPlaceholder')}
+            />
             {tab === 'remote' ? (
               <Tooltip content={t('common.refresh')}>
                 <Button
@@ -481,7 +473,7 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
                 </Button>
               </Tooltip>
             ) : null}
-          </div>
+          </FilterRow>
         </div>
 
         <TabsContent value="local">

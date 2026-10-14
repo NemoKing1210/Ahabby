@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
@@ -13,7 +13,11 @@ import { initI18n } from '@/shared/i18n'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { ScanRefreshProvider } from '@/features/agents/api/scan'
-import { useTerminalStore, type TerminalTab } from '@/features/terminal/store'
+import {
+  useTerminalStore,
+  type TerminalSessionState,
+  type TerminalWorkspace,
+} from '@/features/terminal/store'
 
 import { AppShell } from './AppShell'
 import { testSettings } from '@/test/fixtures'
@@ -54,8 +58,8 @@ const REPORT: ScanReport = {
   projects: { folders: [], projects: [], scannedAtMs: 0, durationMs: 0 },
 }
 
-/** One open session, which is all the shell needs to have a dock to lay out. */
-const TERMINAL: TerminalTab = {
+/** One open session, and the workspace showing it — all the shell needs to have a dock to lay out. */
+const TERMINAL: TerminalSessionState = {
   sessionId: 'term-1',
   agentId: 'claude-code',
   agentName: 'Claude Code',
@@ -65,6 +69,33 @@ const TERMINAL: TerminalTab = {
   running: true,
   exitCode: null,
   startedAtMs: 0,
+}
+
+const WORKSPACE: TerminalWorkspace = {
+  id: 'w1',
+  layout: 'single',
+  panes: [{ id: 'p1', sessionId: 'term-1' }],
+  activePaneId: 'p1',
+  sizes: { x: 0.5, y: 0.5 },
+}
+
+/** A second workspace, split in two, so the rail's count has something to count. */
+const SPLIT: TerminalWorkspace = {
+  id: 'w2',
+  layout: 'columns',
+  panes: [
+    { id: 'p2', sessionId: 'term-2' },
+    { id: 'p3', sessionId: null },
+  ],
+  activePaneId: 'p2',
+  sizes: { x: 0.5, y: 0.5 },
+}
+
+const CODEX: TerminalSessionState = {
+  ...TERMINAL,
+  sessionId: 'term-2',
+  agentId: 'codex',
+  agentName: 'Codex',
 }
 
 /** The shared settings fixture, under the name the cases below use. */
@@ -136,9 +167,10 @@ function renderShell(stored = settings(), route = '/agents', customChrome = fals
 
 afterEach(() => {
   // The open terminals are the window's state and outlive a case, so the next one starts with an
-  // empty dock rather than whichever tabs the last case left behind.
+  // empty dock rather than whichever workspaces the last case left behind.
   useTerminalStore.setState({
-    tabs: [],
+    sessions: {},
+    workspaces: [],
     activeId: null,
     expanded: false,
     maximized: false,
@@ -247,8 +279,9 @@ describe('AppShell', () => {
 
     act(() => {
       useTerminalStore.setState({
-        tabs: [TERMINAL],
-        activeId: TERMINAL.sessionId,
+        sessions: { 'term-1': TERMINAL },
+        workspaces: [WORKSPACE],
+        activeId: 'w1',
         expanded: true,
         maximized: true,
       })
@@ -267,5 +300,24 @@ describe('AppShell', () => {
     expect(screen.getByRole('main')).toBe(page)
     expect(page).not.toHaveClass('hidden')
     expect(rail).not.toHaveClass('hidden')
+  })
+
+  it('counts the workspaces the rail can open, not the panes inside them', async () => {
+    renderShell()
+    await screen.findByText('agents screen')
+
+    act(() => {
+      useTerminalStore.setState({
+        sessions: { 'term-1': TERMINAL, 'term-2': CODEX },
+        workspaces: [WORKSPACE, SPLIT],
+        activeId: 'w1',
+        expanded: true,
+      })
+    })
+
+    // Two tabs hold three panes between them; the rail counts what it can take the window to, and
+    // each row says for itself how many agents are behind it.
+    const entry = screen.getByRole('button', { name: /^Terminal/ })
+    expect(within(entry).getByText('2')).toBeInTheDocument()
   })
 })

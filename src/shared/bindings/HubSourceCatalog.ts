@@ -9,8 +9,4 @@ export type HubSourceCatalog = { sources: Array<HubSource>,
 /**
  * Sources that failed to load, reported instead of silently disappearing.
  */
-problems: Array<CatalogProblem>, 
-/**
- * Directory a user source may be dropped into, so the UI can tell the user where.
- */
-userDir: string, };
+problems: Array<CatalogProblem>, };

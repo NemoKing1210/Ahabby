@@ -14,7 +14,6 @@ import { Button } from '@/shared/ui/Button'
 import { CatalogProblems } from '@/shared/ui/CatalogProblems'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
 import { PageHeader } from '@/shared/ui/PageHeader'
-import { PathRow } from '@/shared/ui/PathRow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
@@ -100,6 +99,25 @@ export function HubPage() {
       ),
     [setTags],
   )
+
+  /**
+   * The way out of a filter that hid everything — the same reset, in the same place, that every
+   * other filtered screen offers. One click puts the whole Hub back, search box included.
+   */
+  const clearFilters = useCallback(() => {
+    setQuery('')
+    setKind(null)
+    setInstalled('all')
+    setSourceId('all')
+    setTags([])
+  }, [setQuery, setKind, setInstalled, setSourceId, setTags])
+
+  const filtersDirty =
+    query.trim().length > 0 ||
+    kind !== null ||
+    installed !== 'all' ||
+    sourceId !== 'all' ||
+    tags.length > 0
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSettled(query.trim()), SEARCH_DEBOUNCE_MS)
@@ -267,6 +285,8 @@ export function HubPage() {
             onToggleTag={toggleTag}
             onRefresh={refresh}
             refreshing={busy}
+            dirty={filtersDirty}
+            onClear={clearFilters}
           />
 
           {visible.length === 0 ? (
@@ -308,12 +328,6 @@ export function HubPage() {
               ))}
             </AnimatedList>
           )}
-
-          <div className="border-border flex flex-col gap-2 border-t pt-4">
-            <h2 className="text-[0.8125rem] font-medium">{t('hub.userSources')}</h2>
-            <p className="text-muted text-[0.8125rem]">{t('hub.userSourcesHint')}</p>
-            <PathRow path={data.userDir} />
-          </div>
         </TabsContent>
 
         <TabsContent value="recommendations">

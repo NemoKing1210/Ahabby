@@ -27,6 +27,11 @@ vi.mock('@/shared/api/ipc', () => ({
   ipc: { listLibrary: vi.fn(), getSettings: vi.fn() },
 }))
 
+/** CodeMirror is replaced by a pre — what this file is about is what the detail view reads out. */
+vi.mock('@/shared/ui/CodeViewer', () => ({
+  CodeViewer: ({ value }: { value: string }) => <pre>{value}</pre>,
+}))
+
 // Radix opens the list on pointerdown and scrolls the active row into view; jsdom has neither
 // pointer capture nor `scrollIntoView` (see `shared/ui/Select.test.tsx`).
 Element.prototype.hasPointerCapture = () => false
@@ -272,10 +277,25 @@ describe('LibraryPage', () => {
 
     await user.click(within(container).getByRole('tab', { name: /^MCP/ }))
 
-    expect(within(container).getByText('npx')).toBeTruthy()
+    expect(within(container).getByText('npx -y')).toBeTruthy()
     // The skills panel is gone, so the owner tag can only come from the server card.
     expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull()
     expect(within(container).getAllByText('Claude Code', TEXT).length).toBeGreaterThan(0)
+  })
+
+  it('opens a server’s detail view from its card', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    await user.click(within(container).getByRole('tab', { name: /^MCP/ }))
+    await user.click(within(container).getByRole('button', { name: 'github' }))
+
+    // The card carries the recipe; where the entry lives and what it holds is the dialog's.
+    const detail = within(await screen.findByRole('dialog'))
+    expect(detail.getByText('/a/.mcp.json')).toBeTruthy()
+    expect(detail.getByText('mcpServers.github')).toBeTruthy()
+    expect(detail.getByText('-y')).toBeTruthy()
   })
 
   it('offers the pinned agents first in the agent filter', async () => {
@@ -331,7 +351,7 @@ describe('LibraryPage', () => {
     await within(container).findByRole('heading', { name: 'pdf' })
 
     await user.click(within(container).getByRole('tab', { name: /^MCP/ }))
-    expect(within(container).getByText('npx')).toBeTruthy()
+    expect(within(container).getByText('npx -y')).toBeTruthy()
     expect(within(container).getByText('https://mcp.example.com')).toBeTruthy()
 
     // The chip carries the number of matching servers, so its name is unambiguous.
@@ -339,7 +359,7 @@ describe('LibraryPage', () => {
 
     expect(within(container).getByText('https://mcp.example.com')).toBeTruthy()
     // The row that leaves animates out first (see `AnimatedList`), so it is gone a moment later.
-    await waitFor(() => expect(within(container).queryByText('npx')).toBeNull())
+    await waitFor(() => expect(within(container).queryByText('npx -y')).toBeNull())
   })
 
   it('narrows a tab to the resources that are switched off', async () => {

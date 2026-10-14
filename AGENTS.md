@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI ships in seven languages (`src/shared/i18n/locales/`).
 
-Version: `0.60.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.63.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -91,7 +91,7 @@ Frontend boundaries (enforce them):
   `scan://…`, `terminal://output`, `terminal://exit`, `tray://navigate`, `tray://run-agent`,
   `sync://done`, `window://state`).
 - Server state = React Query (per-feature `api/` hooks, keys in `src/shared/api/keys.ts`). Zustand is used in
-  exactly three places: the install-job console store, the toast store and the terminal tab store.
+  exactly three places: the install-job console store, the toast store and the terminal store.
 - Routing is hash-based (`createHashRouter` in `src/app/router.tsx`) because the packaged app has no server SPA
   fallback. Routes: `/` (home — the summary and this machine's roster), `/agents`, `/agents/:agentId`,
   `/projects`, `/projects/:projectId`, `/library`, and `/settings/*` (one sub-page per area,
@@ -370,32 +370,47 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   card). Both take the manager's name from `managers.*` in the locales, so a manager is never shown as the
   raw id its manifest happens to use.
 - **Terminal**: `src/features/terminal` renders PTY sessions with xterm.js inside `TerminalDock`, a footer the
-  shell owns (`AppShell` lazy-loads it the first time a terminal exists — xterm is the one heavy dependency the
-  other screens should not pay for). The dock's tab strip is always on screen; collapsing it sets the body to
-  zero height instead of unmounting it, so a background agent goes on painting into its own scrollback, and
-  `focusable={false}` is what stops a hidden terminal from keeping the keyboard. The dock's own buttons also
-  maximize it and end every session at once: `maximized` lives in the same store, and `AppShell` reads it to
-  hide the screen above and the rail — hidden, never unmounted, so the page comes back with its scroll and its
+  shell owns (`AppShell` lazy-loads it the first time a workspace exists — xterm is the one heavy dependency the
+  other screens should not pay for). The store tells three things apart: a **session** is one PTY, keyed by the
+  id the backend gave it; a **pane** is a slot in a workspace holding at most one session; and a **workspace**
+  is one tab — a preset layout (`single` · `columns` · `rows` · `grid`), its panes in slot order, the pane the
+  keyboard is in, and the divider fractions. `lib/layout.ts` holds those rules as pure functions
+  (`paneCount`, `canAdoptLayout`, `panesForLayout`, `focusPaneFromKey`), and one rule carries the weight: **a
+  layout change never costs an agent.** Growing appends empty panes; folding is refused while the workspace
+  holds more sessions than the new layout has slots (the button says why and the store refuses too), and when
+  it is allowed, `panesForLayout` compacts the sessions into the first slots. Splitting never _clones_ a
+  session — an emulator lives in exactly one host — so a new pane holds a session started through the
+  New-terminal dialog, which the dock opens addressed to that pane and seeded with the directory the workspace
+  already works in. The strip is one row per workspace, naming the agent its focused pane holds (or the first
+  pane that holds one) and carrying a count when the workspace is split; the dock's own buttons set the layout,
+  close a workspace (asking first when more than one session would end), end every session at once, maximize
+  the dock and fold it. Collapsing sets the body to zero height instead of unmounting it, so a background agent
+  goes on painting into its own scrollback, and `focusable` — true only for the focused pane of an open dock —
+  is what keeps a pane without the keyboard from taking it: a view never focuses its emulator on attach, only
+  when it is the focused pane. Maximizing keeps `maximized` in the same store, and `AppShell` reads it to hide
+  the screen above and the rail — hidden, never unmounted, so the page comes back with its scroll and its
   answers — while the panel becomes the content column's flexible row and the drag handle, whose height is now
-  the window's, goes away; folding the dock or closing its last tab leaves the mode, and closing them all goes
-  through one confirmation that names the count, because each tab takes a PTY and a scrollback with it. The tab
-  store is the source of truth for the backend sessions (anything it does not know is closed on startup, and a
-  tab whose session is gone is finished rather than left swallowing keystrokes), and `app/providers.tsx` routes
-  `terminal://output` into `lib/session.ts`, which buffers the bytes of a tab whose emulator is not attached yet.
+  the window's, goes away. The dividers of a split workspace and the dock's own top edge are the same
+  `lib/drag.ts` gesture. The store is the source of truth for the backend sessions (anything it does not know
+  is closed on startup, and a session the backend no longer holds is finished rather than left swallowing
+  keystrokes), and `app/providers.tsx` routes
+  `terminal://output` into `lib/session.ts`, which buffers the bytes of a session whose emulator is not attached
+  yet.
   **The emulator is the session's, not the component's**: `lib/terminals.ts` (loaded with the dock, never with
   the shell) creates one xterm per session and re-homes its element on every attach, so a remount — which React
-  does twice per mount in development — shows the same scrollback instead of a blank terminal, and only a tab
-  the store has forgotten disposes it; the same module owns the keystroke, resize and link handlers, because
-  those belong to the session too. The xterm theme is read from the design tokens (`lib/theme.ts`) because a
-  canvas cannot use
+  does twice per mount in development — shows the same scrollback instead of a blank terminal, and only a
+  session the store has forgotten disposes it; the same module owns the keystroke, resize and link handlers,
+  because those belong to the session too. The xterm theme is read from the design tokens (`lib/theme.ts`)
+  because a canvas cannot use
   `var(--…)`; ANSI colours come from the token palette with a light and a dark variant. `Settings::terminal_theme`
   can replace that with a fixed scheme (`lib/themes.ts` holds the palettes, keyed by the ids the Rust enum
   validates): `paintTerminal` repaints an attached terminal, the settings query is what tells it to, so a save
-  repaints every open tab, and the same resolver paints the Settings preview.
+  repaints every open pane, and the same resolver paints the Settings preview.
 - **Run in terminal**: every entry point (agent page, card, context menu, and the sidebar's favourite rows —
   a hover action beside the agent, plus a one-item menu on the row itself so the collapsed rail has it too)
   calls the same `useRunAgentInTerminal` hook, which follows `Settings::terminal`: the built-in terminal opens
-  a tab in the dock (expanding it, without navigating) and an external one is launched as its own window.
+  a workspace in the dock (one pane, expanding it, without navigating) and an external one is launched as its
+  own window.
 - **The tray is native UI, so its entries are split by who can finish them.** `desktop::tray` (Rust) owns the
   icon and the whole menu — the status line, `Open Ahabby`, `Go to ▸`, `Run in terminal ▸`, `Scan again`,
   `Quit Ahabby` — and shows the window itself; the two entries that need a screen the window owns come back
@@ -435,6 +450,15 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   across the window: the rail beside it runs the window's full height — from the shell's top inset to its
   bottom one — so nothing is ever drawn above the sidebar and the window's controls stay where a caption's
   are.
+- **A filter header is the one shared strip (`shared/ui/FilterBar`).** Every screen that narrows a list —
+  Agents, the Library, the Hub, Settings → Cloud sync and an agent's or a project's Skills, MCP and Extensions
+  tabs — wears the same bar, and the same control sits in the same place on all of them: the inputs (the search
+  box, the selects, the action that acts on the whole list) on the first row, the chip groups under them, the
+  tags last. `FilterSearch` is the only search field — one icon, one width, and the same clear control once
+  there is text — `FilterChipGroup` is a caption plus its chips, where the caption and never a rule between
+  groups is what separates one axis from the next (a row that wraps then opens on a word rather than a stray
+  tick), and `FilterClear`, shown only while something is narrowing the list, is the way out that sits at the
+  same end of the first row everywhere (`common.clearFilters`, `common.clearSearch`).
 - **A filter outlives the screen that set it.** Leaving a screen unmounts it, so the search box, the facet
   chips, the Hub's kind/source/tags and the Library's tab, owner, origin, sort and activity are held in
   `shared/lib/sessionState.ts` — a process-lifetime map read and written by `useSessionState`, which is a
@@ -795,10 +819,13 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   its card and the row that narrows the list by them), the shell (`AppShell`: the rail as it was left and remembered
   before its write lands, the screen the window is on remembered, a screen mounting with the click rather
   than after the last one's exit, and the screen and the rail standing down — hidden, never unmounted — for a
-  maximized terminal), the terminal tab store (buffered output, finishing and closing a tab, an exit that beat
-  its tab, the window coming back to a collapsed or emptied dock, and reconciling with the backend in both
-  directions), `TerminalView` (the scheme it paints the panel with, and that a remount shows the session's own
-  emulator again rather than a fresh, blank one), the
+  maximized terminal), the terminal store (`lib/layout.ts`'s pure rules; a session opened into a pane that
+  already holds one changing nothing; a fold that cannot fit the sessions leaving the state as it was, one that
+  fits compacting them and moving the focus off a dropped pane; a closed session emptying its pane while the
+  arrangement stands, and the last one taking the workspace with it; output buffered for a session whose pane
+  is not mounted, and reconciling with the backend in both directions), `TerminalView` (the scheme it paints the
+  panel with, that a pane which is not the focused one lets go of the keyboard, and that a remount shows the
+  session's own emulator again rather than a fresh, blank one), the
   window's own header (`TitleBar`: nothing where the OS frames the window, a press on the bar dragging it
   while a press on a button does not, the second press maximizing instead of dragging, and the middle
   button turning into a restore as its answer lands), the animated
@@ -828,11 +855,15 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   a path that stops existing cannot quietly fall through to the home screen, and
   `app/providers.test.tsx` drives each event bridge into the query cache and the stores, plus the
   one reconciliation of the terminal sessions per page load — `TerminalDock` (the strip stays
-  mounted, a collapsed body keeps its element and loses the keyboard, a maximized dock taking the window and
-  giving the same emulator back, closing a tab ends its session, and closing them all ending every session
-  behind one question), `McpTab`, `SettingsTerminalPage`, and the cross-boundary contracts no compiler checks
-  (`shared/api/contract.test.ts`: every IPC wrapper names a command the backend registers and
-  no registered command is unreachable, the event names are `state::events`', and
+  mounted as one row per workspace with its pane count; a grid of titled panes and an empty one that starts a
+  session addressed to itself; the keyboard in the focused pane alone, following a press; a fold that would
+  leave an agent behind disabled with its reason; a workspace of several agents closed only once it is asked,
+  one of a single agent without a question; a divider drag writing the fraction; a maximized dock taking the
+  window and giving the same panes back; every session of every workspace ended at once behind one question),
+  `McpTab` and `McpDetailDialog` (the card a click opens, and the entry it reads out — recipe,
+  secrets, positions and JSON), `SettingsTerminalPage`, and the cross-boundary contracts no
+  compiler checks (`shared/api/contract.test.ts`: every IPC wrapper names a command the backend
+  registers and no registered command is unreachable, the event names are `state::events`', and
   `shared/lib/mask.ts`/`features/sync/lib/fileFormat.ts` are held against their Rust originals).
   Feature hooks are not tested otherwise.
 - **Backend**: std libtest via `cargo test`; async with `#[tokio::test]`; `tempfile` is the only dev-dep.

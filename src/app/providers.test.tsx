@@ -115,9 +115,17 @@ beforeEach(() => {
   mocks.ipc.userCatalogDir.mockResolvedValue('/home/user/.ahabby/catalog')
   mocks.ipc.windowChrome.mockResolvedValue(WINDOWED)
 
-  // The stores outlive a component on purpose, so one case's jobs and tabs must not leak.
+  // The stores outlive a component on purpose, so one case's jobs and sessions must not leak.
   useJobStore.setState({ jobs: {} })
-  useTerminalStore.setState({ tabs: [], activeId: null, expanded: false, buffered: {}, exits: {} })
+  useTerminalStore.setState({
+    sessions: {},
+    workspaces: [],
+    activeId: null,
+    expanded: false,
+    maximized: false,
+    buffered: {},
+    exits: {},
+  })
 })
 
 afterEach(() => {
@@ -259,9 +267,10 @@ describe('TerminalEventBridge', () => {
     fire<TerminalExit>('terminalExit', { sessionId: 'session-1', exitCode: 3 })
 
     await waitFor(() => expect(useTerminalStore.getState().exits['session-1']).toBe(3))
-    expect(
-      useTerminalStore.getState().tabs.find((tab) => tab.sessionId === 'session-1'),
-    ).toMatchObject({ running: false, exitCode: 3 })
+    expect(useTerminalStore.getState().sessions['session-1']).toMatchObject({
+      running: false,
+      exitCode: 3,
+    })
   })
 
   it('hands output to a mounted terminal instead of buffering it', async () => {

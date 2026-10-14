@@ -26,17 +26,21 @@ import { useLaunchTerminal } from '../api/hooks'
 import { useTerminalStore } from '../store'
 
 /**
- * Open one more tab: which agent, and where.
+ * Open one more session: which agent, and where.
  *
  * The working directory matters — agents work on a project — so it is asked for and defaults to
- * the home directory. The resolved executable is shown, exactly like the install dialog shows the
+ * the home directory, or to the directory the workspace's own panes work in when the dialog was
+ * opened from a pane. The resolved executable is shown, exactly like the install dialog shows the
  * resolved command, because the frontend cannot choose what runs and should not pretend to.
  */
 export function NewTerminalDialog({
   catalog,
+  into,
   onOpenChange,
 }: {
   catalog: TerminalCatalog
+  /** The pane this dialog was opened for, and the directory its neighbours work in. */
+  into?: { paneId: string; cwd: string }
   onOpenChange: () => void
 }) {
   const { t } = useTranslation()
@@ -52,7 +56,9 @@ export function NewTerminalDialog({
     [report, favoriteIds],
   )
   const [agentId, setAgentId] = useState('')
-  const [cwd, setCwd] = useState(catalog.defaultCwd)
+  // A pane's dialog opens where its neighbours already work, so four panes in one project do not
+  // mean typing the same path four times.
+  const [cwd, setCwd] = useState(into?.cwd ?? catalog.defaultCwd)
   // The scan can land after this dialog is opened, so an empty choice has to fall back to the
   // first agent on screen rather than leaving the dialog unusable until it is closed and opened
   // again.
@@ -76,7 +82,7 @@ export function NewTerminalDialog({
                   { agentId: selected.id, cwd: cwd.trim() },
                   {
                     onSuccess: (session) => {
-                      open(session)
+                      open(session, into ? { paneId: into.paneId } : undefined)
                       onOpenChange()
                     },
                     onError: (error) => toastAppError(error),

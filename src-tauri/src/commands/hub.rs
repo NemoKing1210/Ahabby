@@ -29,6 +29,12 @@ pub async fn list_hub_sources(state: State<'_, AppState>) -> Result<HubSourceCat
     Ok(hub.sources_for_screen(&state.hub_source_dir()).await)
 }
 
+/// Directory the user can drop their own hub sources (TOML) into.
+#[tauri::command]
+pub async fn user_hub_dir(state: State<'_, AppState>) -> Result<String> {
+    Ok(state.hub_source_dir().to_string_lossy().to_string())
+}
+
 /// One page of one source.
 #[tauri::command]
 pub async fn search_hub(

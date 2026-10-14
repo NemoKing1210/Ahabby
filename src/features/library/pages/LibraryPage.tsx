@@ -30,6 +30,7 @@ import { DocumentEditorDialog } from '@/features/editor/components/DocumentEdito
 import { useDeleteMcpServer, useSetMcpServerEnabled } from '@/features/mcp/api/hooks'
 import { CreateMcpServerDialog } from '@/features/mcp/components/CreateMcpServerDialog'
 import { McpCard } from '@/features/mcp/components/McpCard'
+import { McpDetailDialog } from '@/features/mcp/components/McpDetailDialog'
 import { useDeleteSkill, useSetSkillEnabled } from '@/features/skills/api/hooks'
 import { CreateSkillDialog } from '@/features/skills/components/CreateSkillDialog'
 import { SkillCard } from '@/features/skills/components/SkillCard'
@@ -254,6 +255,7 @@ export function LibraryPage() {
   const [tags, setTags] = useSessionState<string[]>('library.tags', [])
   const [tab, setTab] = useSessionState<LibraryTab>('library.tab', 'skills')
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [serverDetailId, setServerDetailId] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
   const [deleteSkillTarget, setDeleteSkillTarget] = useState<Skill | null>(null)
   const [deleteServerTarget, setDeleteServerTarget] = useState<McpTarget | null>(null)
@@ -315,6 +317,7 @@ export function LibraryPage() {
     [setServerEnabled, t],
   )
   const openSkill = useCallback((skill: Skill) => setDetailId(skill.id), [])
+  const openServer = useCallback((server: McpServer) => setServerDetailId(server.id), [])
   const editSkill = useCallback((skill: Skill) => setEditTarget(skill), [])
   const askDeleteSkill = useCallback((skill: Skill) => setDeleteSkillTarget(skill), [])
   const askDeleteServer = useCallback(
@@ -535,6 +538,8 @@ export function LibraryPage() {
   // The dialog carries a switch, so it reads the live skill out of the library the mutation
   // refreshes instead of holding a snapshot that would show a stale state.
   const detail = allSkills.find((skill) => skill.id === detailId) ?? null
+  // The MCP dialog carries a switch too, so it is read out of the list the mutation refreshes.
+  const serverDetail = allServers.find((server) => server.id === serverDetailId) ?? null
 
   const dirty =
     trimmed.length > 0 ||
@@ -553,7 +558,7 @@ export function LibraryPage() {
   }
   const clearAction = dirty ? (
     <Button variant="secondary" size="sm" onClick={clear}>
-      {t('library.clearFilters')}
+      {t('common.clearFilters')}
     </Button>
   ) : undefined
 
@@ -608,6 +613,7 @@ export function LibraryPage() {
         <McpCard
           server={server}
           agents={groupMode === 'name' ? [server.agent] : undefined}
+          onOpen={openServer}
           onDelete={askDeleteServer}
           onToggle={toggleServer}
           toggleBusy={
@@ -752,6 +758,22 @@ export function LibraryPage() {
         }}
         onToggle={toggleSkill}
         toggleBusy={setSkillEnabled.isPending && setSkillEnabled.variables?.skillId === detail?.id}
+      />
+
+      <McpDetailDialog
+        server={serverDetail}
+        open={serverDetail !== null}
+        onOpenChange={(open) => {
+          if (!open) setServerDetailId(null)
+        }}
+        onDelete={(server) => {
+          setServerDetailId(null)
+          askDeleteServer(server)
+        }}
+        onToggle={toggleServer}
+        toggleBusy={
+          setServerEnabled.isPending && setServerEnabled.variables?.serverId === serverDetail?.id
+        }
       />
 
       {editTarget?.entryPath && editOwner ? (

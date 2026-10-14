@@ -13,6 +13,7 @@ import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
+import { FilterBar, FilterChipGroup, FilterClear, FilterRow } from '@/shared/ui/FilterBar'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
@@ -113,6 +114,10 @@ export function ExtensionsTab({
   const ofKinds = extensions.filter((extension) => kinds.includes(extension.kind))
   const visible = ofKinds.filter((extension) => matchesActivity(extension.enabled, activity))
 
+  // The tab opens on the packages alone, so the reset is offered once the user has moved off that
+  // default view — the bar of a screen nobody has narrowed stays quiet, as it does everywhere else.
+  const narrowed = kinds.length !== DEFAULT_KINDS.length || activity !== 'all'
+
   // Only shown when the type filter — not the agent — is what left nothing behind, and always
   // with a way out: a filter that hides everything must not look like an empty machine.
   const clearFilters = () => {
@@ -128,33 +133,29 @@ export function ExtensionsTab({
   return (
     <>
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <div
-            role="group"
-            aria-label={t('extensions.kindLabel')}
-            className="flex flex-wrap items-center gap-1.5"
-          >
-            <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-              {t('extensions.kindLabel')}
-            </span>
-            {KIND_ORDER.map((kind) => (
-              <Chip
-                key={kind}
-                label={t(`extensions.kind.${kind}`)}
-                count={extensions.filter((extension) => extension.kind === kind).length}
-                active={kinds.includes(kind)}
-                onClick={() =>
-                  setKinds((current) =>
-                    current.includes(kind)
-                      ? current.filter((item) => item !== kind)
-                      : [...current, kind],
-                  )
-                }
-              />
-            ))}
-          </div>
-          <ActivityChips items={ofKinds} value={activity} onChange={setActivity} />
-        </div>
+        <FilterBar>
+          <FilterRow>
+            <FilterChipGroup label={t('extensions.kindLabel')}>
+              {KIND_ORDER.map((kind) => (
+                <Chip
+                  key={kind}
+                  label={t(`extensions.kind.${kind}`)}
+                  count={extensions.filter((extension) => extension.kind === kind).length}
+                  active={kinds.includes(kind)}
+                  onClick={() =>
+                    setKinds((current) =>
+                      current.includes(kind)
+                        ? current.filter((item) => item !== kind)
+                        : [...current, kind],
+                    )
+                  }
+                />
+              ))}
+            </FilterChipGroup>
+            <ActivityChips items={ofKinds} value={activity} onChange={setActivity} />
+            {narrowed ? <FilterClear onClick={clearFilters} /> : null}
+          </FilterRow>
+        </FilterBar>
 
         {ofKinds.length === 0 ? (
           <EmptyState

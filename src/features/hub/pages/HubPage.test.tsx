@@ -326,7 +326,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE, REGISTRY_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockImplementation((sourceId) =>
       Promise.resolve(
@@ -368,8 +367,6 @@ describe('HubPage', () => {
     expect(await within(container).findByText('Read and fill PDF forms.')).toBeTruthy()
     expect(within(container).getByText('Runs scripts')).toBeTruthy()
     expect(ipc.installHubResource).not.toHaveBeenCalled()
-    // The folder the user's own sources go in is shown, so a collection can be added by hand.
-    expect(within(container).getByText('/home/me/.config/ahabby/hub')).toBeTruthy()
   })
 
   it('opens with every collection folded, and opens one from its heading', async () => {
@@ -440,7 +437,6 @@ describe('HubPage', () => {
         starred('fourth', 106201),
       ],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockImplementation((sourceId) =>
       Promise.resolve(
@@ -479,7 +475,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [{ ...SKILLS_SOURCE, avatar }, REGISTRY_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.fetchWebImage).mockResolvedValue({ mime: 'image/png', base64: 'AAAA' })
 
@@ -503,7 +498,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const grouped = (name: string) =>
       entry({
@@ -537,7 +531,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const grouped = (name: string) =>
       entry({
@@ -648,7 +641,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     // One entry the machine holds, one it does not. The filter is the scan's answer, so switching
     // it narrows what is on screen without asking the collection for anything.
@@ -682,7 +674,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [entry()] }))
 
@@ -699,7 +690,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     // Four entries read, one of them already on this machine: a quarter of what the section read.
     const held = { ...installedEntry(), id: 'example-skills/skills/invoice', name: 'invoice' }
@@ -726,7 +716,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockResolvedValue(
       page({ entries: [], report: report({ count: 0, total: 0 }) }),
@@ -745,7 +734,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
     await openSource(container, 'Example Skills')
@@ -787,7 +775,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [REGISTRY_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
     await openSource(container, 'MCP Registry')
@@ -825,7 +812,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
     await openSource(container, 'Example Skills')
@@ -850,7 +836,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [installedEntry()] }))
     vi.mocked(ipc.getHubEntry).mockResolvedValue({ ...skillDetail(), entry: installedEntry() })
@@ -902,7 +887,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockResolvedValue(page({ entries: [differing] }))
     vi.mocked(ipc.getHubEntry).mockResolvedValue({ ...skillDetail(), entry: differing })
@@ -1014,7 +998,6 @@ describe('HubPage', () => {
       // numbers below are the point of the test.
       sources: [{ ...SKILLS_SOURCE, tags: many, tagRules: [] }],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
     await within(container).findByText('Example Skills')
@@ -1043,7 +1026,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const { container } = renderPage()
     await openSource(container, 'Example Skills')
@@ -1079,7 +1061,6 @@ describe('HubPage', () => {
         REGISTRY_SOURCE,
       ],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockResolvedValue(page())
     const { container } = renderPage()
@@ -1110,7 +1091,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const review = entry({
       id: 'example-skills/plugins/teams/skills/review',
@@ -1220,7 +1200,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     const review = entry({
       id: 'example-skills/plugins/teams/skills/review',
@@ -1301,7 +1280,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub).mockResolvedValue(
       page({ entries: collection, report: report({ count: 60, total: 60 }) }),
@@ -1324,7 +1302,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     // A request that never answers: the pending state held still for the assertion.
     vi.mocked(ipc.searchHub).mockReturnValue(new Promise<HubPageResult>(() => {}))
@@ -1344,7 +1321,6 @@ describe('HubPage', () => {
     vi.mocked(ipc.listHubSources).mockResolvedValue({
       sources: [SKILLS_SOURCE],
       problems: [],
-      userDir: '/home/me/.config/ahabby/hub',
     })
     vi.mocked(ipc.searchHub)
       .mockResolvedValueOnce(

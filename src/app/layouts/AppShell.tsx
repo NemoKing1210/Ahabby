@@ -281,24 +281,30 @@ export function AppShell() {
   const setSidebarCollapsed = useSetSidebarCollapsed()
   const toggleLabel = collapsed ? t('nav.expand') : t('nav.collapse')
 
-  const tabs = useTerminalStore((state) => state.tabs)
+  const workspaces = useTerminalStore((state) => state.workspaces)
   const expanded = useTerminalStore((state) => state.expanded)
   const maximized = useTerminalStore((state) => state.maximized)
   const catalog = useTerminals()
   const runInTerminal = useRunAgentInTerminal()
-  const [newOpen, setNewOpen] = useState(false)
+  /** The session a dialog was asked for: into a pane, or as a workspace of its own. */
+  const [newSession, setNewSession] = useState<{ into?: { paneId: string; cwd: string } } | null>(
+    null,
+  )
 
-  const openNew = useCallback(() => {
-    if (!catalog.data) {
-      if (catalog.error) toastAppError(catalog.error)
-      return
-    }
-    setNewOpen(true)
-  }, [catalog.data, catalog.error])
+  const openNew = useCallback(
+    (into?: { paneId: string; cwd: string }) => {
+      if (!catalog.data) {
+        if (catalog.error) toastAppError(catalog.error)
+        return
+      }
+      setNewSession({ into })
+    },
+    [catalog.data, catalog.error],
+  )
 
   /** The sidebar's Terminal entry: show the dock, or ask for a first session when there is none. */
   const openTerminal = useCallback(() => {
-    if (useTerminalStore.getState().tabs.length === 0) openNew()
+    if (useTerminalStore.getState().workspaces.length === 0) openNew()
     else useTerminalStore.getState().toggleExpanded()
   }, [openNew])
 
@@ -475,14 +481,14 @@ export function AppShell() {
                 className={cn('w-full', collapsed && 'justify-center px-0')}
                 data-tour="nav-terminal"
                 aria-label={collapsed ? t('nav.terminal') : undefined}
-                aria-expanded={tabs.length > 0 ? expanded : undefined}
+                aria-expanded={workspaces.length > 0 ? expanded : undefined}
                 onClick={openTerminal}
               >
                 <TerminalIcon className="size-3.5" aria-hidden />
                 {collapsed ? null : <span>{t('nav.terminal')}</span>}
-                {!collapsed && tabs.length > 0 ? (
+                {!collapsed && workspaces.length > 0 ? (
                   <Badge tone="neutral" className="ml-auto tabular-nums">
-                    {tabs.length}
+                    {workspaces.length}
                   </Badge>
                 ) : null}
               </Button>
@@ -520,7 +526,7 @@ export function AppShell() {
           {/* The terminal sits under every screen, in the content column: the tab strip stays
             visible while the pages above keep working, and the sidebar keeps its full height.
             Maximized, it is that column's flexible row and the two give way to it. */}
-          {tabs.length > 0 ? (
+          {workspaces.length > 0 ? (
             <Suspense
               fallback={
                 <div
@@ -534,8 +540,12 @@ export function AppShell() {
           ) : null}
         </div>
 
-        {newOpen && catalog.data ? (
-          <NewTerminalDialog catalog={catalog.data} onOpenChange={() => setNewOpen(false)} />
+        {newSession && catalog.data ? (
+          <NewTerminalDialog
+            catalog={catalog.data}
+            into={newSession.into}
+            onOpenChange={() => setNewSession(null)}
+          />
         ) : null}
       </div>
     </TourProvider>

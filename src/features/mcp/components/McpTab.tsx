@@ -12,6 +12,7 @@ import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState } from '@/shared/ui/EmptyState'
+import { FilterBar, FilterRow } from '@/shared/ui/FilterBar'
 import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { DocumentEditorDialog } from '@/features/editor/components/DocumentEditorDialog'
@@ -22,13 +23,16 @@ import { CloudOnlyCard } from '@/features/sync/components/CloudOnlyCard'
 import { useDeleteMcpServer, useSetMcpServerEnabled } from '../api/hooks'
 import { CreateMcpServerDialog } from './CreateMcpServerDialog'
 import { McpCard } from './McpCard'
+import { McpDetailDialog } from './McpDetailDialog'
 
 /**
  * MCP servers of one agent, with removal backed by a timestamped backup.
  *
  * A server is only ever defined inside a real file, so the card also offers that file in the
  * editor — read-only when the manifest says so (the CLI-owned `settings.json` of Claude Code,
- * for instance). The entry itself still has to be edited as JSON.
+ * for instance). The entry itself still has to be edited as JSON. Reading the entry — its
+ * arguments, environment, headers and the JSON as it stands — belongs to `McpDetailDialog`,
+ * which a click on the card opens, exactly as a skill card opens its own detail.
  *
  * `owner` is present only when the agent can hold a new server (it is installed): the tab then
  * offers adding one, in the config file the manifest declares.
@@ -53,7 +57,10 @@ export function McpTab({
   // Copies of an MCP config file this machine does not hold at all.
   const cloudServers = cloud?.cloudOnly(['mcp']) ?? []
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null)
-  const [open, setOpen] = useState<EditorDocument | null>(null)
+  // The detail dialog carries a switch, so it keeps the id and reads the live server out of the
+  // list the mutation refreshes: a snapshot would leave that switch showing a stale state.
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [openConfig, setOpenConfig] = useState<EditorDocument | null>(null)
   // Kept for the session like the skills tab's: the switch is a way of looking at the list, not a
   // property of the agent whose tab it is.
   const [activity, setActivity] = useSessionState<ActivityFilter>('mcp.activity', 'all')
@@ -86,6 +93,8 @@ export function McpTab({
     return config ? configDocument(config) : null
   }
 
+  const detail = servers.find((server) => server.id === detailId) ?? null
+
   if (servers.length === 0 && cloudServers.length === 0) {
     return (
       <>
@@ -105,10 +114,12 @@ export function McpTab({
   return (
     <>
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <ActivityChips items={servers} value={activity} onChange={setActivity} />
-          {createButton}
-        </div>
+        <FilterBar>
+          <FilterRow className="justify-between">
+            <ActivityChips items={servers} value={activity} onChange={setActivity} />
+            {createButton}
+          </FilterRow>
+        </FilterBar>
         {visible.length === 0 && cloudServers.length === 0 ? (
           <EmptyState
             title={t(activity === 'on' ? 'activity.noneOn' : 'activity.noneOff')}
@@ -124,7 +135,8 @@ export function McpTab({
                   key={server.id}
                   server={server}
                   sourceDocument={documentFor(server)}
-                  onOpen={setOpen}
+                  onOpen={(target) => setDetailId(target.id)}
+                  onOpenConfig={setOpenConfig}
                   onDelete={setDeleteTarget}
                   onToggle={toggleServer}
                   toggleBusy={toggle.isPending && toggle.variables?.serverId === server.id}
@@ -142,6 +154,25 @@ export function McpTab({
       {createOpen && owner ? (
         <CreateMcpServerDialog owners={[owner]} onClose={() => setCreateOpen(false)} />
       ) : null}
+
+      <McpDetailDialog
+        server={detail}
+        open={detail !== null}
+        onOpenChange={(next) => {
+          if (!next) setDetailId(null)
+        }}
+        sourceDocument={detail ? documentFor(detail) : null}
+        onOpenConfig={(document) => {
+          setDetailId(null)
+          setOpenConfig(document)
+        }}
+        onDelete={(server) => {
+          setDetailId(null)
+          setDeleteTarget(server)
+        }}
+        onToggle={toggleServer}
+        toggleBusy={toggle.isPending && toggle.variables?.serverId === detail?.id}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}
@@ -171,12 +202,12 @@ export function McpTab({
         }}
       />
 
-      {open ? (
+      {openConfig ? (
         <DocumentEditorDialog
-          key={open.path}
+          key={openConfig.path}
           agentId={agentId}
-          document={open}
-          onOpenChange={() => setOpen(null)}
+          document={openConfig}
+          onOpenChange={() => setOpenConfig(null)}
         />
       ) : null}
     </>

@@ -1,11 +1,15 @@
-import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { ActivityFilter } from '@/shared/lib/activity'
 import { ActivityChips } from '@/shared/ui/ActivityChips'
-import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
-import { Input } from '@/shared/ui/Input'
+import {
+  FilterBar,
+  FilterChipGroup,
+  FilterClear,
+  FilterRow,
+  FilterSearch,
+} from '@/shared/ui/FilterBar'
 import { Select, type SelectOption } from '@/shared/ui/Select'
 import { TagFilterRow } from '@/shared/ui/TagFilterRow'
 
@@ -100,15 +104,12 @@ export function LibraryToolbar({
   const facetVisible = facet !== null && facet.options.length > 1
 
   return (
-    <div className="flex flex-col gap-3" data-tour="library-toolbar">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64 shrink-0"
+    <FilterBar data-tour="library-toolbar">
+      <FilterRow>
+        <FilterSearch
           value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
+          onValueChange={onQueryChange}
           placeholder={t('library.searchPlaceholder')}
-          aria-label={t('common.search')}
-          leading={<Search className="size-3.5" />}
         />
 
         <Select
@@ -138,25 +139,13 @@ export function LibraryToolbar({
           className="min-w-40"
         />
 
-        {dirty ? (
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={onClear}>
-            <X className="size-3.5" aria-hidden />
-            {t('library.clearFilters')}
-          </Button>
-        ) : null}
-      </div>
+        {dirty ? <FilterClear onClick={onClear} /> : null}
+      </FilterRow>
 
       {showGrouping || activity || facetVisible ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <FilterRow>
           {showGrouping ? (
-            <div
-              role="group"
-              aria-label={t('library.groupBy')}
-              className="flex items-center gap-1.5"
-            >
-              <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-                {t('library.groupBy')}
-              </span>
+            <FilterChipGroup label={t('library.groupBy')}>
               {GROUP_MODES.map((option) => (
                 <Chip
                   key={option.mode}
@@ -165,11 +154,7 @@ export function LibraryToolbar({
                   onClick={() => onGroupModeChange(option.mode)}
                 />
               ))}
-            </div>
-          ) : null}
-
-          {showGrouping && (activity !== null || facetVisible) ? (
-            <span aria-hidden className="bg-border h-5 w-px shrink-0" />
+            </FilterChipGroup>
           ) : null}
 
           {activity ? (
@@ -180,16 +165,8 @@ export function LibraryToolbar({
             />
           ) : null}
 
-          {(showGrouping || activity !== null) && facetVisible ? (
-            <span aria-hidden className="bg-border h-5 w-px shrink-0" />
-          ) : null}
-
           {facetVisible && facet !== null ? (
-            <div
-              role="group"
-              aria-label={t('library.facet')}
-              className="flex flex-wrap items-center gap-1.5"
-            >
+            <FilterChipGroup label={t('library.facet')}>
               {facet.options.map((option) => (
                 <Chip
                   key={option.value}
@@ -199,9 +176,9 @@ export function LibraryToolbar({
                   onClick={() => facet.onChange(option.value)}
                 />
               ))}
-            </div>
+            </FilterChipGroup>
           ) : null}
-        </div>
+        </FilterRow>
       ) : null}
 
       {/* What the resources are *for*, the way the Hub's row says it: the tags their own files
@@ -213,6 +190,6 @@ export function LibraryToolbar({
           onToggle={tagFilter.onToggle}
         />
       ) : null}
-    </div>
+    </FilterBar>
   )
 }

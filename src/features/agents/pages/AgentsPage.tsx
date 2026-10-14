@@ -103,7 +103,7 @@ export function AgentsPage() {
   const clear = () => setFilters(EMPTY_FILTER)
   const clearAction = dirty ? (
     <Button variant="secondary" size="sm" onClick={clear}>
-      {t('agents.filters.clear')}
+      {t('common.clearFilters')}
     </Button>
   ) : undefined
 

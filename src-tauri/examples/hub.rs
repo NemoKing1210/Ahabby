@@ -65,7 +65,7 @@ async fn main() {
     for problem in &catalog.problems {
         println!("  problem: {} — {}", problem.source, problem.message);
     }
-    println!("your own sources go in: {}", catalog.user_dir);
+    println!("your own sources go in: {}", dir.display());
     println!();
 
     for source in &catalog.sources {

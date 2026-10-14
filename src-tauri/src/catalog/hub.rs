@@ -35,14 +35,10 @@ pub fn builtin_count() -> usize {
 
 /// Load the builtin sources merged with the user ones from `user_dir` (when given).
 ///
-/// `user_dir` is returned in the catalog so the UI can tell the user where to drop a source file.
+/// The directory itself is not part of the catalog: where a user drops a source file is answered
+/// by `user_hub_dir`, the way the manifest directory is.
 pub fn load(user_dir: Option<&Path>) -> HubSourceCatalog {
-    let mut catalog = HubSourceCatalog {
-        user_dir: user_dir
-            .map(|dir| dir.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        ..HubSourceCatalog::default()
-    };
+    let mut catalog = HubSourceCatalog::default();
 
     for (origin_id, raw) in builtin::BUILTIN_HUB_SOURCES {
         match parse_source(raw, &format!("builtin:{origin_id}")) {
@@ -516,7 +512,6 @@ provides = ["skill"]
             .problems
             .iter()
             .any(|problem| problem.source.ends_with("broken.toml")));
-        assert_eq!(catalog.user_dir, dir.path().to_string_lossy());
     }
 
     #[test]

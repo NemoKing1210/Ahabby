@@ -155,7 +155,7 @@ src/
 │  ├─ agents/   list, clickable card, agent page (about/overview/configs/skills/mcp/other), removal flow
 │  ├─ configs/  snapshot hooks, editor dialog, diff view, backup restore
 │  ├─ skills/   skill list + detail (rendered markdown), delete flow
-│  ├─ mcp/      server cards, masked secret reveal, delete flow
+│  ├─ mcp/      server list + detail (recipe, secrets, entry JSON), masked secret reveal, delete flow
 │  ├─ library/  aggregated skills/MCP/other with search, agent filter, grouping
 │  ├─ projects/ the added folders, the projects inside them, native folder dialog, run-agent-in-project
 │  ├─ hub/      the collections of skills and MCP servers: one section per source with its own paging,

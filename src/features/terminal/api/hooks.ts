@@ -50,12 +50,12 @@ export function useOpenInTerminal() {
 }
 
 /**
- * Close a tab: the tab goes away immediately (the user asked for it) and the backend is told to
- * end the session. A session that is already gone is not worth an error — the goal state is
- * reached either way.
+ * Close a session: the pane holding it is emptied immediately (the user asked for it) and the
+ * backend is told to end it. A session that is already gone is not worth an error — the goal state
+ * is reached either way.
  */
 export function useCloseTerminal(): (sessionId: string) => void {
-  const close = useTerminalStore((state) => state.close)
+  const close = useTerminalStore((state) => state.closeSession)
   return useCallback(
     (sessionId: string) => {
       close(sessionId)

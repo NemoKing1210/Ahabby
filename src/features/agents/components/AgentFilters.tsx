@@ -1,11 +1,15 @@
-import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { Agent } from '@/shared/bindings/Agent'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
-import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
-import { Input } from '@/shared/ui/Input'
+import {
+  FilterBar,
+  FilterChipGroup,
+  FilterClear,
+  FilterRow,
+  FilterSearch,
+} from '@/shared/ui/FilterBar'
 
 /**
  * Facets a user can stack on top of the search box. Each one is something the agent card
@@ -91,9 +95,10 @@ export function agentMatchesFacets(agent: Agent, facets: ReadonlySet<AgentFacet>
 }
 
 /**
- * The list's whole filter row: search box, install-state scope and the facet chips. A facet
- * chip's count is what turning it on would leave, so a chip that cannot apply to the current
- * selection disappears instead of leading to a dead end; the reset button covers the rest.
+ * The list's whole filter strip: the search box on its own row, then the install-state scope and
+ * the facet chips. A facet chip's count is what turning it on would leave, so a chip that cannot
+ * apply to the current selection disappears instead of leading to a dead end; the reset button
+ * covers the rest.
  */
 export function AgentFilters({
   state,
@@ -119,38 +124,31 @@ export function AgentFilters({
   )
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Input
-        className="w-56 shrink-0"
-        value={state.query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        placeholder={t('agents.searchPlaceholder')}
-        aria-label={t('common.search')}
-        leading={<Search className="size-3.5" />}
-      />
+    <FilterBar>
+      <FilterRow>
+        <FilterSearch
+          value={state.query}
+          onValueChange={onQueryChange}
+          placeholder={t('agents.searchPlaceholder')}
+        />
+        {dirty ? <FilterClear onClick={onClear} /> : null}
+      </FilterRow>
 
-      <span aria-hidden className="bg-border h-5 w-px shrink-0" />
+      <FilterRow>
+        <FilterChipGroup label={t('agents.filters.scope')}>
+          {SCOPES.map((scope) => (
+            <Chip
+              key={scope}
+              label={t(SCOPE_LABEL_KEYS[scope])}
+              active={state.scope === scope}
+              count={counts[scope]}
+              onClick={() => onScopeChange(scope)}
+            />
+          ))}
+        </FilterChipGroup>
 
-      <div
-        role="group"
-        aria-label={t('agents.filters.scope')}
-        className="flex items-center gap-1.5"
-      >
-        {SCOPES.map((scope) => (
-          <Chip
-            key={scope}
-            label={t(SCOPE_LABEL_KEYS[scope])}
-            active={state.scope === scope}
-            count={counts[scope]}
-            onClick={() => onScopeChange(scope)}
-          />
-        ))}
-      </div>
-
-      {facets.length > 0 ? (
-        <>
-          <span aria-hidden className="bg-border h-5 w-px shrink-0" />
-          <div role="group" aria-label={t('agents.filters.signals')}>
+        {facets.length > 0 ? (
+          <FilterChipGroup label={t('agents.filters.signals')}>
             <AnimatedList grouped={false} className="flex flex-wrap items-center gap-1.5">
               {facets.map((facet) => (
                 <Chip
@@ -162,16 +160,9 @@ export function AgentFilters({
                 />
               ))}
             </AnimatedList>
-          </div>
-        </>
-      ) : null}
-
-      {dirty ? (
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={onClear}>
-          <X className="size-3.5" aria-hidden />
-          {t('agents.filters.clear')}
-        </Button>
-      ) : null}
-    </div>
+          </FilterChipGroup>
+        ) : null}
+      </FilterRow>
+    </FilterBar>
   )
 }

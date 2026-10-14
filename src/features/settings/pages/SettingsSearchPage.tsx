@@ -12,12 +12,13 @@ import {
   SettingsSections,
 } from '../components/SettingsSection'
 import { useSettingsDraft } from '../lib/draft'
-import { useUserCatalogDir } from '../api/hooks'
+import { useUserCatalogDir, useUserHubDir } from '../api/hooks'
 
 export function SettingsSearchPage() {
   const { t } = useTranslation()
   const { draft, update } = useSettingsDraft()
   const catalogDir = useUserCatalogDir()
+  const hubDir = useUserHubDir()
 
   return (
     <div className="flex flex-col gap-5">
@@ -74,6 +75,10 @@ export function SettingsSearchPage() {
 
         <SettingsSection title={t('settings.catalog')} hint={t('settings.catalogDirHint')}>
           {catalogDir.data ? <PathRow path={catalogDir.data} className="py-3" /> : null}
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.hubSources')} hint={t('settings.hubSourcesHint')}>
+          {hubDir.data ? <PathRow path={hubDir.data} className="py-3" /> : null}
         </SettingsSection>
       </SettingsSections>
     </div>

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, FileCode2, FolderOpen, Power, Trash2 } from 'lucide-react'
+import { Copy, FileCode2, FolderOpen, Info, Power, Trash2 } from 'lucide-react'
 
 import { ipc } from '@/shared/api/ipc'
 import type { McpServer } from '@/shared/bindings/McpServer'
@@ -29,6 +29,7 @@ export function McpContextMenu({
   server,
   sourceDocument,
   onOpen,
+  onOpenConfig,
   onDelete,
   onToggle,
   children,
@@ -36,7 +37,9 @@ export function McpContextMenu({
   server: McpServer
   /** The config file the entry lives in, when the scan found one Ahabby may address. */
   sourceDocument?: EditorDocument | null
-  onOpen?: (document: EditorDocument) => void
+  /** Opens the reader of this server. */
+  onOpen?: (server: McpServer) => void
+  onOpenConfig?: (document: EditorDocument) => void
   onDelete?: (server: McpServer) => void
   /** Only offered for a server Ahabby may switch off; the backend refuses the rest. */
   onToggle?: (server: McpServer, enabled: boolean) => void
@@ -56,10 +59,10 @@ export function McpContextMenu({
       <ContextMenuContent aria-label={server.name}>
         <ContextMenuLabel>{server.name}</ContextMenuLabel>
 
-        {sourceDocument && onOpen ? (
-          <ContextMenuItem onSelect={() => onOpen(sourceDocument)}>
-            <FileCode2 aria-hidden />
-            {sourceDocument.editable ? t('mcp.editConfig') : t('configs.view')}
+        {onOpen ? (
+          <ContextMenuItem onSelect={() => onOpen(server)}>
+            <Info aria-hidden />
+            {t('common.open')}
           </ContextMenuItem>
         ) : null}
 
@@ -67,6 +70,13 @@ export function McpContextMenu({
           <ContextMenuItem onSelect={() => onToggle(server, !server.enabled)}>
             <Power aria-hidden />
             {server.enabled ? t('mcp.toggleOff') : t('mcp.toggleOn')}
+          </ContextMenuItem>
+        ) : null}
+
+        {onOpenConfig && sourceDocument ? (
+          <ContextMenuItem onSelect={() => onOpenConfig(sourceDocument)}>
+            <FileCode2 aria-hidden />
+            {sourceDocument.editable ? t('mcp.editConfig') : t('configs.view')}
           </ContextMenuItem>
         ) : null}
 

@@ -20,6 +20,7 @@ vi.mock('@/shared/api/ipc', () => ({
     saveSettings: vi.fn(),
     listPackageManagers: vi.fn(),
     userCatalogDir: vi.fn(),
+    userHubDir: vi.fn(),
     backupRoot: vi.fn(),
     listTerminals: vi.fn(),
     revealPath: vi.fn(),
@@ -39,6 +40,7 @@ async function openSettings(
   vi.mocked(ipc.getSettings).mockResolvedValue(data)
   vi.mocked(ipc.listPackageManagers).mockResolvedValue([])
   vi.mocked(ipc.userCatalogDir).mockResolvedValue('/catalog')
+  vi.mocked(ipc.userHubDir).mockResolvedValue('/hub-sources')
   vi.mocked(ipc.backupRoot).mockResolvedValue('/backups')
   vi.mocked(ipc.listTerminals).mockResolvedValue({ options: [], defaultCwd: '/home' })
   vi.mocked(ipc.saveSettings).mockImplementation((next: Settings) => Promise.resolve(next))
@@ -279,6 +281,16 @@ describe('Settings appearance', () => {
         }),
       )
     })
+  })
+})
+
+describe('Settings search & catalog', () => {
+  it('names the directories extra manifests and hub sources are read from', async () => {
+    await openSettings(testSettings(), '/settings/search', 'Search & catalog')
+
+    expect(screen.getByRole('heading', { level: 3, name: 'Hub sources' })).toBeInTheDocument()
+    expect(screen.getByText('/catalog')).toBeInTheDocument()
+    expect(screen.getByText('/hub-sources')).toBeInTheDocument()
   })
 })
 

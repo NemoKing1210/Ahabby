@@ -3,10 +3,13 @@ import { useTranslation } from 'react-i18next'
 import {
   ChevronDown,
   ChevronUp,
+  Columns2,
+  Grid2x2,
   Maximize2,
   Minimize2,
   Plus,
-  RotateCcw,
+  Rows2,
+  Square,
   SquareX,
   Terminal as TerminalIcon,
   X,
@@ -16,6 +19,7 @@ import { cn } from '@/shared/lib/cn'
 import { fileName } from '@/shared/lib/format'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
+import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { Tooltip } from '@/shared/ui/Tooltip'
@@ -24,9 +28,18 @@ import { toastAppError } from '@/shared/ui/Toast'
 import { useAgents } from '@/features/agents/api/queries'
 
 import { useCloseTerminal, useLaunchTerminal } from '../api/hooks'
+import { startPointerDrag } from '../lib/drag'
+import { canAdoptLayout, paneCount } from '../lib/layout'
 import { shortenCommand } from '../lib/terminal'
-import { useTerminalStore } from '../store'
-import { TerminalView } from './TerminalView'
+import {
+  useTerminalStore,
+  type TerminalLayout,
+  type TerminalPane,
+  type TerminalSessionState,
+  type TerminalWorkspace,
+} from '../store'
+import { PaneGrid } from './PaneGrid'
+import { TerminalPane as Pane } from './TerminalPane'
 
 /** The dock may not be dragged smaller than this, or a whole one is unusable. */
 const MIN_HEIGHT = 140
@@ -34,35 +47,54 @@ const MIN_HEIGHT = 140
 const MAX_HEIGHT_RATIO = 0.75
 const DEFAULT_HEIGHT = 320
 
+/** The arrangements a workspace may wear, in the order the buttons are drawn. */
+const LAYOUTS: { id: TerminalLayout; labelKey: string; icon: typeof Square }[] = [
+  { id: 'single', labelKey: 'terminal.layoutSingle', icon: Square },
+  { id: 'columns', labelKey: 'terminal.layoutColumns', icon: Columns2 },
+  { id: 'rows', labelKey: 'terminal.layoutRows', icon: Rows2 },
+  { id: 'grid', labelKey: 'terminal.layoutGrid', icon: Grid2x2 },
+]
+
 /**
  * The docked terminal: a footer that belongs to the window rather than a screen of its own.
  *
- * Its tab strip is always on screen, so several agents stay visible and switchable while the rest
- * of the interface is being used above them; collapsing it keeps the tabs and keeps every terminal
- * mounted — a background agent goes on painting into its own scrollback, and nothing is lost by
- * making room. The top edge is a drag handle, which is what makes the height the user's decision.
+ * Its tab strip is always on screen — one row per *workspace*, naming the agent its focused pane
+ * holds — so several sets of agents stay visible and switchable while the rest of the interface is
+ * used above them. Collapsing it keeps the rows and keeps every pane mounted: a background agent
+ * goes on painting into its own scrollback, and nothing is lost by making room. The top edge is a
+ * drag handle, which is what makes the height the user's decision; the dividers inside a split
+ * workspace make each pane's share theirs.
  *
  * Maximized, the same dock takes the whole window: `AppShell` stands the screen and the rail down
  * (`maximized` in the store is what it reads), the panel becomes the content column's flexible row,
- * and the height stops being the user's — so the drag handle goes with it. Nothing about the tabs
- * changes, because this is the same panel with a different amount of room.
+ * and the height stops being the user's — so the drag handle goes with it.
  */
-export function TerminalDock({ onNew }: { onNew: () => void }) {
+export function TerminalDock({
+  onNew,
+}: {
+  onNew: (into?: { paneId: string; cwd: string }) => void
+}) {
   const { t } = useTranslation()
-  const tabs = useTerminalStore((state) => state.tabs)
+  const workspaces = useTerminalStore((state) => state.workspaces)
+  const sessions = useTerminalStore((state) => state.sessions)
   const activeId = useTerminalStore((state) => state.activeId)
   const expanded = useTerminalStore((state) => state.expanded)
   const maximized = useTerminalStore((state) => state.maximized)
   const activate = useTerminalStore((state) => state.activate)
+  const focusPane = useTerminalStore((state) => state.focusPane)
+  const setLayout = useTerminalStore((state) => state.setLayout)
+  const setSizes = useTerminalStore((state) => state.setSizes)
   const setExpanded = useTerminalStore((state) => state.setExpanded)
   const toggleMaximized = useTerminalStore((state) => state.toggleMaximized)
-  const open = useTerminalStore((state) => state.open)
+  const replaceSession = useTerminalStore((state) => state.replaceSession)
   const closeTerminal = useCloseTerminal()
   const restart = useLaunchTerminal()
   const { data: report } = useAgents()
 
   const [height, setHeight] = useState(DEFAULT_HEIGHT)
   const [confirmingCloseAll, setConfirmingCloseAll] = useState(false)
+  /** The workspace a close was asked of, waiting to be answered. */
+  const [closingId, setClosingId] = useState<string | null>(null)
 
   const icons = useMemo(() => {
     const byId = new Map<string, string | null>()
@@ -70,44 +102,87 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
     return byId
   }, [report])
 
-  const active = tabs.find((tab) => tab.sessionId === activeId) ?? tabs[tabs.length - 1]
+  // The workspace on screen: the active one, or the last — the fallback the store keeps for the
+  // pointer keys, and the one that keeps the dock usable while a workspace is being closed.
+  const workspace =
+    workspaces.find((candidate) => candidate.id === activeId) ?? workspaces[workspaces.length - 1]
+  const closing = workspaces.find((candidate) => candidate.id === closingId)
+  const sessionCount = Object.keys(sessions).length
+
+  /**
+   * Where an agent started from a pane works: the directory this workspace already works in.
+   *
+   * Read from the first pane that holds a session rather than from the focused one: pressing a
+   * pane's button focuses that pane first, and an empty pane has no directory of its own to give.
+   */
+  const workspaceCwd = useMemo(() => {
+    for (const pane of workspace?.panes ?? []) {
+      const held = pane.sessionId ? sessions[pane.sessionId] : undefined
+      if (held) return held.cwd
+    }
+    return ''
+  }, [workspace, sessions])
+
+  /** Every session of a workspace, gone together — the way its tab used to go. */
+  const closeWorkspace = useCallback(
+    (target: TerminalWorkspace) => {
+      for (const pane of target.panes) {
+        if (pane.sessionId !== null) closeTerminal(pane.sessionId)
+      }
+      setClosingId(null)
+    },
+    [closeTerminal],
+  )
+
+  /** One agent is the tab the user is looking at; several of them are worth a question first. */
+  const requestClose = useCallback(
+    (target: TerminalWorkspace) => {
+      const held = target.panes.filter((pane) => pane.sessionId !== null).length
+      if (held > 1) setClosingId(target.id)
+      else closeWorkspace(target)
+    },
+    [closeWorkspace],
+  )
+
+  /**
+   * Restart a pane's agent in its own pane. The new session takes the pane **first**: closing the
+   * dead one would empty a one-pane workspace and take it away, leaving the agent that had just
+   * started with nowhere to live.
+   */
+  const restartInPane = useCallback(
+    (pane: TerminalPane, session: TerminalSessionState | null) => {
+      if (!session) return
+      restart.mutate(
+        { agentId: session.agentId, cwd: session.cwd },
+        {
+          onSuccess: (started) => {
+            replaceSession(pane.id, started)
+            closeTerminal(session.sessionId)
+          },
+          onError: (error) => toastAppError(error),
+        },
+      )
+    },
+    [closeTerminal, replaceSession, restart],
+  )
 
   /** Drag the top edge: up grows the dock, down shrinks it; the interface above follows. */
   const startResize = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      event.preventDefault()
       const startY = event.clientY
       const startHeight = height
       const ceiling = Math.max(MIN_HEIGHT, window.innerHeight * MAX_HEIGHT_RATIO)
       const clamp = (value: number) => Math.min(ceiling, Math.max(MIN_HEIGHT, value))
-      const move = (moveEvent: globalThis.PointerEvent) =>
-        setHeight(clamp(startHeight + (startY - moveEvent.clientY)))
-      const stop = () => {
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', stop)
-        document.body.style.removeProperty('cursor')
-        document.body.style.removeProperty('user-select')
-      }
-      // The cursor and the selection have to stay put for the whole drag, not just over the handle.
-      document.body.style.cursor = 'row-resize'
-      document.body.style.userSelect = 'none'
-      window.addEventListener('pointermove', move)
-      window.addEventListener('pointerup', stop)
+      startPointerDrag(event, {
+        cursor: 'row-resize',
+        onMove: (moveEvent) => setHeight(clamp(startHeight + (startY - moveEvent.clientY))),
+      })
     },
     [height],
   )
 
-  /**
-   * End every session at once: each tab goes and each PTY with it, which is why it is asked for
-   * rather than done. The tabs leave together, so the dock goes with the last of them.
-   */
-  const closeAll = useCallback(() => {
-    for (const tab of tabs) closeTerminal(tab.sessionId)
-    setConfirmingCloseAll(false)
-  }, [closeTerminal, tabs])
-
-  // `TerminalView` hands the keyboard back when the dock is collapsed (it blurs its own terminal),
-  // because a hidden terminal that still owns the focus would swallow every key the app expects.
+  // `TerminalView` hands the keyboard back when a pane loses the focus (it blurs its own terminal),
+  // because a pane that is not the focused one would swallow every key the app expects.
 
   return (
     <section
@@ -153,11 +228,27 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
             itemClassName="shrink-0"
             className="flex items-center gap-1"
           >
-            {tabs.map((tab) => {
-              const selected = tab.sessionId === active?.sessionId
+            {workspaces.map((item) => {
+              const selected = item.id === workspace?.id
+              // The row names the agent the workspace is showing: the focused pane when it holds a
+              // session, and otherwise the first pane that does — a row is a way back to an agent,
+              // never a label for an empty slot.
+              const held =
+                item.panes.find(
+                  (pane) => pane.id === item.activePaneId && pane.sessionId !== null,
+                ) ?? item.panes.find((pane) => pane.sessionId !== null)
+              const session = held?.sessionId ? sessions[held.sessionId] : undefined
+              const title = item.panes
+                .map((pane) => {
+                  const inside = pane.sessionId ? sessions[pane.sessionId] : undefined
+                  return inside ? `${inside.agentName} · ${shortenCommand(inside.command)}` : ''
+                })
+                .filter((line) => line.length > 0)
+                .join(', ')
+
               return (
                 <div
-                  key={tab.sessionId}
+                  key={item.id}
                   className={cn(
                     'group ease-warm flex shrink-0 items-center gap-0.5 rounded-xl pr-0.5 pl-1.5 transition-colors duration-150',
                     selected && expanded
@@ -165,35 +256,48 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
                       : 'hover:bg-surface-2',
                   )}
                 >
-                  <Tooltip content={shortenCommand(tab.command)} side="top">
+                  <Tooltip content={title} side="top">
                     <button
                       type="button"
                       role="tab"
                       aria-selected={selected}
-                      onClick={() => activate(tab.sessionId)}
+                      onClick={() => activate(item.id)}
                       className={cn(
                         'flex items-center gap-1.5 py-1 pr-1 text-[0.8125rem]',
                         selected ? 'text-accent-strong' : 'text-muted hover:text-foreground',
                       )}
                     >
-                      <AgentIcon name={tab.agentName} icon={icons.get(tab.agentId)} size="xs" />
-                      <span className="max-w-40 truncate">{tab.agentName}</span>
-                      <span className="text-faint max-w-24 truncate text-[0.6875rem]">
-                        {fileName(tab.cwd)}
-                      </span>
-                      {tab.running ? null : (
-                        <span className="text-faint text-[0.6875rem]">
-                          {t('terminal.exitedShort', { code: tab.exitCode ?? '—' })}
+                      {session ? (
+                        <AgentIcon
+                          name={session.agentName}
+                          icon={icons.get(session.agentId)}
+                          size="xs"
+                        />
+                      ) : null}
+                      <span className="max-w-40 truncate">{session?.agentName ?? ''}</span>
+                      {item.panes.length > 1 ? (
+                        <Badge tone="neutral" className="tabular-nums">
+                          {item.panes.length}
+                        </Badge>
+                      ) : null}
+                      {session ? (
+                        <span className="text-faint max-w-24 truncate text-[0.6875rem]">
+                          {fileName(session.cwd)}
                         </span>
-                      )}
+                      ) : null}
+                      {session && !session.running ? (
+                        <span className="text-faint text-[0.6875rem]">
+                          {t('terminal.exitedShort', { code: session.exitCode ?? '—' })}
+                        </span>
+                      ) : null}
                     </button>
                   </Tooltip>
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     className="size-6 opacity-60 group-hover:opacity-100"
-                    aria-label={t('terminal.closeTab', { agent: tab.agentName })}
-                    onClick={() => closeTerminal(tab.sessionId)}
+                    aria-label={t('terminal.closeWorkspaceAria')}
+                    onClick={() => requestClose(item)}
                   >
                     <X className="size-3" aria-hidden />
                   </Button>
@@ -203,8 +307,48 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
           </AnimatedList>
         </div>
 
+        <div
+          role="group"
+          aria-label={t('terminal.layout')}
+          className="border-border bg-surface-2 flex shrink-0 items-center gap-0.5 rounded-xl border p-0.5"
+        >
+          {LAYOUTS.map((option) => {
+            const allowed = workspace ? canAdoptLayout(workspace.panes, option.id) : false
+            const held = workspace
+              ? workspace.panes.filter((pane) => pane.sessionId !== null).length
+              : 0
+            const label = t(option.labelKey)
+            return (
+              <Tooltip key={option.id} content={label} side="top">
+                <Button
+                  variant={workspace?.layout === option.id ? 'subtle' : 'ghost'}
+                  size="icon-sm"
+                  className="size-6"
+                  aria-label={label}
+                  aria-pressed={workspace?.layout === option.id}
+                  disabled={!allowed}
+                  // A button that cannot be pressed still has to say what stands in the way.
+                  title={
+                    allowed
+                      ? undefined
+                      : t('terminal.layoutBlocked', { count: held - paneCount(option.id) })
+                  }
+                  onClick={() => setLayout(option.id)}
+                >
+                  <option.icon className="size-3.5" aria-hidden />
+                </Button>
+              </Tooltip>
+            )
+          })}
+        </div>
+
         <Tooltip content={t('terminal.new')} side="top">
-          <Button variant="ghost" size="icon-sm" aria-label={t('terminal.new')} onClick={onNew}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('terminal.new')}
+            onClick={() => onNew()}
+          >
             <Plus className="size-4" aria-hidden />
           </Button>
         </Tooltip>
@@ -251,71 +395,70 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
       </div>
 
       <div
-        // Collapsed means zero height, not unmounted: the terminals keep their scrollback. A
-        // maximized dock is a flexible row instead, because its height is the window's then.
+        // Collapsed means zero height, not unmounted: the panes keep their scrollback. A maximized
+        // dock is a flexible row instead, because its height is the window's then.
         style={!expanded ? { height: 0 } : maximized ? undefined : { height }}
         className={cn(
           'relative flex min-h-0 flex-col overflow-hidden',
           expanded && maximized && 'flex-1',
         )}
       >
-        <div className="relative min-h-0 flex-1">
-          {tabs.map((tab) => (
-            <TerminalView
-              key={tab.sessionId}
-              session={tab}
-              active={tab.sessionId === active?.sessionId}
-              focusable={expanded}
-            />
-          ))}
-        </div>
-
-        {/* The ended session takes its own strip instead of floating over the terminal: the last
-            rows an agent printed are exactly the ones a user needs to read. */}
-        {active && !active.running ? (
-          <div className="border-border bg-surface-2 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-3 py-2">
-            <span className="text-muted text-[0.8125rem]">
-              {t('terminal.exited', { code: active.exitCode ?? '—' })}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={restart.isPending}
-                onClick={() =>
-                  restart.mutate(
-                    { agentId: active.agentId, cwd: active.cwd },
-                    {
-                      onSuccess: (session) => {
-                        open(session)
-                        closeTerminal(active.sessionId)
-                      },
-                      onError: (error) => toastAppError(error),
-                    },
-                  )
-                }
-              >
-                {restart.isPending ? null : <RotateCcw className="size-3.5" aria-hidden />}
-                {t('terminal.restart')}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => closeTerminal(active.sessionId)}>
-                {t('terminal.closeTabAction')}
-              </Button>
-            </div>
-          </div>
+        {workspace ? (
+          <PaneGrid layout={workspace.layout} sizes={workspace.sizes} onResize={setSizes}>
+            {workspace.panes.map((pane) => {
+              const session = pane.sessionId ? (sessions[pane.sessionId] ?? null) : null
+              return (
+                <Pane
+                  key={pane.id}
+                  session={session}
+                  titled={workspace.panes.length > 1}
+                  // The keyboard belongs to the focused pane of an *open* dock: collapsed, there is
+                  // no room for it and the app must get its keys back.
+                  focused={expanded && pane.id === workspace.activePaneId}
+                  restarting={restart.isPending}
+                  icon={session ? icons.get(session.agentId) : null}
+                  onFocus={() => focusPane(pane.id)}
+                  // A pane starts where its neighbours work, so a split does not ask for the same
+                  // path twice.
+                  onStart={() => onNew({ paneId: pane.id, cwd: workspaceCwd })}
+                  onRestart={() => restartInPane(pane, session)}
+                  onClose={() => {
+                    if (session) closeTerminal(session.sessionId)
+                  }}
+                />
+              )
+            })}
+          </PaneGrid>
         ) : null}
       </div>
 
-      {/* The one question worth asking here: an agent in another tab is work in progress, and
-          ending its session takes the scrollback with it. */}
+      {/* The one question a dock-wide close is worth asking: an agent in another tab is work in
+          progress, and ending its session takes the scrollback with it. */}
       {confirmingCloseAll ? (
         <ConfirmDialog
           open
           onOpenChange={(next) => (next ? undefined : setConfirmingCloseAll(false))}
           title={t('terminal.closeAllTitle')}
-          description={t('terminal.closeAllDescription', { count: tabs.length })}
+          description={t('terminal.closeAllDescription', { count: sessionCount })}
           confirmLabel={t('terminal.closeAllConfirm')}
-          onConfirm={closeAll}
+          onConfirm={() => {
+            for (const sessionId of Object.keys(sessions)) closeTerminal(sessionId)
+            setConfirmingCloseAll(false)
+          }}
+        />
+      ) : null}
+
+      {/* Closing a workspace ends every agent in it: one of them needs no question, several do. */}
+      {closing ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => (next ? undefined : setClosingId(null))}
+          title={t('terminal.closeWorkspaceTitle')}
+          description={t('terminal.closeWorkspaceDescription', {
+            count: closing.panes.filter((pane) => pane.sessionId !== null).length,
+          })}
+          confirmLabel={t('terminal.closeWorkspace')}
+          onConfirm={() => closeWorkspace(closing)}
         />
       ) : null}
     </section>

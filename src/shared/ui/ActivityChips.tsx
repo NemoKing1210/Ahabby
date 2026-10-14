@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ACTIVITY_FILTERS, activityCounts, type ActivityFilter } from '@/shared/lib/activity'
 import { Chip } from '@/shared/ui/Chip'
+import { FilterChipGroup } from '@/shared/ui/FilterBar'
 
 const LABEL_KEYS: Record<ActivityFilter, string> = {
   all: 'common.all',
@@ -30,14 +31,7 @@ export function ActivityChips({
   const counts = activityCounts(items)
 
   return (
-    <div
-      role="group"
-      aria-label={t('activity.label')}
-      className="flex flex-wrap items-center gap-1.5"
-    >
-      <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-        {t('activity.label')}
-      </span>
+    <FilterChipGroup label={t('activity.label')}>
       {ACTIVITY_FILTERS.map((option) => (
         <Chip
           key={option}
@@ -47,6 +41,6 @@ export function ActivityChips({
           onClick={() => onChange(option)}
         />
       ))}
-    </div>
+    </FilterChipGroup>
   )
 }

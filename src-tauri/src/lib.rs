@@ -73,6 +73,7 @@ macro_rules! handlers {
             commands::extensions::plan_extension_action,
             commands::extensions::run_extension_action,
             commands::hub::list_hub_sources,
+            commands::hub::user_hub_dir,
             commands::hub::search_hub,
             commands::hub::get_hub_entry,
             commands::hub::compare_hub_skill,

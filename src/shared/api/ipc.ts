@@ -182,6 +182,8 @@ export const ipc = {
   // --- hub ----------------------------------------------------------------------------
   /** The collections the hub reads, plus the ones that failed to load. */
   listHubSources: () => invoke<HubSourceCatalog>('list_hub_sources'),
+  /** Directory the user can drop their own hub sources into (shown in Settings). */
+  userHubDir: () => invoke<string>('user_hub_dir'),
   /** One page of one source. The cursor comes from the previous page's report. */
   searchHub: (sourceId: string, query: HubQuery) =>
     invoke<HubPage>('search_hub', { sourceId, query }),

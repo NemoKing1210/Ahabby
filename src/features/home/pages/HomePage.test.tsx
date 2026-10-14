@@ -109,7 +109,6 @@ const HUB_SOURCES: HubSourceCatalog = {
     source({ id: 'mcp-registry', name: 'MCP Registry', kind: 'mcpRegistry', provides: ['mcp'] }),
   ],
   problems: [],
-  userDir: '/home/me/.config/ahabby/hub',
 }
 
 const REPORT: ScanReport = {

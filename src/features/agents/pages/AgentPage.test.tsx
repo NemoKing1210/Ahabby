@@ -154,7 +154,15 @@ beforeEach(() => {
   vi.mocked(ipc.revealPath).mockResolvedValue(undefined)
   // The terminal store is a module-level singleton: one case's session must not be the next
   // one's, which is the same reason `setup.ts` clears the session filters.
-  useTerminalStore.setState({ tabs: [], activeId: null, buffered: {}, exits: {}, expanded: false })
+  useTerminalStore.setState({
+    sessions: {},
+    workspaces: [],
+    activeId: null,
+    buffered: {},
+    exits: {},
+    expanded: false,
+    maximized: false,
+  })
 })
 
 afterEach(cleanup)
@@ -287,8 +295,8 @@ describe('AgentPage', () => {
     await waitFor(() =>
       expect(ipc.launchTerminal).toHaveBeenCalledWith('claude-code', null, 80, 24),
     )
-    // …and the session it answers with becomes an open tab, so the dock comes up by itself.
-    expect(useTerminalStore.getState().tabs.map((tab) => tab.sessionId)).toEqual(['session-1'])
+    // …and the session it answers with becomes an open workspace, so the dock comes up by itself.
+    expect(Object.keys(useTerminalStore.getState().sessions)).toEqual(['session-1'])
     expect(useTerminalStore.getState().expanded).toBe(true)
   })
 

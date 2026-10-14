@@ -1,17 +1,15 @@
-import { memo, useState, type ReactNode } from 'react'
+import { memo, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight, FileCode2, Trash2 } from 'lucide-react'
+import { FileCode2, Server, Trash2 } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import { cn } from '@/shared/lib/cn'
+import { shortenPath } from '@/shared/lib/format'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
-import { CodeViewer } from '@/shared/ui/CodeViewer'
-import { PathRow } from '@/shared/ui/PathRow'
-import { Reveal } from '@/shared/ui/Reveal'
 import { Switch } from '@/shared/ui/Switch'
 import { Timestamp } from '@/shared/ui/Timestamp'
 import { Tooltip } from '@/shared/ui/Tooltip'
@@ -19,20 +17,25 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 import type { EditorDocument } from '@/features/editor/model'
 
 import { McpContextMenu } from './McpContextMenu'
-import { SecretValue } from './SecretValue'
+import { TransportBadge } from './TransportBadge'
 
-function TransportBadge({ server }: { server: McpServer }) {
-  const tone =
-    server.transport.type === 'http'
-      ? 'info'
-      : server.transport.type === 'stdio'
-        ? 'accent'
-        : 'neutral'
-  return <Badge tone={tone}>{server.transport.type}</Badge>
+/** How the server is spoken to, in the one line a card has room for. */
+function transportLine(server: McpServer): string {
+  const transport = server.transport
+  if (transport.type === 'stdio') return [transport.command, ...transport.args].join(' ')
+  if (transport.type === 'http') return transport.url
+  return transport.detail
 }
 
 /**
- * One MCP server, with its transport, secrets and the file it lives in.
+ * One MCP server, in the same shape as a skill card: a neutral tile, the name in the serif
+ * face, the transport in one line, the owners and the quiet metadata — and the actions in
+ * their own column, so a click there never opens the detail view. Everything the card has no
+ * room for (the arguments, the environment, the headers, the entry as it stands) lives in
+ * `McpDetailDialog`, which a click on the card opens.
+ *
+ * `agents` is what turns the card into a library card — the agent page already knows whose
+ * list it is showing, so it leaves the owners off.
  *
  * Memoized like `SkillCard`: the library shows every server of every agent, and the handlers it
  * receives are stable callbacks of the page, so a filter that leaves it in place does not redraw it.
@@ -42,6 +45,7 @@ export const McpCard = memo(function McpCard({
   agents,
   sourceDocument,
   onOpen,
+  onOpenConfig,
   onDelete,
   onToggle,
   toggleBusy,
@@ -52,7 +56,8 @@ export const McpCard = memo(function McpCard({
   agents?: AgentRef[]
   /** The config file the entry lives in, when the scan found one Ahabby may address. */
   sourceDocument?: EditorDocument | null
-  onOpen?: (document: EditorDocument) => void
+  onOpen?: (server: McpServer) => void
+  onOpenConfig?: (document: EditorDocument) => void
   onDelete?: (server: McpServer) => void
   /** Only offered for a server Ahabby may switch off; the backend refuses the rest. */
   onToggle?: (server: McpServer, enabled: boolean) => void
@@ -62,59 +67,98 @@ export const McpCard = memo(function McpCard({
   cloudAction?: ReactNode
 }) {
   const { t } = useTranslation()
-  const [showRaw, setShowRaw] = useState(false)
-  const agentId = server.agent.id
   const owners = agents ?? [server.agent]
   // On the agent's own page the owner is implicit; the library passes `agents` explicitly so
   // every card names the file's agent, even when only one declares it.
   const showOwners = agents !== undefined || owners.length > 1
+  const open = onOpen ? () => onOpen(server) : undefined
+
+  // The body is a div rather than a button: a button may not contain the block content the
+  // card needs. Enter/Space keep it reachable from the keyboard.
+  const activate = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!open) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      open()
+    }
+  }
 
   return (
     <McpContextMenu
       server={server}
       sourceDocument={sourceDocument}
       onOpen={onOpen}
+      onOpenConfig={onOpenConfig}
       onDelete={onDelete}
       onToggle={onToggle}
     >
       <Card
         className={cn(
-          'group ease-warm hover:border-border-strong flex flex-col gap-3 p-4 transition-[border-color,translate] duration-150 hover:-translate-y-px',
+          'group ease-warm hover:border-border-strong relative transition-[border-color,translate] duration-150 hover:-translate-y-px',
           !server.enabled && 'border-dashed',
         )}
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={cn(
-                  'group-hover:text-accent-strong font-serif text-[0.9375rem]',
-                  server.enabled ? 'text-foreground' : 'text-muted',
-                )}
-              >
-                {server.name}
-              </span>
-              {!server.enabled ? <Badge tone="neutral">{t('mcp.disabled')}</Badge> : null}
-              <TransportBadge server={server} />
-              {server.hasSecrets ? (
-                <Badge tone="warning">
-                  {t('mcp.secretsHidden', {
-                    count: server.env.filter((entry) => entry.masked).length,
-                  })}
-                </Badge>
-              ) : null}
-              {server.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
-            </div>
-            {showOwners ? (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {owners.map((agent) => (
-                  <AgentTag key={agent.id} agent={agent} />
-                ))}
+        <div className="flex items-start gap-4 p-4">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label={server.name}
+            onClick={open}
+            onKeyDown={activate}
+            className="focus-visible:outline-ring flex min-w-0 flex-1 cursor-pointer items-start gap-4 rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'border-border bg-surface-2 text-accent-strong inline-flex size-10 shrink-0 items-center justify-center rounded-lg border',
+                !server.enabled && 'opacity-60',
+              )}
+            >
+              <Server className="size-4" />
+            </span>
+
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    'group-hover:text-accent-strong font-serif text-[0.9375rem]',
+                    server.enabled ? 'text-foreground' : 'text-muted',
+                  )}
+                >
+                  {server.name}
+                </span>
+                {!server.enabled ? <Badge tone="neutral">{t('mcp.disabled')}</Badge> : null}
+                <TransportBadge server={server} />
+                {server.hasSecrets ? (
+                  <Badge tone="warning">
+                    {t('mcp.secretsHidden', {
+                      count: server.env.filter((entry) => entry.masked).length,
+                    })}
+                  </Badge>
+                ) : null}
+                {server.unverified ? <Badge tone="warning">{t('agents.unverified')}</Badge> : null}
               </div>
-            ) : null}
+
+              <p className="text-muted truncate font-mono text-[0.75rem]">
+                {transportLine(server)}
+              </p>
+
+              {showOwners ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {owners.map((agent) => (
+                    <AgentTag key={agent.id} agent={agent} />
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="text-faint flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[0.75rem]">
+                <code className="font-mono">{shortenPath(server.sourceConfig, 4)}</code>
+                <Timestamp createdMs={server.createdMs} modifiedMs={server.modifiedMs} />
+              </div>
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
             {onToggle && server.removable ? (
               <Tooltip content={t('mcp.switchHint')}>
                 <span className="inline-flex">
@@ -127,119 +171,40 @@ export const McpCard = memo(function McpCard({
                 </span>
               </Tooltip>
             ) : null}
-            {sourceDocument && onOpen ? (
+            <Button variant="secondary" size="sm" onClick={open} disabled={!open}>
+              {t('common.open')}
+            </Button>
+            {onOpenConfig && sourceDocument ? (
               <Tooltip
                 content={sourceDocument.editable ? t('mcp.editConfig') : t('configs.notEditable')}
               >
-                <Button variant="ghost" size="sm" onClick={() => onOpen(sourceDocument)}>
-                  <FileCode2 className="size-3.5" aria-hidden />
-                  {sourceDocument.editable ? t('mcp.editConfig') : t('configs.view')}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={sourceDocument.editable ? t('mcp.editConfig') : t('configs.view')}
+                  onClick={() => onOpenConfig(sourceDocument)}
+                >
+                  <FileCode2 className="size-3.5" />
                 </Button>
               </Tooltip>
             ) : null}
             {onDelete && server.removable ? (
-              <Button variant="ghost" size="sm" onClick={() => onDelete(server)}>
-                <Trash2 className="size-3.5" aria-hidden />
-                {t('mcp.delete')}
-              </Button>
+              <Tooltip content={t('mcp.delete')}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('mcp.delete')}
+                  onClick={() => onDelete(server)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </Tooltip>
             ) : null}
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          {server.transport.type === 'stdio' ? (
-            <>
-              <div className="flex flex-col gap-1">
-                <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-                  {t('mcp.command')}
-                </span>
-                <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[0.75rem] break-all">
-                  {server.transport.command}
-                </code>
-              </div>
-              {server.transport.args.length > 0 ? (
-                <div className="flex flex-col gap-1">
-                  <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-                    {t('mcp.args')}
-                  </span>
-                  <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[0.75rem] break-all">
-                    {server.transport.args.join(' ')}
-                  </code>
-                </div>
-              ) : null}
-            </>
-          ) : server.transport.type === 'http' ? (
-            <div className="flex flex-col gap-1">
-              <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-                {t('mcp.url')} · {server.transport.protocol}
-              </span>
-              <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[0.75rem] break-all">
-                {server.transport.url}
-              </code>
-            </div>
-          ) : (
-            <code className="bg-surface-2 rounded-md px-2 py-1 font-mono text-[0.75rem] break-all">
-              {server.transport.detail}
-            </code>
-          )}
-        </div>
-
-        {server.env.length > 0 ? (
-          <div className="flex flex-col gap-1">
-            <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-              {t('mcp.env')}
-            </span>
-            {server.env.map((entry) => (
-              <SecretValue key={entry.key} agentId={agentId} serverId={server.id} entry={entry} />
-            ))}
-          </div>
-        ) : null}
-
-        {server.headers.length > 0 ? (
-          <div className="flex flex-col gap-1">
-            <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-              {t('mcp.headers')}
-            </span>
-            {server.headers.map((entry) => (
-              <SecretValue key={entry.key} agentId={agentId} serverId={server.id} entry={entry} />
-            ))}
-          </div>
-        ) : null}
-
-        <div className="flex flex-col gap-2">
-          <span className="text-faint text-[0.6875rem] tracking-wide uppercase">
-            {t('mcp.sourceConfig')}
-          </span>
-          <PathRow path={server.sourceConfig} />
-          <Timestamp
-            createdMs={server.createdMs}
-            modifiedMs={server.modifiedMs}
-            className="text-faint text-[0.6875rem]"
-          />
-        </div>
-
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="px-0"
-            onClick={() => setShowRaw((value) => !value)}
-            aria-expanded={showRaw}
-          >
-            {showRaw ? (
-              <ChevronDown className="size-3.5" aria-hidden />
-            ) : (
-              <ChevronRight className="size-3.5" aria-hidden />
-            )}
-            {t('mcp.raw')}
-          </Button>
-          <Reveal open={showRaw}>
-            <CodeViewer value={server.raw} format="json" height="40vh" className="mt-2" />
-          </Reveal>
-        </div>
-
         {cloudAction ? (
-          <div className="border-border flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+          <div className="border-border flex flex-wrap items-center justify-end gap-2 border-t px-4 py-2.5">
             {cloudAction}
           </div>
         ) : null}

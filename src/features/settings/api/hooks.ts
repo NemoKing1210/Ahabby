@@ -32,6 +32,14 @@ export function useUserCatalogDir() {
   })
 }
 
+export function useUserHubDir() {
+  return useQuery({
+    queryKey: ['user-hub-dir'],
+    queryFn: ipc.userHubDir,
+    staleTime: Infinity,
+  })
+}
+
 export function useBackupRoot() {
   return useQuery({ queryKey: ['backup-root'], queryFn: ipc.backupRoot, staleTime: Infinity })
 }

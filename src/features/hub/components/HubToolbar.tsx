@@ -1,19 +1,25 @@
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, Search, X } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 
 import type { HubResourceKind } from '@/shared/bindings/HubResourceKind'
 import type { HubSource } from '@/shared/bindings/HubSource'
 import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
-import { Input } from '@/shared/ui/Input'
+import {
+  FilterBar,
+  FilterChipGroup,
+  FilterClear,
+  FilterRow,
+  FilterSearch,
+} from '@/shared/ui/FilterBar'
 import { Select } from '@/shared/ui/Select'
 import { TagFilterRow } from '@/shared/ui/TagFilterRow'
 
 import type { InstalledFilter } from '../installed'
 
 /**
- * The controls above the hub: one search box, one kind filter, one installed filter, one source
- * filter, the tags.
+ * The controls above the hub: the search box and the source filter on the first row, the kind and
+ * installed-state chips under them, the tags last — the same strip every filtered screen wears.
  *
  * There is deliberately no sort control: the order of a section is the source's own (the MCP
  * registry orders by relevance, a repository by name), and re-sorting a page the backend has not
@@ -34,6 +40,8 @@ export function HubToolbar({
   onToggleTag,
   onRefresh,
   refreshing,
+  dirty,
+  onClear,
 }: {
   query: string
   onQueryChange: (value: string) => void
@@ -50,6 +58,9 @@ export function HubToolbar({
   onToggleTag: (tag: string) => void
   onRefresh: () => void
   refreshing: boolean
+  /** Whether anything is narrowing the list — shows the reset button. */
+  dirty: boolean
+  onClear: () => void
 }) {
   const { t } = useTranslation()
   const kinds: { value: HubResourceKind | null; label: string }[] = [
@@ -64,66 +75,19 @@ export function HubToolbar({
   ]
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          className="max-w-md min-w-56 flex-1"
+    <FilterBar>
+      <FilterRow>
+        <FilterSearch
           value={query}
+          onValueChange={onQueryChange}
           placeholder={t('hub.searchPlaceholder')}
-          aria-label={t('hub.searchPlaceholder')}
-          leading={<Search className="size-3.5" aria-hidden />}
-          trailing={
-            query.length > 0 ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('hub.clearSearch')}
-                onClick={() => onQueryChange('')}
-              >
-                <X className="size-3.5" />
-              </Button>
-            ) : null
-          }
-          onChange={(event) => onQueryChange(event.target.value)}
+          className="sm:w-72"
         />
-
-        <div
-          className="flex flex-wrap items-center gap-2"
-          role="group"
-          aria-label={t('hub.kindFilter')}
-        >
-          {kinds.map((option) => (
-            <Chip
-              key={option.value ?? 'all'}
-              label={option.label}
-              active={kind === option.value}
-              onClick={() => onKindChange(option.value)}
-            />
-          ))}
-        </div>
-
-        {/* Whether the machine already has an entry — the question the Hub is opened with, and the
-            one a filter can answer without a request: the scan, not the collection, is the source
-            of the answer, so this narrows what is on screen rather than what is asked for. */}
-        <div
-          className="flex flex-wrap items-center gap-2"
-          role="group"
-          aria-label={t('hub.installedFilter')}
-        >
-          {installedOptions.map((option) => (
-            <Chip
-              key={option.value}
-              label={option.label}
-              active={installed === option.value}
-              onClick={() => onInstalledChange(option.value)}
-            />
-          ))}
-        </div>
 
         {sources.length > 1 ? (
           <Select
             ariaLabel={t('hub.source')}
-            className="max-w-64"
+            className="max-w-64 min-w-40"
             value={sourceId}
             onValueChange={onSourceChange}
             options={[
@@ -133,21 +97,45 @@ export function HubToolbar({
           />
         ) : null}
 
-        <Button
-          variant="secondary"
-          size="sm"
-          className="ml-auto"
-          onClick={onRefresh}
-          loading={refreshing}
-        >
-          {refreshing ? null : <RefreshCw className="size-3.5" aria-hidden />}
-          {t('hub.refresh')}
-        </Button>
-      </div>
+        <div className="ml-auto flex items-center gap-2">
+          {dirty ? <FilterClear onClick={onClear} /> : null}
+          <Button variant="secondary" size="sm" onClick={onRefresh} loading={refreshing}>
+            {refreshing ? null : <RefreshCw className="size-3.5" aria-hidden />}
+            {t('hub.refresh')}
+          </Button>
+        </div>
+      </FilterRow>
+
+      <FilterRow>
+        <FilterChipGroup label={t('hub.kindFilter')}>
+          {kinds.map((option) => (
+            <Chip
+              key={option.value ?? 'all'}
+              label={option.label}
+              active={kind === option.value}
+              onClick={() => onKindChange(option.value)}
+            />
+          ))}
+        </FilterChipGroup>
+
+        {/* Whether the machine already has an entry — the question the Hub is opened with, and the
+            one a filter can answer without a request: the scan, not the collection, is the source
+            of the answer, so this narrows what is on screen rather than what is asked for. */}
+        <FilterChipGroup label={t('hub.installedFilter')}>
+          {installedOptions.map((option) => (
+            <Chip
+              key={option.value}
+              label={option.label}
+              active={installed === option.value}
+              onClick={() => onInstalledChange(option.value)}
+            />
+          ))}
+        </FilterChipGroup>
+      </FilterRow>
 
       {/* What the entries are *for*, as opposed to which collection they come from. The row is the
           shared one (`shared/ui/TagFilterRow`), exactly as the Library wears it. */}
       <TagFilterRow tags={tags} selected={selectedTags} onToggle={onToggleTag} />
-    </div>
+    </FilterBar>
   )
 }

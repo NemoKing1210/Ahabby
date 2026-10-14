@@ -219,8 +219,6 @@ pub struct HubSourceCatalog {
     pub sources: Vec<HubSource>,
     /// Sources that failed to load, reported instead of silently disappearing.
     pub problems: Vec<super::catalog::CatalogProblem>,
-    /// Directory a user source may be dropped into, so the UI can tell the user where.
-    pub user_dir: String,
 }
 
 /// What kind of payload a file of a skill is.
