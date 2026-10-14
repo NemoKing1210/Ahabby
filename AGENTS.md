@@ -18,7 +18,7 @@ renders what the backend reports.** Adding support for a new agent is adding one
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
 the same terms (`catalog/HUB.md`). UI ships in seven languages (`src/shared/i18n/locales/`).
 
-Version: `0.64.3`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.64.4`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -488,9 +488,11 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   twice: the main tabs say _where_ a copy lives, the **owner-kind sub-tabs** say _whose_ it is (`agents` /
   `projects` / `shared`, from `ownerFacetMatches` — a kind that half holds none of is not offered, and
   picking one the other half lacks falls back to "all"), and inside one it is one foldable group per owner —
-  the brand tile and name come from `useSyncOwners` (`lib/owners.ts`), which orders agents favourite-first
-  exactly like the agent list — with its own counts ("2 not saved", "2 changed"), a session fold
-  (`sync.collapsed.<tab>.<owner>`) and the quick actions that apply to the whole group: select it, save it,
+  **every group starts folded away**, the way a Library group and a Hub source do (`sync.expanded.<tab>.<owner>`
+  holds the ones the user opened) — and it is the card a Hub source is: its strip is the heading (the brand tile
+  and name from `useSyncOwners`, `lib/owners.ts`, which orders agents favourite-first exactly like the agent
+  list, plus its own counts, "2 not saved" and "2 changed"), its rows sit on the canvas inside it, and the page
+  welds the owners into one card run — with the quick actions that apply to the whole group: select it, save it,
   restore it (behind a `ConfirmDialog` naming the owner and how many copies it covers). A row carries
   the two things its own width has no room for in a `SyncItemContextMenu` / `SyncRemoteContextMenu` —
   preview, open on GitHub, copy path, reveal in the file manager, delete the cloud copy — so both surfaces
@@ -897,7 +899,8 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   Settings areas (appearance, notifications: the choice a draft paints on the real toaster, window & tray:
   what the document says, and that a hidden window needs the tray icon, and Cloud sync:
   a token that connects without touching the settings file, the account a verification names, the sync
-  block carried through the one Save button, and a restore that previews before it confirms), the per-card
+  block carried through the one Save button, every owner group starting folded and opening on its own, and a
+  restore that previews before it confirms), the per-card
   cloud surface (`CloudActions`: a chip's Save addressing an item by id, its View and Compare reaching the
   reader and the diff, a cloud-only card that restores through its preview, and a chip that renders nothing
   before sync is on; `CloudSummaryCard`: the disclosure listing what can be uploaded and restored, and a

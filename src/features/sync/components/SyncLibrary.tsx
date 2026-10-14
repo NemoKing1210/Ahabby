@@ -8,6 +8,7 @@ import type { SyncItem } from '@/shared/bindings/SyncItem'
 import type { SyncKind } from '@/shared/bindings/SyncKind'
 import type { SyncPullTarget } from '@/shared/bindings/SyncPullTarget'
 import { useSessionState } from '@/shared/lib/sessionState'
+import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { Chip } from '@/shared/ui/Chip'
@@ -131,6 +132,10 @@ function facetCount(entries: { ownerId: string }[], facet: SyncOwnerFacet): numb
  * The two halves of the cloud library, cut by owner twice over: the main tabs say *where* a copy
  * lives (this machine or the account), the sub-tabs say *whose* it is (agents, projects, the
  * shared surface), and each owner is one foldable group of its own.
+ *
+ * A group is the card a Hub source is — its heading the strip, its rows on the canvas inside it,
+ * the page welding them into one run — and it starts folded away, so the owners are the list the
+ * screen opens on and the rows are one click behind them.
  *
  * Every group carries the owner's own tile and name, how much of it is outstanding, and the quick
  * actions that apply to it as a whole — select it, save it, restore it (behind a confirmation that
@@ -279,7 +284,7 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
         count={items.length}
         pending={items.filter((item) => item.status !== 'synced').length}
         changed={items.filter((item) => item.status === 'modified').length}
-        collapsedKey={`sync.collapsed.local.${id}`}
+        expandedKey={`sync.expanded.local.${id}`}
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={() => selectAll(items)}>
@@ -348,7 +353,7 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
         key={id}
         owner={owner}
         count={pairs.length}
-        collapsedKey={`sync.collapsed.remote.${id}`}
+        expandedKey={`sync.expanded.remote.${id}`}
         actions={
           <Button
             variant="secondary"
@@ -455,7 +460,10 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
         </div>
       </div>
 
-      {localGroups.map(([id, items]) => localGroup(id, items))}
+      {/* The owners are one card run, the way the Hub wears its collections: the groups sit
+          `--group-gap` apart and only the ends of the stack keep the full radius, so the page reads
+          as one block of owners rather than a paste-up of separate cards. */}
+      <AnimatedList>{localGroups.map(([id, items]) => localGroup(id, items))}</AnimatedList>
     </div>
   )
 
@@ -572,9 +580,9 @@ export function SyncLibrary({ ownerId = null }: { ownerId?: string | null }) {
                   {visiblePairs.length === 0 ? (
                     <EmptyState icon={UploadCloud} title={t('sync.emptyFiltered')} />
                   ) : (
-                    <div className="flex flex-col gap-4">
+                    <AnimatedList>
                       {remoteGroups.map(([id, pairs]) => remoteGroup(id, pairs))}
-                    </div>
+                    </AnimatedList>
                   )}
                 </TabsContent>
               ))}

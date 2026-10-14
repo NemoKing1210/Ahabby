@@ -5,6 +5,16 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.4] - 2026-10-15
+
+### Changed
+
+- **The owners of the cloud library start folded away and wear the card a Hub collection wears.** Opening Cloud
+  sync used to unfold every owner at once, so a machine with a dozen of them opened on a wall of rows; the screen
+  now opens on the owners themselves — name, how much of each is outstanding, and the group's own Save, Select and
+  Restore — and a click opens the one being worked on. Each group is one card in the same make as a Hub source: its
+  heading is the strip, its rows sit on the canvas inside it, and the page welds the owners into a single run.
+
 ## [0.64.3] - 2026-10-15
 
 ### Changed

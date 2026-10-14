@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { UserEvent } from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -287,6 +288,16 @@ function run() {
   }
 }
 
+/**
+ * Open one owner's group.
+ *
+ * Every group starts folded, so a case that reads a row — its checkbox, its View, its Save — opens
+ * its owner first. The fold is the session's, so one click covers the rest of the case.
+ */
+async function expandOwner(user: UserEvent, name = 'Claude Code') {
+  await user.click(await screen.findByRole('button', { name: `Expand ${name}` }))
+}
+
 beforeEach(() => {
   resetSessionState()
   vi.mocked(ipc.setWindowTheme).mockResolvedValue(undefined)
@@ -394,6 +405,7 @@ describe('Settings → cloud sync', () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('tab', { name: /In the cloud/ }))
+    await expandOwner(user)
     await user.click(await screen.findByRole('button', { name: 'Restore' }))
 
     const dialog = await screen.findByRole('dialog')
@@ -453,8 +465,10 @@ describe('Settings → cloud sync', () => {
       syncedAtMs: null,
     }
     await openSync({ items: [ABSENT, INSTRUCTION, CONFIG] })
+    const user = userEvent.setup()
 
     // One owner, three rows: the two files that are here, then the one that is not.
+    await expandOwner(user)
     const rows = await screen.findAllByRole('checkbox')
     expect(rows.map((box) => box.getAttribute('aria-label'))).toEqual([
       'AGENTS.md',
@@ -490,6 +504,7 @@ describe('Settings → cloud sync', () => {
     expect(within(screen.getByRole('tab', { name: /Shared/ })).getByText('1')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: /Projects/ }))
+    await expandOwner(user, 'night-owl')
     await waitFor(() =>
       expect(screen.queryByRole('checkbox', { name: 'AGENTS.md' })).not.toBeInTheDocument(),
     )
@@ -497,6 +512,7 @@ describe('Settings → cloud sync', () => {
     expect(screen.queryByRole('checkbox', { name: 'Shared skill' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: /Shared/ }))
+    await expandOwner(user, 'Shared')
     await screen.findByRole('checkbox', { name: 'Shared skill' })
     expect(screen.queryByRole('checkbox', { name: 'Project settings' })).not.toBeInTheDocument()
   })
@@ -509,24 +525,39 @@ describe('Settings → cloud sync', () => {
     expect(screen.queryByRole('tab', { name: /Shared/ })).not.toBeInTheDocument()
   })
 
-  it('folds one owner away without touching the other', async () => {
+  it('starts every owner folded and opens one on its own', async () => {
     await openSync({ items: [INSTRUCTION, CURSOR] })
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: 'Collapse Claude Code' }))
+    // The owners are the list the screen opens on: no group has mounted its rows yet.
+    await screen.findByRole('button', { name: 'Expand Claude Code' })
+    expect(screen.getByRole('button', { name: 'Expand Cursor' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'AGENTS.md' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Rules' })).not.toBeInTheDocument()
 
+    await user.click(screen.getByRole('button', { name: 'Expand Claude Code' }))
+
+    expect(await screen.findByRole('checkbox', { name: 'AGENTS.md' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse Claude Code' })).toBeInTheDocument()
+    // One fold is one owner's: the group beside it is untouched.
+    expect(screen.queryByRole('checkbox', { name: 'Rules' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand Cursor' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Collapse Claude Code' }))
     await waitFor(() =>
       expect(screen.queryByRole('checkbox', { name: 'AGENTS.md' })).not.toBeInTheDocument(),
     )
-    expect(screen.getByRole('checkbox', { name: 'Rules' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Expand Claude Code' })).toBeInTheDocument()
   })
 
   it('narrows the library to one owner by typing its name', async () => {
     await openSync({ items: [INSTRUCTION, CONFIG, CURSOR] })
     const user = userEvent.setup()
 
-    await user.type(await screen.findByLabelText('Search'), 'cursor')
+    await expandOwner(user)
+    await expandOwner(user, 'Cursor')
+    await screen.findByRole('checkbox', { name: 'AGENTS.md' })
+
+    await user.type(screen.getByLabelText('Search'), 'cursor')
 
     await waitFor(() =>
       expect(screen.queryByRole('checkbox', { name: 'AGENTS.md' })).not.toBeInTheDocument(),
@@ -613,6 +644,7 @@ describe('Settings → cloud sync', () => {
     await openSync({ status: status({ connected: true }), items: [SKILL] })
     const user = userEvent.setup()
 
+    await expandOwner(user)
     await user.click(await screen.findByRole('button', { name: 'View content' }))
 
     const dialog = await screen.findByRole('dialog')
@@ -689,6 +721,7 @@ describe('Settings → cloud sync', () => {
     await openSync({ status: status({ connected: true }), items: [SKILL] })
     const user = userEvent.setup()
 
+    await expandOwner(user)
     await user.click(await screen.findByRole('button', { name: 'Compare with the cloud' }))
 
     const dialog = await screen.findByRole('dialog')
@@ -716,6 +749,7 @@ describe('Settings → cloud sync', () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('tab', { name: /In the cloud/ }))
+    await expandOwner(user)
     await screen.findByText('AGENTS.md')
     expect(ipc.listRemoteSyncItems).toHaveBeenCalledWith(false)
 
@@ -726,7 +760,9 @@ describe('Settings → cloud sync', () => {
 
   it('offers the row quick actions on a right click', async () => {
     await openSync({ status: status({ connected: true }), items: [INSTRUCTION] })
+    const user = userEvent.setup()
 
+    await expandOwner(user)
     fireEvent.contextMenu(await screen.findByText('AGENTS.md'))
 
     expect(await screen.findByRole('menuitem', { name: 'Save again' })).toBeInTheDocument()
@@ -741,6 +777,7 @@ describe('Settings → cloud sync', () => {
     await openSync({ status: status({ connected: true }), items: [INSTRUCTION] })
     const user = userEvent.setup()
 
+    await expandOwner(user)
     await user.click(await screen.findByRole('checkbox', { name: 'AGENTS.md' }))
     await user.click(screen.getByRole('button', { name: 'Save 1' }))
 
@@ -841,6 +878,7 @@ describe('Settings → cloud sync', () => {
     })
     const user = userEvent.setup()
 
+    await expandOwner(user)
     const row = (await screen.findByRole('checkbox', { name: 'AGENTS.md' })).closest('li')
     await user.click(within(row as HTMLElement).getByRole('button', { name: 'Save again' }))
 
