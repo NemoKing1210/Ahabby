@@ -167,6 +167,7 @@ mod tests {
             scope: Scope::Global,
             agents: vec![agent_ref(agent)],
             frontmatter: Vec::new(),
+            tags: Vec::new(),
             content: Some("# body".to_string()),
             size_bytes: Some(10),
             created_ms: Some(1_700_000_000_000),

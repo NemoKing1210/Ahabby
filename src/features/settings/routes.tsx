@@ -5,6 +5,7 @@ import { SettingsAboutPage } from './pages/SettingsAboutPage'
 import { SettingsAppearancePage } from './pages/SettingsAppearancePage'
 import { SettingsHiddenPage } from './pages/SettingsHiddenPage'
 import { SettingsNetworkPage } from './pages/SettingsNetworkPage'
+import { SettingsNotificationsPage } from './pages/SettingsNotificationsPage'
 import { SettingsOverviewPage } from './pages/SettingsOverviewPage'
 import { SettingsSafetyPage } from './pages/SettingsSafetyPage'
 import { SettingsSearchPage } from './pages/SettingsSearchPage'
@@ -24,6 +25,7 @@ export const settingsRoutes: RouteObject[] = [
     children: [
       { index: true, element: <SettingsOverviewPage /> },
       { path: 'appearance', element: <SettingsAppearancePage /> },
+      { path: 'notifications', element: <SettingsNotificationsPage /> },
       { path: 'window', element: <SettingsWindowPage /> },
       { path: 'terminal', element: <SettingsTerminalPage /> },
       { path: 'search', element: <SettingsSearchPage /> },

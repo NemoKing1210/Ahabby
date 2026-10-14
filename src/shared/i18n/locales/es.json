@@ -89,6 +89,12 @@
     "noneOff": "Aquí nada está apagado",
     "noneHint": "Una habilidad o servidor aparece aquí una vez que se ha apagado y nada le dice al agente que lo olvide."
   },
+  "tags": {
+    "label": "Etiquetas",
+    "filter": "Filtrar por etiqueta",
+    "more": "Mostrar {{count}} más",
+    "fewer": "Contraer"
+  },
   "agents": {
     "title": "Agentes",
     "installed": "Instalado",
@@ -473,6 +479,7 @@
     "noResults": "No hay resultados para “{{query}}”",
     "filteredEmpty": "Nada coincide con los filtros actuales.",
     "clearFilters": "Limpiar filtros",
+    "copyPaths": "Copiar rutas",
     "rescan": "Volver a escanear",
     "lastScan": "último escaneo {{when}}",
     "agents_one": "{{count}} agente",
@@ -502,10 +509,6 @@
       "installed": "Instalado",
       "missing": "No instalado"
     },
-    "tags": "Etiquetas",
-    "tagFilter": "Filtrar por etiqueta",
-    "moreTags": "Mostrar {{count}} más",
-    "fewerTags": "Colapsar",
     "source": "Fuente",
     "sourceAll": "Todas las fuentes",
     "refresh": "Refrescar",
@@ -1000,6 +1003,13 @@
     "expand": "Ampliar la terminal",
     "collapse": "Colapsar la terminal",
     "resize": "Cambiar el tamaño de la terminal",
+    "maximize": "Maximizar la terminal",
+    "restore": "Restaurar la terminal",
+    "closeAll": "Cerrar todas las terminales",
+    "closeAllTitle": "¿Cerrar todas las terminales?",
+    "closeAllDescription_one": "La {{count}} sesión abierta terminará, el agente que se ejecute en ella se detendrá y su historial se perderá.",
+    "closeAllDescription_other": "Las {{count}} sesiones abiertas terminarán, los agentes que se ejecuten en ellas se detendrán y su historial se perderá.",
+    "closeAllConfirm": "Cerrar todo",
     "new": "Nueva terminal",
     "newHint": "Inicie un agente en su propio caparazón. La pestaña mantiene un desplazamiento hacia atrás completo y permanece abierta después de que el agente sale.",
     "open": "Terminal abierta",
@@ -1102,6 +1112,14 @@
       "jetbrains": "JetBrains Mono",
       "system": "Sistema mono"
     },
+    "widths": {
+      "narrow": "Estrecha",
+      "comfortable": "Cómoda",
+      "wide": "Ancha",
+      "full": "Ancho completo"
+    },
+    "contentWidth": "Ancho del contenido",
+    "contentWidthHint": "Hasta dónde puede crecer la columna de contenido de una pantalla. Estrecha mantiene los textos largos y las listas en una medida legible; el ancho completo sigue a la ventana.",
     "resetAppearance": "Restablecer acento, tamaños y fuentes",
     "type": "Tamaño y fuentes",
     "typeHint": "Qué tan grande es la interfaz y qué tipos de letra utiliza.",
@@ -1141,6 +1159,36 @@
     "previewButton": "acción primaria",
     "previewBadge": "Acento",
     "scanning": "Exploración",
+    "notifications": "Notificaciones",
+    "notificationsHint": "Los mensajes breves que Ahabby muestra al guardar, instalar o rechazar algo: dónde aparecen, cuánto duran — o si no aparecen.",
+    "toasts": "Mensajes",
+    "toastsHint": "Los mensajes informan de un guardado, una instalación terminada o un error. No son la consola de instalación ni el error dentro de un diálogo: esos se quedan donde están.",
+    "showToasts": "Mostrar mensajes",
+    "showToastsHint": "Desactivado oculta todos los mensajes, también los errores.",
+    "toastPosition": "Posición",
+    "toastPositionHint": "Dónde aparece un mensaje en la pantalla. Entra desde ese borde y se puede deslizar de vuelta hacia él.",
+    "toastPositions": {
+      "top-left": "Arriba a la izquierda",
+      "top-center": "Arriba al centro",
+      "top-right": "Arriba a la derecha",
+      "bottom-left": "Abajo a la izquierda",
+      "bottom-center": "Abajo al centro",
+      "bottom-right": "Abajo a la derecha"
+    },
+    "toastDuration": "Ocultar tras",
+    "toastDurationHint": "Cuánto tiempo permanece un mensaje antes de ocultarse solo. «Nunca» lo deja hasta que lo cierres.",
+    "toastDurations": {
+      "short": "3 segundos",
+      "normal": "6 segundos",
+      "long": "12 segundos",
+      "persistent": "Nunca"
+    },
+    "toastPreview": "Vista previa",
+    "toastPreviewHint": "Muestra un mensaje tal como se ha elegido arriba.",
+    "toastPreviewOff": "Activa los mensajes para ver uno.",
+    "showTestToast": "Mostrar un mensaje de prueba",
+    "toastTestTitle": "Esto es un mensaje",
+    "toastTestBody": "Así informa Ahabby de guardados, instalaciones terminadas y errores.",
     "windowAndTray": "Ventana y bandeja",
     "windowHint": "Cómo comienza Ahabby y qué significa cerrar su ventana.",
     "startup": "Al inicio",
@@ -1208,6 +1256,11 @@
       "appearance": {
         "hint": "Tema, color de acento, tamaño de la interfaz y tipografías, con vista previa en vivo.",
         "summary": "Acento: {{accent}} · Tema: {{theme}}"
+      },
+      "notifications": {
+        "hint": "Dónde aparecen los mensajes, cuánto duran — o apagados.",
+        "summary": "{{position}} · {{duration}}",
+        "summaryOff": "Los mensajes están desactivados"
       },
       "window": {
         "summary": "Icono de bandeja: {{tray}} · Iniciar al entrar: {{login}}"
@@ -1294,7 +1347,7 @@
       },
       "settings": {
         "title": "Ajustes",
-        "body": "Apariencia, ventana y bandeja, terminal, red, seguridad — y este tutorial de nuevo."
+        "body": "Apariencia, notificaciones, ventana y bandeja, terminal, red, seguridad — y este tutorial de nuevo."
       },
       "settingsReplay": {
         "title": "Repetir el tour",

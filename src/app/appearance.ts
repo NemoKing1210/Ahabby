@@ -1,15 +1,17 @@
+import type { ContentWidth } from '@/shared/bindings/ContentWidth'
 import type { FontFamily } from '@/shared/bindings/FontFamily'
 import type { MonoFont } from '@/shared/bindings/MonoFont'
 import type { Settings } from '@/shared/bindings/Settings'
 import { accentCss, normalizeHex, presetHex } from '@/shared/lib/accent'
 
 /**
- * Appearance handling: accent colour, interface size, text size and fonts.
+ * Appearance handling: accent colour, interface size, text size, fonts and how wide a screen's
+ * content column may grow.
  *
  * Everything is expressed as CSS custom properties on the root element, which is why the
- * change is instant and needs no re-render — the two size knobs and the font stacks are all
- * read by the stylesheet (`globals.css`). The default of every knob is left to the
- * stylesheet: an untouched property is removed instead of re-written, so the designed
+ * change is instant and needs no re-render — the two size knobs, the fonts and the content
+ * width are all read by the stylesheet (`globals.css`). The default of every knob is left to
+ * the stylesheet: an untouched property is removed instead of re-written, so the designed
  * palette and stacks stay the single source of truth for anyone who never opens Settings.
  *
  * Kept behind a {@link AppearanceHost} so the mapping can be unit tested without a DOM.
@@ -18,7 +20,13 @@ import { accentCss, normalizeHex, presetHex } from '@/shared/lib/accent'
 /** The appearance slice of `Settings`: everything applied at runtime. */
 export type AppearanceSettings = Pick<
   Settings,
-  'accent' | 'accentCustom' | 'interfaceScale' | 'textScale' | 'fontFamily' | 'monoFont'
+  | 'accent'
+  | 'accentCustom'
+  | 'interfaceScale'
+  | 'textScale'
+  | 'fontFamily'
+  | 'monoFont'
+  | 'contentWidth'
 >
 
 /** Mirror of the Rust defaults in `services/settings.rs`; used by "reset appearance". */
@@ -29,6 +37,22 @@ export const APPEARANCE_DEFAULTS: AppearanceSettings = {
   textScale: 100,
   fontFamily: 'inter',
   monoFont: 'jetbrains',
+  contentWidth: 'wide',
+}
+
+/**
+ * The cap on a screen's content column, per choice.
+ *
+ * The three fixed steps are the widths the interface is laid out at — a list keeps a readable
+ * measure instead of stretching across a 4K window — and `full` lets the column follow the
+ * window instead. `wide` repeats the stylesheet's own token, and the Settings picker prints
+ * these very extents, which is why the map is exported.
+ */
+export const CONTENT_WIDTHS: Record<ContentWidth, string> = {
+  narrow: '48rem',
+  comfortable: '64rem',
+  wide: '80rem',
+  full: '100%',
 }
 
 /** The Rust clamp, mirrored: a hand-edited settings file cannot distort the layout. */
@@ -87,6 +111,7 @@ export function createAppearanceApplier(host: AppearanceHost): AppearanceApplier
       const textScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, settings.textScale)) / 100
       host.root.style.setProperty('--ah-ui-scale', String(uiScale))
       host.root.style.setProperty('--ah-font-scale', String(textScale))
+      host.root.style.setProperty('--ah-content-width', CONTENT_WIDTHS[settings.contentWidth])
 
       const family = SANS_STACKS[settings.fontFamily]
       setStack('--ah-font-sans', family?.sans)

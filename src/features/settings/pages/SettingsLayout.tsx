@@ -14,6 +14,7 @@ import { toast, toastAppError } from '@/shared/ui/Toast'
 
 import { useSaveSettings, useSettings } from '../api/hooks'
 import { LiveAppearance } from '../components/LiveAppearance'
+import { LiveToasts } from '../components/LiveToasts'
 import { SettingsDraftProvider } from '../lib/draft'
 
 /** Cross-fades sections; the layout around it (and the draft it owns) never remounts. */
@@ -105,6 +106,7 @@ export function SettingsLayout() {
       </div>
 
       <LiveAppearance draft={draft} saved={settings} />
+      <LiveToasts draft={draft} saved={settings} />
     </SettingsDraftProvider>
   )
 }

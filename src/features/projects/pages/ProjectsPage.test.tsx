@@ -44,6 +44,7 @@ function skill(ownerId: string, ownerName: string, name: string): Skill {
     scope: { kind: 'project', root: '/home/me/code' },
     agents: [{ id: ownerId, name: ownerName, icon: null }],
     frontmatter: [],
+    tags: [],
     content: '# body',
     sizeBytes: 10,
     enabled: true,

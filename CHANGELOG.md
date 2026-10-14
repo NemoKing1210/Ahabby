@@ -5,6 +5,117 @@ All notable changes to Ahabby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.60.0] - 2026-10-14
+
+### Added
+
+- **The messages Ahabby shows can be placed, timed — or turned off.** Settings gains a **Notifications** area
+  with three knobs: a switch that hides every message, failures included; a picker for where a message appears,
+  drawn as six little windows — top left, top centre, top right, bottom left, bottom centre, bottom right; and
+  a row of delays — 3, 6 or 12 seconds, or never hiding on its own, closed by the user. A message slides in
+  from the edge it is anchored to and is swiped back out the same way, instead of always coming and going on
+  the right.
+- **The choice is painted on the real thing while you make it.** The Notifications page applies its unsaved
+  draft to the toaster itself, so picking a corner moves where the next message lands, and _Show a test
+  message_ pushes a real one through the very path every other screen uses. Leaving the page with an edit
+  nobody saved puts the saved choice back.
+
+### Changed
+
+- Messages appear in the middle of the top edge by default, where they are read without covering the corner
+  work usually happens in — instead of the bottom right corner they used to take.
+
+## [0.59.0] - 2026-10-14
+
+### Added
+
+- **Skills wear their own tags, and the Library can be filtered by them.** A `SKILL.md` has always been able
+  to declare `tags` (or `keywords`); Ahabby now reads them — by the very rule the Hub reads a published skill
+  with — and shows them on the skill's card. Above the skills list is the Hub's own tag row: the tags this
+  machine's skills actually carry, most-used first, each in the colour its name hashes to, folded after eight
+  with every switched-on tag kept in sight. Several tags at once keep a skill carrying any of them, the search
+  box matches tag names, and the choice is remembered for the session like every other filter.
+
+## [0.58.0] - 2026-10-14
+
+### Added
+
+- **The terminal can take the whole window.** A button on the dock maximizes it: the screen above and the
+  rail stand down, the terminal fills what is left, and the drag handle goes with the height that is now the
+  window's. The same button puts it back at the height the user last dragged it to. Neither the tabs nor their
+  scrollback change, because it is the same dock with a different amount of room — and the page it covered is
+  hidden rather than unmounted, so it comes back where it was.
+- **All the terminals close at once.** A new button on the dock ends every session — each tab goes and each
+  PTY with it — behind one question that names how many sessions it ends, because the scrollback of an agent's
+  run is not something a click should throw away by surprise.
+
+## [0.57.0] - 2026-10-14
+
+### Added
+
+- **How wide a screen's content column may grow is a setting now.** Settings → Appearance offers four widths —
+  narrow (48rem), comfortable (64rem), wide (80rem) and full width — each drawn as a window with the content
+  column sitting in it, to scale, and the choice is previewed on the real page the moment it is clicked.
+  `wide` is the default, so the interface opens as it did.
+- The column is one token (`--ah-content-width` on the root element, 80rem in `globals.css`), which the shell
+  reads as `max-w-[var(--ah-content-width)]`; the four choices are the same three rem lengths plus `100%`, and
+  the backend only validates the id, exactly like the accent and the terminal scheme.
+
+## [0.56.0] - 2026-10-14
+
+### Added
+
+- **A Library group now says what it is, and answers the right click.** A group starts folded, and its strip
+  carries, under the title, the facts a folded list is read for: where the group lives — the skills
+  directories behind a group of skills, the config files behind a group of servers — how many of its members
+  are switched off, how many still need verification, the transport kinds of a servers group, and the newest
+  date among its files. Each fact appears only where it is true, so a group that is switched on and verified
+  adds nothing to its strip but its directory.
+- The same strip now opens a context menu of its own: fold the group, open any of the directories or config
+  files it lives in in the file manager, or take their paths to the clipboard. The menu belongs to the strip
+  and never to the cards under it, so a skill or a server keeps its own menu.
+
+## [0.55.5] - 2026-10-14
+
+### Changed
+
+- Page content is wider. The shell's content column was capped at 64rem, which left a wide window's lists and
+  grids stranded in the middle with a margin of empty space beside them; the cap is now 80rem. A window
+  narrower than that reads exactly as before, because the cap only binds once the sidebar and the column fit
+  inside it.
+
+## [0.55.4] - 2026-10-14
+
+### Fixed
+
+- **The Russian interface stops sliding into English on most numbers.** A plural needs one form per category
+  of the language's own counting rules, and `ru.json` carried only `_one`/`_other` — so every count but 1,
+  21, 101… fell through to the fallback language, which is why a Hub heading read "Install all 15 on
+  screen" inside a Russian window. All 42 Russian plurals now carry their `_few` (2–4) and `_many` (0,
+  5–20) forms, and the locale test resolves every plural in every language and count rather than comparing
+  key names only.
+
+## [0.55.3] - 2026-10-14
+
+### Changed
+
+- **A Library group wears one card, the way a Hub collection does.** A group of the skills or MCP list was a
+  heading card with the cards it heads hanging beside it; now the heading is the strip of the group's own
+  card — the tinted caption band while the group is open, the card itself while it is folded away — its cards
+  sit on the canvas that card frames, and the list welds its groups `--group-gap` apart into one run, so the
+  Library reads the way the Hub's collections do. The one-of-a-kind names of a by-name list ride in the same
+  run. The filters, the fold state and the batch a long list mounts at a time are unchanged.
+
+## [0.55.2] - 2026-10-14
+
+### Changed
+
+- **A Hub collection's star count is gold in proportion to it.** The star and its number on a source card
+  were painted the same muted ink whatever the repository was worth; now they slide toward the palette's
+  gold on a logarithmic scale — a step of the same size for every tenfold, so a collection with a hundred
+  stars and one with ten thousand no longer read as the same card. Nothing changes for a collection nobody
+  starred, and both ends of the mix stay legible in either theme.
+
 ## [0.55.1] - 2026-10-14
 
 ### Fixed

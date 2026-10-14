@@ -27,6 +27,7 @@ function skill(name: string, path: string, agents: AgentRef[]): Skill {
     scope: { kind: 'global' },
     agents,
     frontmatter: [],
+    tags: [],
     content: '# body',
     sizeBytes: 10,
     enabled: true,

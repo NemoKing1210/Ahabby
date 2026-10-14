@@ -1,39 +1,15 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, RefreshCw, Search, X } from 'lucide-react'
+import { RefreshCw, Search, X } from 'lucide-react'
 
 import type { HubResourceKind } from '@/shared/bindings/HubResourceKind'
 import type { HubSource } from '@/shared/bindings/HubSource'
-import { cn } from '@/shared/lib/cn'
-import { tagColor } from '@/shared/lib/tagColor'
-import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
 import { Input } from '@/shared/ui/Input'
 import { Select } from '@/shared/ui/Select'
+import { TagFilterRow } from '@/shared/ui/TagFilterRow'
 
 import type { InstalledFilter } from '../installed'
-
-/**
- * How many tags the row shows before the rest folds away. The four collections Ahabby ships with
- * declare more than this between them, and a filter row that grows with every source would push
- * the library itself off the screen.
- */
-const TAG_LIMIT = 8
-
-/**
- * The tags the row shows while it is folded: the first few, plus every tag that is switched on.
- *
- * A filter that is on must never hide its own chip — that is the one chip that can switch it off.
- */
-function foldedTags(tags: string[], selected: string[]): string[] {
-  if (tags.length <= TAG_LIMIT) return tags
-  const shown = tags.slice(0, TAG_LIMIT)
-  for (const tag of tags.slice(TAG_LIMIT)) {
-    if (selected.includes(tag)) shown.push(tag)
-  }
-  return shown
-}
 
 /**
  * The controls above the hub: one search box, one kind filter, one installed filter, one source
@@ -76,11 +52,6 @@ export function HubToolbar({
   refreshing: boolean
 }) {
   const { t } = useTranslation()
-  // Folded to start with: the row is the handful of subjects that are used most, and the rest is
-  // one click away. It never hides a tag that is switched on (see `foldedTags`).
-  const [allTags, setAllTags] = useState(false)
-  const shownTags = allTags ? tags : foldedTags(tags, selectedTags)
-  const foldable = tags.length > TAG_LIMIT
   const kinds: { value: HubResourceKind | null; label: string }[] = [
     { value: null, label: t('common.all') },
     { value: 'skill', label: t('hub.kind.skill') },
@@ -174,48 +145,9 @@ export function HubToolbar({
         </Button>
       </div>
 
-      {/* What the entries are *for*, as opposed to which collection they come from: several tags
-          ask for an entry carrying any of them. Each tag keeps a colour of its own (hashed from
-          its name), and the row stays one or two lines until the user asks for the rest. */}
-      {tags.length > 0 ? (
-        <div role="group" aria-label={t('hub.tagFilter')}>
-          <AnimatedList grouped={false} className="flex flex-wrap items-center gap-2">
-            <span key="label" className="text-faint text-[0.75rem]">
-              {t('hub.tags')}
-            </span>
-            {shownTags.map((tag) => (
-              <Chip
-                key={tag}
-                label={tag}
-                active={selectedTags.includes(tag)}
-                className="ah-tag"
-                style={tagColor(tag)}
-                onClick={() => onToggleTag(tag)}
-              />
-            ))}
-            {foldable ? (
-              <Button
-                key="fold"
-                variant="ghost"
-                size="sm"
-                aria-expanded={allTags}
-                onClick={() => setAllTags((open) => !open)}
-              >
-                {allTags
-                  ? t('hub.fewerTags')
-                  : t('hub.moreTags', { count: tags.length - shownTags.length })}
-                <ChevronDown
-                  className={cn(
-                    'ease-warm size-3.5 transition-transform duration-150',
-                    allTags && 'rotate-180',
-                  )}
-                  aria-hidden
-                />
-              </Button>
-            ) : null}
-          </AnimatedList>
-        </div>
-      ) : null}
+      {/* What the entries are *for*, as opposed to which collection they come from. The row is the
+          shared one (`shared/ui/TagFilterRow`), exactly as the Library wears it. */}
+      <TagFilterRow tags={tags} selected={selectedTags} onToggle={onToggleTag} />
     </div>
   )
 }

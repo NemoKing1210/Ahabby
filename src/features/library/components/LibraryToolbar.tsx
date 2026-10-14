@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/Button'
 import { Chip } from '@/shared/ui/Chip'
 import { Input } from '@/shared/ui/Input'
 import { Select, type SelectOption } from '@/shared/ui/Select'
+import { TagFilterRow } from '@/shared/ui/TagFilterRow'
 
 import type { LibraryGroupMode, LibraryOrigin } from '../grouping'
 import { LIBRARY_SORTS, type LibrarySort } from '../sorting'
@@ -34,8 +35,9 @@ export interface LibraryFacet {
 
 /**
  * The library's filter row: what to search, whose resources to show, where they come from,
- * how they are ordered, and the tab's own chip facets — plus the grouping toggle. Every
- * control here only narrows or orders the already-loaded report, so changing one is instant.
+ * how they are ordered, the tab's own chip facets and the tags its resources declare — plus
+ * the grouping toggle. Every control here only narrows or orders the already-loaded report,
+ * so changing one is instant.
  */
 export function LibraryToolbar({
   query,
@@ -50,6 +52,7 @@ export function LibraryToolbar({
   onSortChange,
   facet,
   activity,
+  tagFilter,
   groupMode,
   onGroupModeChange,
   showGrouping,
@@ -76,6 +79,16 @@ export function LibraryToolbar({
     items: readonly { enabled: boolean }[]
     value: ActivityFilter
     onChange: (filter: ActivityFilter) => void
+  } | null
+  /**
+   * The tag row (see `shared/ui/TagFilterRow`): the tags the tab's resources declare, and the ones
+   * switched on. `null` on a tab whose resources never carry tags — an MCP server declares none —
+   * so such a screen wears no row rather than an empty one.
+   */
+  tagFilter: {
+    tags: string[]
+    selected: string[]
+    onToggle: (tag: string) => void
   } | null
   groupMode: LibraryGroupMode
   onGroupModeChange: (mode: LibraryGroupMode) => void
@@ -189,6 +202,16 @@ export function LibraryToolbar({
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {/* What the resources are *for*, the way the Hub's row says it: the tags their own files
+          declare, each in its own colour. A tab whose resources carry none wears no row. */}
+      {tagFilter ? (
+        <TagFilterRow
+          tags={tagFilter.tags}
+          selected={tagFilter.selected}
+          onToggle={tagFilter.onToggle}
+        />
       ) : null}
     </div>
   )

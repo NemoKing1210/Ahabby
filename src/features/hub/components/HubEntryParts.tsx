@@ -273,7 +273,7 @@ export function HubEntryMeta({ entry }: { entry: HubEntry }) {
 
       {entry.tags.length > 0 ? (
         <div className="border-border mt-2 flex flex-wrap items-center gap-2 border-t pt-2">
-          <span className="text-faint text-[0.75rem]">{t('hub.tags')}</span>
+          <span className="text-faint text-[0.75rem]">{t('tags.label')}</span>
           <HubTagList entry={entry} />
         </div>
       ) : null}

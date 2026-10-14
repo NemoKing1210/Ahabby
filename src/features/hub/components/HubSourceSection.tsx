@@ -38,6 +38,7 @@ import { proxiedImage } from '@/features/browser/lib/images'
 import { matchesInstalled, type InstalledFilter } from '../installed'
 import { fetchGroupSkills } from '../lib/fetchGroup'
 import { groupHubEntries, isBatchable } from '../lib/grouping'
+import { starTint } from '../lib/starTint'
 import { HubBatchActions } from './HubBatchActions'
 import { HubEntryList } from './HubEntryList'
 import { HubEntrySkeletons } from './HubSkeletons'
@@ -275,7 +276,12 @@ export const HubSourceSection = memo(function HubSourceSection({
                   {rank === undefined ? null : <SourceRank rank={rank} />}
                   {source.builtin ? null : <Badge tone="accent">{t('hub.yourSource')}</Badge>}
                   {isKnownNumber(source.stars) ? (
-                    <span className="text-muted inline-flex items-center gap-1 text-[0.75rem] tabular-nums">
+                    // The chip is gold in proportion to the count (`.ah-stars`), so the Hub's most
+                    // popular collections say so before the number is read.
+                    <span
+                      className="ah-stars inline-flex items-center gap-1 text-[0.75rem] tabular-nums"
+                      style={starTint(source.stars)}
+                    >
                       <Star className="size-3.5" aria-hidden />
                       <span className="sr-only">{t('hub.starsHint')}</span>
                       {formatCount(source.stars, i18n.language)}

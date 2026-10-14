@@ -22,6 +22,11 @@
   --ah-font-mono:
     'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 
+  /* The cap on a screen's content column (`max-w-[var(--ah-content-width)]`, the shell). Written
+     by Settings — `80rem` is the `wide` default; `100%` is `full`, where the column follows the
+     window. It is a rem length on purpose: the text scale moves it with the type it holds. */
+  --ah-content-width: 80rem;
+
   /* Tailwind's spacing unit. Pinned to px (instead of the default `0.25rem`) so the text
      scale never drags the layout with it; `--ah-ui-scale` is what resizes the layout. */
   --spacing: calc(4px * var(--ah-ui-scale));
@@ -65,6 +70,12 @@
   --ah-tag-l: 44%;
   --ah-tag-c: 0.08;
 
+  /* The far end of a star count's tint: the more stars a collection has, the closer its count is
+     painted to this gold (`features/hub/lib/starTint.ts` decides how far). A real gold — a hue the
+     warm palette holds nowhere else — but dark enough to stay legible as small text on the page and
+     on the tinted band an open section wears. */
+  --ah-star-gold: oklch(0.54 0.13 88);
+
   color-scheme: light;
 }
 
@@ -102,6 +113,10 @@
      ink on a dark background reads as grey. */
   --ah-tag-l: 76%;
   --ah-tag-c: 0.09;
+
+  /* The same gold lit for a dark surface: lighter than the muted ink it is mixed from, so a count
+     grows in gold and in light together with the stars it stands for. */
+  --ah-star-gold: oklch(0.82 0.15 92);
 
   color-scheme: dark;
 }
@@ -390,10 +405,13 @@
     }
   }
 
+  /* A message enters from the edge its viewport is anchored to and is swiped back out the same
+     way: the four custom properties are what the viewport sets per position, so one pair of
+     keyframes serves all six corners. */
   @keyframes ah-toast-in {
     from {
       opacity: 0;
-      transform: translateX(14px);
+      transform: translate(var(--ah-toast-in-x, 0), var(--ah-toast-in-y, 0));
     }
     to {
       opacity: 1;
@@ -412,10 +430,10 @@
 
   @keyframes ah-toast-swipe-out {
     from {
-      transform: translateX(var(--radix-toast-swipe-end-x));
+      transform: translate(var(--radix-toast-swipe-end-x, 0), var(--radix-toast-swipe-end-y, 0));
     }
     to {
-      transform: translateX(100%);
+      transform: translate(var(--ah-toast-swipe-out-x, 0%), var(--ah-toast-swipe-out-y, 0%));
     }
   }
 
@@ -757,4 +775,14 @@
 .ah-tag[aria-pressed='true'] {
   border-color: color-mix(in oklab, var(--ah-tag-ink) 62%, transparent);
   background-color: color-mix(in oklab, var(--ah-tag-ink) 22%, transparent);
+}
+
+/* How golden a star count reads. The share arrives as `--ah-star-share` (an inline style, derived
+   from the count in `features/hub/lib/starTint.ts`): at 0% the star and its number are the muted
+   ink they always were, at 100% they are the theme's gold — and every step between is legible,
+   because both ends of the mix are. Unlayered, and on the `--ah-*` tokens directly, for the same
+   reason the tag above is: it replaces the chip's own `text-muted` utility rather than competing
+   with it, and the colour cannot freeze to the theme the chip was created in. */
+.ah-stars {
+  color: color-mix(in oklab, var(--ah-star-gold) var(--ah-star-share, 0%), var(--ah-muted));
 }

@@ -13,9 +13,15 @@ import { initI18n } from '@/shared/i18n'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { ScanRefreshProvider } from '@/features/agents/api/scan'
+import { useTerminalStore, type TerminalTab } from '@/features/terminal/store'
 
 import { AppShell } from './AppShell'
-import { emptySyncSettings } from '@/test/fixtures'
+import { testSettings } from '@/test/fixtures'
+
+/** The dock itself is a heavy lazy component with its own file; what the shell owes it is the window. */
+vi.mock('@/features/terminal/components/TerminalDock', () => ({
+  TerminalDock: () => <div data-testid="dock" />,
+}))
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -48,38 +54,21 @@ const REPORT: ScanReport = {
   projects: { folders: [], projects: [], scannedAtMs: 0, durationMs: 0 },
 }
 
-function settings(overrides: Partial<Settings> = {}): Settings {
-  return {
-    language: 'en',
-    theme: 'system',
-    accent: 'clay',
-    accentCustom: null,
-    interfaceScale: 100,
-    textScale: 100,
-    fontFamily: 'inter',
-    monoFont: 'jetbrains',
-    extraScanPaths: [],
-    networkVersionChecks: true,
-    backupDir: null,
-    versionCacheMinutes: 60,
-    proxyMode: 'none',
-    proxyUrl: null,
-    terminal: 'builtin',
-    terminalTheme: 'auto',
-    hiddenAgents: [],
-    favoriteAgents: [],
-    projectFolders: [],
-    launchAtLogin: false,
-    trayIcon: true,
-    closeToTray: true,
-    startMinimized: false,
-    sidebarCollapsed: false,
-    lastRoute: null,
-    tourCompleted: true,
-    ...overrides,
-    sync: overrides.sync ?? emptySyncSettings,
-  }
+/** One open session, which is all the shell needs to have a dock to lay out. */
+const TERMINAL: TerminalTab = {
+  sessionId: 'term-1',
+  agentId: 'claude-code',
+  agentName: 'Claude Code',
+  cwd: '/work/ahabby',
+  shell: 'pwsh',
+  command: 'claude',
+  running: true,
+  exitCode: null,
+  startedAtMs: 0,
 }
+
+/** The shared settings fixture, under the name the cases below use. */
+const settings = testSettings
 
 /**
  * Mounts the shell the way `boot()` does: the settings query is primed before the first render,
@@ -146,6 +135,16 @@ function renderShell(stored = settings(), route = '/agents', customChrome = fals
 }
 
 afterEach(() => {
+  // The open terminals are the window's state and outlive a case, so the next one starts with an
+  // empty dock rather than whichever tabs the last case left behind.
+  useTerminalStore.setState({
+    tabs: [],
+    activeId: null,
+    expanded: false,
+    maximized: false,
+    buffered: {},
+    exits: {},
+  })
   cleanup()
 })
 
@@ -238,5 +237,35 @@ describe('AppShell', () => {
     expect(
       screen.getByRole('complementary').parentElement?.contains(screen.getByRole('main')),
     ).toBe(true)
+  })
+
+  it('stands the screen and the rail down for a maximized terminal', async () => {
+    renderShell()
+    await screen.findByText('agents screen')
+    const page = screen.getByRole('main')
+    const rail = screen.getByRole('complementary')
+
+    act(() => {
+      useTerminalStore.setState({
+        tabs: [TERMINAL],
+        activeId: TERMINAL.sessionId,
+        expanded: true,
+        maximized: true,
+      })
+    })
+
+    expect(await screen.findByTestId('dock')).toBeInTheDocument()
+    expect(page).toHaveClass('hidden')
+    expect(rail).toHaveClass('hidden')
+
+    act(() => {
+      useTerminalStore.setState({ maximized: false })
+    })
+
+    // Hidden, never unmounted: the screen that was covered comes back as the same element, with
+    // the scroll position and the answers its queries already had.
+    expect(screen.getByRole('main')).toBe(page)
+    expect(page).not.toHaveClass('hidden')
+    expect(rail).not.toHaveClass('hidden')
   })
 })

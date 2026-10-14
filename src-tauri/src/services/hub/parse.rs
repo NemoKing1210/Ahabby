@@ -216,7 +216,10 @@ pub fn repo_skills(files: &[TarFile], source: &HubSource) -> Vec<RepoSkill> {
                     .any(|index| file_kind(&files[*index].path) == HubFileKind::Script),
                 file_indexes: indexes,
                 group: group_of(directory),
-                tags: markdown.as_ref().map(declared_tags).unwrap_or_default(),
+                tags: markdown
+                    .as_ref()
+                    .map(frontmatter::declared_tags)
+                    .unwrap_or_default(),
             })
         })
         .collect()
@@ -264,25 +267,6 @@ fn group_of(directory: &str) -> Option<String> {
         return None;
     }
     Some(segments[skills - 1].to_string())
-}
-
-/// The tags a skill declares about itself, from the frontmatter of its own `SKILL.md`.
-///
-/// The convention spells them either way — `tags` or `keywords`, as a list or as one comma
-/// separated line (`adapters::frontmatter` flattens a YAML list into exactly that) — so both keys
-/// are read and both are split on commas. Nothing is invented here: a skill that declares no tags
-/// has none.
-fn declared_tags(markdown: &frontmatter::Markdown) -> Vec<String> {
-    normalize_tags(
-        markdown
-            .frontmatter
-            .iter()
-            .filter(|entry| {
-                entry.key.eq_ignore_ascii_case("tags") || entry.key.eq_ignore_ascii_case("keywords")
-            })
-            .flat_map(|entry| entry.value.split(','))
-            .map(str::to_string),
-    )
 }
 
 fn read_text(file: &TarFile) -> Option<String> {

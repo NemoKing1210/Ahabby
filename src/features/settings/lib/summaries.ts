@@ -47,6 +47,13 @@ export function sectionSummary(
             : t(`settings.accents.${settings.accent}`),
         theme: t(THEME_KEY[settings.theme]),
       })
+    case 'notifications':
+      return settings.toast.enabled
+        ? t('settings.sections.notifications.summary', {
+            position: t(`settings.toastPositions.${settings.toast.position}`),
+            duration: t(`settings.toastDurations.${settings.toast.duration}`),
+          })
+        : t('settings.sections.notifications.summaryOff')
     case 'window':
       return t('settings.sections.window.summary', {
         tray: state(settings.trayIcon),

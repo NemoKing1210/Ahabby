@@ -12,7 +12,7 @@ import { initI18n } from '@/shared/i18n'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { TourProvider } from './TourProvider'
-import { emptySyncSettings } from '@/test/fixtures'
+import { testSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -29,38 +29,9 @@ vi.mock('./runTour', () => ({
   })),
 }))
 
-function settings(overrides: Partial<Settings> = {}): Settings {
-  return {
-    language: 'en',
-    theme: 'system',
-    accent: 'clay',
-    accentCustom: null,
-    interfaceScale: 100,
-    textScale: 100,
-    fontFamily: 'inter',
-    monoFont: 'jetbrains',
-    extraScanPaths: [],
-    networkVersionChecks: true,
-    backupDir: null,
-    versionCacheMinutes: 60,
-    proxyMode: 'none',
-    proxyUrl: null,
-    terminal: 'builtin',
-    terminalTheme: 'auto',
-    hiddenAgents: [],
-    favoriteAgents: [],
-    projectFolders: [],
-    launchAtLogin: false,
-    trayIcon: true,
-    closeToTray: true,
-    startMinimized: false,
-    sidebarCollapsed: false,
-    lastRoute: null,
-    tourCompleted: false,
-    ...overrides,
-    sync: overrides.sync ?? emptySyncSettings,
-  }
-}
+/** A settings document whose tour has not been run yet; the shared fixture is the base. */
+const settings = (overrides: Partial<Settings> = {}): Settings =>
+  testSettings({ tourCompleted: false, ...overrides })
 
 function renderTour(stored = settings()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

@@ -6,12 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipc } from '@/shared/api/ipc'
 import type { Agent } from '@/shared/bindings/Agent'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
-import type { Settings } from '@/shared/bindings/Settings'
 import { renderWithProviders } from '@/test/render'
 
 import { AgentsPage } from './AgentsPage'
 import { ScanRefreshProvider } from '../api/scan'
-import { emptySyncSettings } from '@/test/fixtures'
+import { testSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -102,35 +101,7 @@ const REPORT: ScanReport = {
   projects: { folders: [], projects: [], scannedAtMs: 0, durationMs: 0 },
 }
 
-const SETTINGS: Settings = {
-  language: 'en',
-  theme: 'system',
-  accent: 'clay',
-  accentCustom: null,
-  interfaceScale: 100,
-  textScale: 100,
-  fontFamily: 'inter',
-  monoFont: 'jetbrains',
-  extraScanPaths: [],
-  networkVersionChecks: true,
-  backupDir: null,
-  versionCacheMinutes: 60,
-  proxyMode: 'none',
-  proxyUrl: null,
-  terminal: 'builtin',
-  terminalTheme: 'auto',
-  hiddenAgents: [],
-  favoriteAgents: [],
-  projectFolders: [],
-  launchAtLogin: false,
-  trayIcon: true,
-  closeToTray: true,
-  startMinimized: false,
-  sidebarCollapsed: false,
-  lastRoute: null,
-  tourCompleted: true,
-  sync: emptySyncSettings,
-}
+const SETTINGS = testSettings()
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

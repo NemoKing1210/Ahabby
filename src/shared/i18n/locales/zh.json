@@ -89,6 +89,12 @@
     "noneOff": "这里没有关机",
     "noneHint": "一个技能或服务器一旦关机就在这里出现,没有任何东西让代理商忘记它."
   },
+  "tags": {
+    "label": "标签",
+    "filter": "按标签筛选",
+    "more": "再显示 {{count}} 个",
+    "fewer": "收起"
+  },
   "agents": {
     "title": "探员",
     "installed": "已安装",
@@ -473,6 +479,7 @@
     "noResults": "“  PH0  ”无结果",
     "filteredEmpty": "没有匹配当前过滤器",
     "clearFilters": "清除过滤器",
+    "copyPaths": "复制路径",
     "rescan": "重新扫描",
     "lastScan": "上次扫描 PH0 ",
     "agents_one": " PH0 代理人",
@@ -502,10 +509,6 @@
       "installed": "已安装",
       "missing": "未安装"
     },
-    "tags": "标记",
-    "tagFilter": "通过标签过滤",
-    "moreTags": "显示    PH0   更多",
-    "fewerTags": "折叠",
     "source": "来源",
     "sourceAll": "所有来源",
     "refresh": "刷新",
@@ -1000,6 +1003,13 @@
     "expand": "扩展终端",
     "collapse": "折叠终端",
     "resize": "更改终端大小",
+    "maximize": "最大化终端",
+    "restore": "还原终端大小",
+    "closeAll": "关闭所有终端",
+    "closeAllTitle": "关闭所有终端？",
+    "closeAllDescription_one": "将结束 {{count}} 个打开的会话，其中运行的代理也会停止，会话记录一并丢失。",
+    "closeAllDescription_other": "将结束 {{count}} 个打开的会话，其中运行的代理也会停止，会话记录一并丢失。",
+    "closeAllConfirm": "全部关闭",
     "new": "新终端",
     "newHint": "在自己的外壳中启动代理. 标签保存了完整的回滚,并在代理退出后保持开放.",
     "open": "打开终端",
@@ -1102,6 +1112,14 @@
       "jetbrains": "JetBrains Mono",
       "system": "系统单"
     },
+    "widths": {
+      "narrow": "窄",
+      "comfortable": "适中",
+      "wide": "宽",
+      "full": "占满宽度"
+    },
+    "contentWidth": "内容宽度",
+    "contentWidthHint": "屏幕内容栏最多能有多宽。窄可以让长文本和列表保持易读的宽度，占满宽度则让内容栏随窗口伸展。",
     "resetAppearance": "重置口音、大小和字体",
     "type": "大小字体( F)",
     "typeHint": "界面画出多大,以及它使用的是哪种打字面.",
@@ -1141,6 +1159,36 @@
     "previewButton": "主要行动",
     "previewBadge": "百分点",
     "scanning": "扫描",
+    "notifications": "通知",
+    "notificationsHint": "保存、安装或拒绝时 Ahabby 显示的短消息：出现在哪里、停留多久，或者完全不显示。",
+    "toasts": "消息",
+    "toastsHint": "消息用于提示保存、安装完成或失败。它不是安装控制台，也不是对话框里的错误——那些仍留在原处。",
+    "showToasts": "显示消息",
+    "showToastsHint": "关闭后不再显示任何消息，包括失败。",
+    "toastPosition": "位置",
+    "toastPositionHint": "消息出现在屏幕的哪个位置。它从该边缘滑入，也可以朝同方向划走。",
+    "toastPositions": {
+      "top-left": "左上",
+      "top-center": "顶部居中",
+      "top-right": "右上",
+      "bottom-left": "左下",
+      "bottom-center": "底部居中",
+      "bottom-right": "右下"
+    },
+    "toastDuration": "多久后隐藏",
+    "toastDurationHint": "消息自动隐藏前停留的时间。「从不」表示一直保留到你手动关闭。",
+    "toastDurations": {
+      "short": "3 秒",
+      "normal": "6 秒",
+      "long": "12 秒",
+      "persistent": "从不"
+    },
+    "toastPreview": "预览",
+    "toastPreviewHint": "按上面的选择显示一条消息。",
+    "toastPreviewOff": "打开消息后才能看到。",
+    "showTestToast": "显示测试消息",
+    "toastTestTitle": "这是一条消息",
+    "toastTestBody": "Ahabby 就是这样提示保存、安装完成和失败的。",
     "windowAndTray": "窗口托盘( T)",
     "windowHint": "Ahabby是如何开始的,关闭窗口意味着什么.",
     "startup": "启动时",
@@ -1208,6 +1256,11 @@
       "appearance": {
         "hint": "主题、强调色、界面尺寸和字体——实时预览。",
         "summary": "强调色：{{accent}} · 主题：{{theme}}"
+      },
+      "notifications": {
+        "hint": "消息出现的位置、停留多久，或者关闭。",
+        "summary": "{{position}} · {{duration}}",
+        "summaryOff": "消息已关闭"
       },
       "window": {
         "summary": "托盘图标：{{tray}} · 登录时启动：{{login}}"
@@ -1294,7 +1347,7 @@
       },
       "settings": {
         "title": "设置",
-        "body": "外观,窗口和托盘,终端,网络,安全——和这个再次的教程."
+        "body": "外观、通知、窗口和托盘、终端、网络、安全——和这个教程。"
       },
       "settingsReplay": {
         "title": "重播巡回演唱会",

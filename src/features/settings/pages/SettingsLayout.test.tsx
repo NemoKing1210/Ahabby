@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipc } from '@/shared/api/ipc'
 import type { Settings } from '@/shared/bindings/Settings'
 import { initI18n } from '@/shared/i18n'
+import { TOAST_DEFAULTS, applyToastSettings, useToastStore } from '@/shared/ui/Toast'
 import { TooltipProvider } from '@/shared/ui/Tooltip'
 
 import { settingsRoutes } from '../routes'
@@ -140,6 +141,7 @@ describe('Settings index', () => {
     expect(
       card(/^Window & tray/).getByText('Tray icon: on · Launch at login: on'),
     ).toBeInTheDocument()
+    expect(card(/^Notifications/).getByText('Top centre · 6 seconds')).toBeInTheDocument()
     expect(card(/^Search & catalog/).getByText('2 extra scan paths')).toBeInTheDocument()
     expect(card(/^Network/).getByText('Version checks: off · Proxy: No proxy')).toBeInTheDocument()
     expect(card(/^Safety/).getByText('Backups: /mnt/backups')).toBeInTheDocument()
@@ -159,7 +161,14 @@ describe('Settings index', () => {
 
 describe('Settings appearance', () => {
   it('shows the saved choices', async () => {
-    await openSettings(testSettings({ accent: 'violet', interfaceScale: 110, fontFamily: 'serif' }))
+    await openSettings(
+      testSettings({
+        accent: 'violet',
+        interfaceScale: 110,
+        fontFamily: 'serif',
+        contentWidth: 'narrow',
+      }),
+    )
 
     expect(screen.getByRole('button', { name: 'Violet', pressed: true })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Interface size' })).toHaveTextContent(
@@ -168,6 +177,36 @@ describe('Settings appearance', () => {
     expect(screen.getByRole('combobox', { name: 'Interface font' })).toHaveTextContent(
       'Lora (serif)',
     )
+    expect(screen.getByRole('radio', { name: /^Narrow/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Wide/ })).not.toBeChecked()
+  })
+
+  it('opens on wide — the default — at once', async () => {
+    await openSettings()
+
+    expect(screen.getByRole('radio', { name: /^Wide/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Comfortable/ })).not.toBeChecked()
+
+    // The card that is checked follows the click, so the assertion above is about the document
+    // and not about every card looking the same.
+    await userEvent.click(screen.getByRole('radio', { name: /^Narrow/ }))
+    expect(screen.getByRole('radio', { name: /^Wide/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Narrow/ })).toBeChecked()
+  })
+
+  it('lets the content column be widened, previewing it at once', async () => {
+    await openSettings()
+
+    await userEvent.click(screen.getByRole('radio', { name: /^Full width/ }))
+    expect(document.documentElement.style.getPropertyValue('--ah-content-width')).toBe('100%')
+    expect(ipc.saveSettings).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(ipc.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ contentWidth: 'full' }),
+      )
+    })
   })
 
   it('previews an accent on the live interface before it is saved', async () => {
@@ -217,6 +256,7 @@ describe('Settings appearance', () => {
         textScale: 125,
         fontFamily: 'serif',
         monoFont: 'system',
+        contentWidth: 'narrow',
         theme: 'dark',
       }),
     )
@@ -233,6 +273,7 @@ describe('Settings appearance', () => {
           textScale: 100,
           fontFamily: 'inter',
           monoFont: 'jetbrains',
+          contentWidth: 'wide',
           theme: 'dark',
           language: 'en',
         }),
@@ -287,5 +328,85 @@ describe('Settings window & tray', () => {
         }),
       )
     })
+  })
+})
+
+describe('Settings notifications', () => {
+  // The toaster's config outlives the component that set it, so it is put back between cases.
+  afterEach(() => {
+    applyToastSettings(TOAST_DEFAULTS)
+    act(() => useToastStore.setState({ toasts: [] }))
+  })
+
+  it('shows the choice the document holds', async () => {
+    await openSettings(
+      testSettings({
+        toast: { enabled: true, position: 'bottom-left', duration: 'persistent' },
+      }),
+      '/settings/notifications',
+      'Notifications',
+    )
+
+    expect(screen.getByRole('switch', { name: 'Show messages' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Bottom left' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Top centre' })).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Never' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('paints the draft on the messages while the page is open', async () => {
+    await openSettings(testSettings(), '/settings/notifications', 'Notifications')
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Bottom right' }))
+    await userEvent.click(screen.getByRole('button', { name: '3 seconds' }))
+
+    await waitFor(() =>
+      expect(useToastStore.getState().config).toEqual({
+        enabled: true,
+        position: 'bottom-right',
+        duration: 'short',
+      }),
+    )
+  })
+
+  it('saves the choice with the document', async () => {
+    await openSettings(testSettings(), '/settings/notifications', 'Notifications')
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Top left' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Never' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(ipc.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toast: { enabled: true, position: 'top-left', duration: 'persistent' },
+        }),
+      ),
+    )
+  })
+
+  it('shows a test message, and takes it back when the messages are switched off', async () => {
+    await openSettings(testSettings(), '/settings/notifications', 'Notifications')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show a test message' }))
+    expect(useToastStore.getState().toasts.map((item) => item.title)).toEqual(['This is a message'])
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Show messages' }))
+
+    expect(screen.getByRole('button', { name: 'Show a test message' })).toBeDisabled()
+    expect(screen.getByText('Turn the messages on to see one.')).toBeInTheDocument()
+    expect(useToastStore.getState().config.enabled).toBe(false)
+    expect(useToastStore.getState().toasts).toEqual([])
+  })
+
+  it('says on the index that the messages are off', async () => {
+    await openSettings(
+      testSettings({ toast: { enabled: false, position: 'top-center', duration: 'normal' } }),
+      '/settings',
+      null,
+    )
+
+    expect(
+      within(screen.getByRole('link', { name: /^Notifications/ })).getByText('Messages are off'),
+    ).toBeInTheDocument()
   })
 })

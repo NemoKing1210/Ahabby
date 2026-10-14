@@ -1,6 +1,6 @@
 //! Markdown + YAML frontmatter parsing (the `SKILL.md` convention).
 
-use crate::domain::FrontmatterEntry;
+use crate::domain::{normalize_tags, FrontmatterEntry};
 
 /// A markdown document split into its frontmatter and body.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +29,24 @@ impl Markdown {
         }
         first_paragraph(&self.body).map(|text| truncate(&text, 240))
     }
+}
+
+/// The tags a document declares about itself: its frontmatter's `tags` or `keywords`.
+///
+/// The convention spells them either way — a YAML list or one comma separated line, which
+/// [`parse`] flattens a list into — so both keys are read and both are split on commas. Nothing
+/// is invented here: a document that declares no tags has none.
+pub fn declared_tags(markdown: &Markdown) -> Vec<String> {
+    normalize_tags(
+        markdown
+            .frontmatter
+            .iter()
+            .filter(|entry| {
+                entry.key.eq_ignore_ascii_case("tags") || entry.key.eq_ignore_ascii_case("keywords")
+            })
+            .flat_map(|entry| entry.value.split(','))
+            .map(str::to_string),
+    )
 }
 
 pub fn parse(text: &str) -> Markdown {
@@ -262,6 +280,18 @@ Use pdftotext for extraction.
         let markdown = parse("\u{feff}---\r\nname: win\r\n---\r\n# Body\r\n");
         assert_eq!(markdown.name.as_deref(), Some("win"));
         assert!(markdown.body.starts_with("# Body"));
+    }
+
+    #[test]
+    fn declared_tags_reads_both_keys_as_a_list_or_a_line() {
+        let list = parse("---\nname: x\ntags:\n  - pdf\n  - forms\n---\n");
+        assert_eq!(declared_tags(&list), ["pdf", "forms"]);
+
+        let line = parse("---\nname: x\nkeywords: pdf, Forms , pdf\n---\n");
+        assert_eq!(declared_tags(&line), ["pdf", "Forms"]);
+
+        let neither = parse("---\nname: x\ndescription: nothing declared\n---\n");
+        assert!(declared_tags(&neither).is_empty());
     }
 
     #[test]

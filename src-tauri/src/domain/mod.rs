@@ -22,6 +22,7 @@ pub mod secrets;
 pub mod shared;
 pub mod skill;
 pub mod sync;
+pub mod tag;
 pub mod terminal;
 pub mod version;
 pub mod web;
@@ -40,10 +41,10 @@ pub use extension::{
 };
 pub use fact::{ConfigFact, FactKind};
 pub use hub::{
-    normalize_tags, plain_git_ref, plain_relative_path, plain_repository, tag_rule_matches,
-    tags_match, HubEntry, HubEntryDetail, HubEntryInstall, HubFileInfo, HubFileKind, HubInput,
-    HubInstall, HubInstallRequest, HubPage, HubPreview, HubQuery, HubResourceKind, HubSkillCompare,
-    HubSource, HubSourceCatalog, HubSourceKind, HubSourceReport, HubTagRule, MAX_TAGS, MAX_TAG_LEN,
+    plain_git_ref, plain_relative_path, plain_repository, tag_rule_matches, tags_match, HubEntry,
+    HubEntryDetail, HubEntryInstall, HubFileInfo, HubFileKind, HubInput, HubInstall,
+    HubInstallRequest, HubPage, HubPreview, HubQuery, HubResourceKind, HubSkillCompare, HubSource,
+    HubSourceCatalog, HubSourceKind, HubSourceReport, HubTagRule,
 };
 pub use library::{Library, LibraryStats};
 pub use manifest::{
@@ -70,6 +71,7 @@ pub use sync::{
     SyncRun, SyncRunKind, SyncSettings, SyncStatus, SYNC_DESCRIPTION_PREFIX, SYNC_MARKER_FILE,
     SYNC_SCHEMA,
 };
+pub use tag::{normalize_tags, MAX_TAGS, MAX_TAG_LEN};
 pub use terminal::{
     TerminalCapability, TerminalCatalog, TerminalExit, TerminalKind, TerminalOption,
     TerminalOutput, TerminalSession,

@@ -9,13 +9,12 @@ import type { HubSourceCatalog } from '@/shared/bindings/HubSourceCatalog'
 import type { Library } from '@/shared/bindings/Library'
 import type { Project } from '@/shared/bindings/Project'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
-import type { Settings } from '@/shared/bindings/Settings'
 import { renderWithProviders } from '@/test/render'
 
 import { ScanRefreshProvider } from '@/features/agents/api/scan'
 
 import { HomePage } from './HomePage'
-import { emptySyncSettings } from '@/test/fixtures'
+import { testSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -159,35 +158,7 @@ const LIBRARY: Library = {
   problems: [],
 }
 
-const SETTINGS: Settings = {
-  language: 'en',
-  theme: 'system',
-  accent: 'clay',
-  accentCustom: null,
-  interfaceScale: 100,
-  textScale: 100,
-  fontFamily: 'inter',
-  monoFont: 'jetbrains',
-  extraScanPaths: [],
-  networkVersionChecks: true,
-  backupDir: null,
-  versionCacheMinutes: 60,
-  proxyMode: 'none',
-  proxyUrl: null,
-  terminal: 'builtin',
-  terminalTheme: 'auto',
-  hiddenAgents: [],
-  favoriteAgents: ['codex'],
-  projectFolders: [],
-  launchAtLogin: false,
-  trayIcon: true,
-  closeToTray: true,
-  startMinimized: false,
-  sidebarCollapsed: false,
-  lastRoute: null,
-  tourCompleted: true,
-  sync: emptySyncSettings,
-}
+const SETTINGS = testSettings({ favoriteAgents: ['codex'] })
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

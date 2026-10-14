@@ -435,6 +435,10 @@ impl ManifestAdapter {
                 .as_ref()
                 .map(|markdown| markdown.frontmatter.clone())
                 .unwrap_or_default(),
+            tags: markdown
+                .as_ref()
+                .map(frontmatter::declared_tags)
+                .unwrap_or_default(),
             content: markdown
                 .as_ref()
                 .map(|markdown| markdown.body.clone())
@@ -476,6 +480,7 @@ impl ManifestAdapter {
             scope: Scope::Global,
             agents: vec![self.agent_ref()],
             frontmatter: markdown.frontmatter.clone(),
+            tags: frontmatter::declared_tags(&markdown),
             content: Some(markdown.body.clone()).filter(|body| !body.trim().is_empty()),
             size_bytes: size,
             created_ms: metadata.as_ref().and_then(platform::created_at_ms),
@@ -1715,6 +1720,22 @@ command = "read the docs"
         ] {
             assert_eq!(empty_document(format), "", "{format:?}");
         }
+    }
+
+    #[tokio::test]
+    async fn a_scanned_skill_carries_the_tags_its_own_skill_md_declares() {
+        let fixture = Fixture::new();
+        let ctx = fixture.ctx();
+        let adapter = ManifestAdapter::new(manifest(MANIFEST));
+        let directory = write_skill(&fixture.skills_root(), "demo");
+        fs::write(
+            directory.join("SKILL.md"),
+            "---\nname: demo\ndescription: A fixture skill\ntags:\n  - pdf\n  - Forms\n  - pdf\n---\n\nBody.\n",
+        )
+        .unwrap();
+
+        let skill = only_skill(&adapter, &ctx).await;
+        assert_eq!(skill.tags, ["pdf", "Forms"]);
     }
 
     // ---------------------------------------------------------------- skill refusals

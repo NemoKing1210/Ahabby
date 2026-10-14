@@ -244,6 +244,7 @@ mod tests {
             scope: crate::domain::Scope::Global,
             agents: Vec::new(),
             frontmatter: Vec::new(),
+            tags: Vec::new(),
             content: None,
             size_bytes: None,
             created_ms: None,

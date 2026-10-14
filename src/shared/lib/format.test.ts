@@ -7,6 +7,7 @@ import {
   formatDateTime,
   formatDuration,
   groupBy,
+  parentPath,
   shortenPath,
 } from './format'
 
@@ -55,6 +56,16 @@ describe('fileName', () => {
   it('handles both separators', () => {
     expect(fileName('/a/b/c.json')).toBe('c.json')
     expect(fileName('C:\\a\\b\\c.json')).toBe('c.json')
+  })
+})
+
+describe('parentPath', () => {
+  it('steps one directory up, on either separator', () => {
+    expect(parentPath('/home/me/.claude/skills/pdf')).toBe('/home/me/.claude/skills')
+    expect(parentPath('C:\\Users\\me\\.claude\\skills\\pdf')).toBe('C:\\Users\\me\\.claude\\skills')
+    // A trailing separator names the same directory, and a path with nothing above it stays whole.
+    expect(parentPath('/a/b/')).toBe('/a')
+    expect(parentPath('pdf')).toBe('pdf')
   })
 })
 

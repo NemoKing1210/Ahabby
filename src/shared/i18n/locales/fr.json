@@ -89,6 +89,12 @@
     "noneOff": "Rien ici n'est éteint",
     "noneHint": "Une compétence ou un serveur apparaît ici une fois qu'il a été désactivé, et rien ne dit à l'agent de l'oublier."
   },
+  "tags": {
+    "label": "Étiquettes",
+    "filter": "Filtrer par étiquette",
+    "more": "Afficher {{count}} de plus",
+    "fewer": "Réduire"
+  },
   "agents": {
     "title": "Agents",
     "installed": "Installé",
@@ -473,6 +479,7 @@
     "noResults": "Aucun résultat pour :",
     "filteredEmpty": "Rien ne correspond aux filtres actuels",
     "clearFilters": "Effacer les filtres",
+    "copyPaths": "Copier les chemins",
     "rescan": "Réscan",
     "lastScan": "dernière analyse   PH0  ",
     "agents_one": "PH0   agent",
@@ -502,10 +509,6 @@
       "installed": "Installé",
       "missing": "Non installé"
     },
-    "tags": "Étiquettes",
-    "tagFilter": "Filtrer par étiquette",
-    "moreTags": "Afficher   PH0   plus",
-    "fewerTags": "Effacement",
     "source": "Source",
     "sourceAll": "Toutes sources",
     "refresh": "Actualiser",
@@ -1000,6 +1003,13 @@
     "expand": "Élargir le terminal",
     "collapse": "Effacer le terminal",
     "resize": "Redimensionner le terminal",
+    "maximize": "Agrandir le terminal",
+    "restore": "Rétablir le terminal",
+    "closeAll": "Fermer tous les terminaux",
+    "closeAllTitle": "Fermer tous les terminaux ?",
+    "closeAllDescription_one": "La {{count}} session ouverte se terminera, l’agent qui y tourne s’arrêtera et son historique sera perdu.",
+    "closeAllDescription_other": "Les {{count}} sessions ouvertes se termineront, les agents qui y tournent s’arrêteront et leur historique sera perdu.",
+    "closeAllConfirm": "Tout fermer",
     "new": "Nouveau terminal",
     "newHint": "Commencer un agent dans sa propre coquille. L'onglet garde un défilement complet et reste ouvert après la sortie de l'agent.",
     "open": "Ouvrir le terminal",
@@ -1102,6 +1112,14 @@
       "jetbrains": "JetBrains Mono",
       "system": "Système mono"
     },
+    "widths": {
+      "narrow": "Étroite",
+      "comfortable": "Confortable",
+      "wide": "Large",
+      "full": "Pleine largeur"
+    },
+    "contentWidth": "Largeur du contenu",
+    "contentWidthHint": "Jusqu'où la colonne de contenu d'un écran peut s'étendre. Étroite garde les textes longs et les listes à une mesure lisible ; la pleine largeur suit la fenêtre.",
     "resetAppearance": "Réinitialiser l'accent, les tailles et les polices",
     "type": "Taille et polices",
     "typeHint": "Quelle est la taille de l'interface et quelles sont les faces qu'elle utilise.",
@@ -1141,6 +1159,36 @@
     "previewButton": "Action primaire",
     "previewBadge": "Accent",
     "scanning": "Analyse",
+    "notifications": "Notifications",
+    "notificationsHint": "Les petits messages qu’Ahabby affiche à l’enregistrement, à l’installation ou en cas de refus : où ils apparaissent, combien de temps ils restent — ou pas du tout.",
+    "toasts": "Messages",
+    "toastsHint": "Les messages signalent un enregistrement, une installation terminée ou une erreur. Ce ne sont pas la console d’installation ni l’erreur dans une fenêtre — celles-là restent où elles sont.",
+    "showToasts": "Afficher les messages",
+    "showToastsHint": "Désactivé masque tous les messages, erreurs comprises.",
+    "toastPosition": "Position",
+    "toastPositionHint": "Où un message apparaît à l’écran. Il entre depuis ce bord et peut être balayé vers lui.",
+    "toastPositions": {
+      "top-left": "En haut à gauche",
+      "top-center": "En haut au centre",
+      "top-right": "En haut à droite",
+      "bottom-left": "En bas à gauche",
+      "bottom-center": "En bas au centre",
+      "bottom-right": "En bas à droite"
+    },
+    "toastDuration": "Masquer après",
+    "toastDurationHint": "Combien de temps un message reste avant de se masquer tout seul. « Jamais » le garde jusqu’à ce que vous le fermiez.",
+    "toastDurations": {
+      "short": "3 secondes",
+      "normal": "6 secondes",
+      "long": "12 secondes",
+      "persistent": "Jamais"
+    },
+    "toastPreview": "Aperçu",
+    "toastPreviewHint": "Affiche un message exactement comme choisi ci-dessus.",
+    "toastPreviewOff": "Activez les messages pour en voir un.",
+    "showTestToast": "Afficher un message d’essai",
+    "toastTestTitle": "Ceci est un message",
+    "toastTestBody": "C’est ainsi qu’Ahabby signale les enregistrements, les installations terminées et les erreurs.",
     "windowAndTray": "Fenêtre & plateau",
     "windowHint": "Comment Ahabby commence, et ce que la fermeture de sa fenêtre signifie.",
     "startup": "Au démarrage",
@@ -1208,6 +1256,11 @@
       "appearance": {
         "hint": "Thème, couleur d'accent, taille de l'interface et polices — aperçu en direct.",
         "summary": "Accent : {{accent}} · Thème : {{theme}}"
+      },
+      "notifications": {
+        "hint": "Où apparaissent les messages, combien de temps ils restent — ou désactivés.",
+        "summary": "{{position}} · {{duration}}",
+        "summaryOff": "Les messages sont désactivés"
       },
       "window": {
         "summary": "Icône de notification : {{tray}} · Lancement à l’ouverture : {{login}}"
@@ -1294,7 +1347,7 @@
       },
       "settings": {
         "title": "Paramètres",
-        "body": "Apparence, fenêtre et plateau, terminal, réseau, sécurité — et ce tutoriel à nouveau."
+        "body": "Apparence, notifications, fenêtre et plateau, terminal, réseau, sécurité — et ce tutoriel à nouveau."
       },
       "settingsReplay": {
         "title": "Rejouer la tournée",

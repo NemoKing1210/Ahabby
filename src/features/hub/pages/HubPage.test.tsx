@@ -11,12 +11,11 @@ import type { HubSource } from '@/shared/bindings/HubSource'
 import type { HubSourceCatalog } from '@/shared/bindings/HubSourceCatalog'
 import type { HubSourceReport } from '@/shared/bindings/HubSourceReport'
 import type { ScanReport } from '@/shared/bindings/ScanReport'
-import type { Settings } from '@/shared/bindings/Settings'
 import { tagHue } from '@/shared/lib/tagColor'
 import { renderWithProviders } from '@/test/render'
 
 import { HubPage } from './HubPage'
-import { emptySyncSettings } from '@/test/fixtures'
+import { testSettings } from '@/test/fixtures'
 
 vi.mock('@/shared/api/ipc', () => ({
   ipc: {
@@ -229,35 +228,7 @@ function scanReport(): ScanReport {
   }
 }
 
-const SETTINGS: Settings = {
-  language: 'en',
-  theme: 'system',
-  accent: 'clay',
-  accentCustom: null,
-  interfaceScale: 100,
-  textScale: 100,
-  fontFamily: 'inter',
-  monoFont: 'jetbrains',
-  extraScanPaths: [],
-  networkVersionChecks: true,
-  backupDir: null,
-  versionCacheMinutes: 60,
-  proxyMode: 'none',
-  proxyUrl: null,
-  terminal: 'builtin',
-  terminalTheme: 'auto',
-  hiddenAgents: [],
-  favoriteAgents: [],
-  projectFolders: [],
-  launchAtLogin: false,
-  trayIcon: true,
-  closeToTray: true,
-  startMinimized: false,
-  sidebarCollapsed: false,
-  lastRoute: null,
-  tourCompleted: true,
-  sync: emptySyncSettings,
-}
+const SETTINGS = testSettings()
 
 function skillDetail(): HubEntryDetail {
   return {
@@ -1093,17 +1064,45 @@ describe('HubPage', () => {
     expect(await screen.findByText('Instructions')).toBeTruthy()
   })
 
-  it('shows the star count of a GitHub collection, and none for a source without one', async () => {
+  it('shows the star count of a GitHub collection, golder the more it has', async () => {
+    const starred = (id: string, name: string, stars: number): HubSource => ({
+      ...SKILLS_SOURCE,
+      id,
+      name,
+      repository: `owner/${id}`,
+      stars,
+    })
+    vi.mocked(ipc.listHubSources).mockResolvedValue({
+      sources: [
+        starred('quiet', 'Quiet Collection', 12),
+        starred('loud', 'Loud Collection', 300_000),
+        REGISTRY_SOURCE,
+      ],
+      problems: [],
+      userDir: '/home/me/.config/ahabby/hub',
+    })
+    vi.mocked(ipc.searchHub).mockResolvedValue(page())
     const { container } = renderPage()
 
-    await within(container).findByText('Example Skills')
+    await within(container).findByText('Loud Collection')
     // The repository's own number, formatted for the active language, with what it means in the
     // accessibility tree — the star icon cannot say it.
-    expect(within(container).getByText('Stars on GitHub')).toBeTruthy()
-    expect(within(container).getByText('18,432')).toBeTruthy()
+    expect(within(container).getByText('300,000')).toBeTruthy()
+
+    // The more stars, the closer the star and its number sit to the palette's gold: the chip hands
+    // `.ah-stars` the share of the way, and the louder collection's is the larger one — the full
+    // gold, where the quieter one is only a little of it.
+    const shareOf = (name: string) => {
+      const chip = within(cardOf(container, name)).getByText('Stars on GitHub').parentElement
+      expect(chip?.classList.contains('ah-stars')).toBe(true)
+      return Number.parseFloat(chip?.style.getPropertyValue('--ah-star-share') ?? '')
+    }
+    expect(shareOf('Quiet Collection')).toBeGreaterThan(0)
+    expect(shareOf('Loud Collection')).toBeGreaterThan(shareOf('Quiet Collection'))
+    expect(shareOf('Loud Collection')).toBe(100)
 
     // The MCP registry is not a GitHub repository: it carries no count, so its row shows none.
-    expect(within(container).getAllByText('Stars on GitHub')).toHaveLength(1)
+    expect(within(container).getAllByText('Stars on GitHub')).toHaveLength(2)
   })
 
   it('groups plugin skills and installs a selection with confirm for each', async () => {

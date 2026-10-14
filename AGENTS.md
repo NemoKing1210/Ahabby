@@ -16,9 +16,9 @@ project — through the same adapters, path checks and backups everything else g
 Core boundary: **the Rust backend owns every file, process and network operation; the React frontend only
 renders what the backend reports.** Adding support for a new agent is adding one declarative TOML manifest —
 no Rust, no TypeScript. Adding a place the Hub reads a library from is one declarative TOML _source_ file, on
-the same terms (`catalog/HUB.md`). UI is bilingual (English/Russian).
+the same terms (`catalog/HUB.md`). UI ships in seven languages (`src/shared/i18n/locales/`).
 
-Version: `0.55.1`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
+Version: `0.60.0`. Changelog: [CHANGELOG.md](CHANGELOG.md). Claude Code uses [CLAUDE.md](CLAUDE.md).
 
 ## Architecture & Data Flow
 
@@ -96,7 +96,8 @@ Frontend boundaries (enforce them):
   fallback. Routes: `/` (home — the summary and this machine's roster), `/agents`, `/agents/:agentId`,
   `/projects`, `/projects/:projectId`, `/library`, and `/settings/*` (one sub-page per area,
   `features/settings/routes.tsx`). The terminal has no route — it is a dock of the shell, lazily loaded, that
-  stays open under every screen.
+  stays open under every screen; maximized, it is the one the shell paints instead of the route's, and the rail
+  stands down with it.
 - **The Projects screen reads `report.projects` out of the agents query** (`useProjects()` selects that field
   from the same `queryKeys.agents()` entry, `staleTime: Infinity`), so it needs no cache of its own: every
   mutation that writes the fresh report into that entry repaints the page, and after a restart the cached
@@ -249,26 +250,38 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   a surface that slides into place is built on `useSoftSlide` — `reducedMotion="user"` (set in
   `providers.tsx`) stops layout animation and instant-jumps transforms, but it would still hold a slide
   offset for the whole tween, which is why `useSoftSlide` falls back to a plain fade itself.
-- **A Library group head is the first row of its own card run.** Every heading of the Library's skills list —
-  a name several agents share, or an owning agent — is the first child of the `AnimatedList` its cards are
-  in, so the concentric rules of `.ah-card-group` are what round it: folded away
-  (`library.expanded.<tab>.<mode>` in `shared/lib/sessionState.ts`) the group is one card in the material of
-  the list around it, and open it is the block's tinted caption band, welded to the first card under it. The
-  fold needs no `Reveal`: the cards are the run's own rows, so they leave it the way a filtered row leaves a
-  list. **Every group starts folded** — the library and the Hub's plugin groups (`hub.expanded.<source>.<group>`)
-  are long lists whose headings are their index — so the session store holds the groups the user _opened_,
-  and a group nobody touched is one row of its list. The Hub's source sections are the same story one level
-  out (`hub.sourceExpanded.<id>`): the page opens as the list of collections it can read, and a folded
-  section mounts none of its cards until it is opened. A source _is_ a card of the page's own run, the way
-  the Settings index wears its areas — the sections sit `--group-gap` apart with the full radius only at the
-  ends of the stack — and the fold paints its strip as a Library group head is painted: a plain card while
-  folded, the tinted caption band with the collection under it while open. The plugin groups inside wear the
-  same card one level in — their heading the strip, their skills on the canvas the card frames, and the source
-  welding its groups into a run of its own (`ah-card-stack`) — so a collection reads the same way at every
-  level. A source's strip also carries what GitHub says about the collection itself: the owner's avatar
+- **A Library group is one card, made the way a Hub source is.** Every group of the skills or MCP list — a
+  name several agents share, or an owning agent — is one bordered surface: its strip on top, its cards on the
+  canvas the card frames, and the run welds the cards `--group-gap` apart (`.ah-card-stack`, so only the ends
+  of the list keep the full radius). The strip is the fold control — folded away
+  (`library.expanded.<tab>.<mode>` in `shared/lib/sessionState.ts`) the card is the strip alone, open it is
+  the tinted caption band the cards hang under, and `Reveal` is what lets it out. The one-of-a-kind names of
+  a by-name list are cards of the same run with no strip of their own. **The strip is also the group's own
+  account of itself** (`features/library/facts.ts`): under the title it names where the group lives — the
+  skills directories behind a group of skills, the config files behind a group of servers — how many of its
+  members are switched off, how many still need verification, the transport kinds of a servers group, and the
+  newest date among its files. Each fact is shown only where it is true of that group, so a group that is
+  switched on and verified says nothing about either. Its own context menu
+  (`components/LibraryGroupContextMenu.tsx`) opens from the strip and never from the cards under it — fold
+  the group, one "Show in file manager" per directory or file it lives in, the paths to the clipboard — so a
+  skill or a server card inside keeps its own menu. **Every group starts folded** — the library and the Hub's
+  plugin groups (`hub.expanded.<source>.<group>`) are long lists whose headings are their index — so the
+  session store holds the groups the user _opened_, and a group nobody touched is one row of its list. The
+  Hub's source sections are the same story one level out (`hub.sourceExpanded.<id>`): the page opens as the list
+  of collections it can read, and a folded section mounts none of its cards until it is opened. A source _is_ a
+  card of the page's own run, the way the Settings index wears its areas — the sections sit `--group-gap` apart
+  with the full radius only at the ends of the stack — and the fold paints its strip the way a Library group's
+  strip is painted: a plain card
+  while folded, the tinted caption band with the collection under it while open. The plugin groups inside
+  wear the same card one level in — their heading the strip, their skills on the canvas the card frames, and
+  the source welding its groups into a run of its own (`ah-card-stack`) — so a collection reads the same way
+  at every level. A source's strip also carries what GitHub says about the collection itself: the owner's avatar
   (painted through the reader's image proxy — the CSP lets the window load nothing but `data:`), the star
-  count, and, for the three most starred collections of the whole catalog, a rank — the leader wears the
-  accent chip, the accent edge and, while open, the accent band, the two behind it a quieter chip and edge.
+  count — painted gold in proportion to it, the muted ink at `QUIET_STARS` sliding to the palette's
+  `--ah-star-gold` at `LOUD_STARS` on a logarithmic scale, mixed by `.ah-stars` in `globals.css` from the
+  `--ah-star-share` the count hands over (`features/hub/lib/starTint.ts`) — and, for the three most starred
+  collections of the whole catalog, a rank — the leader wears the accent chip, the accent edge and, while
+  open, the accent band, the two behind it a quieter chip and edge.
   The rank is what the repository is, not where a filter left the card: it is taken from the catalog's own
   order (`HubPage`'s `ranks`), so a screen narrowed to one source still names its real place. Under the
   heading the strip carries the collection's own facts — what it offers, how it is read, its publisher,
@@ -307,16 +320,32 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   design tokens only, and the wrapper passes `theme="none"` so CodeMirror's own light/dark palettes cannot
   paint over them. Adding a language means extending `extensionsFor`; `Ctrl+F` needs the `search()` extension
   (the basic setup only binds the keymap).
+- **The messages are the settings document's, painted by the toaster's own store.** `Settings::toast`
+  (`enabled`, `position`, `duration`) reaches `src/shared/ui/Toast.tsx` through `applyToastSettings`: at boot,
+  on the settings save, and from the Settings page's own draft while it is open
+  (`features/settings/components/LiveToasts`, the same contract `LiveAppearance` keeps for the accent) — which
+  is why a position and a delay are judged on a real message, and an edit nobody commits leaves nothing
+  behind. That module owns what the ids _mean_: the milliseconds of each delay, the six viewport classes and
+  the direction a message enters and leaves by — two keyframes in `globals.css` read
+  `--ah-toast-in-*` / `--ah-toast-swipe-out-*`, so one pair of keyframes serves all six corners — while the
+  Rust enum is only the list of ids a hand-edited file may ask for. `enabled: false` is not an empty corner:
+  no message is queued at all, and switching the messages off drops the ones on screen.
 - **Theme**: `src/app/theme.ts` owns the only `prefers-color-scheme` subscription (through the app-wide
   `themeApplier`) and pushes the resolved palette to the native title bar. Always apply themes through
   that applier — a stale subscription re-applies a theme the user has already left.
-- **Appearance**: `src/app/appearance.ts` maps the accent/size/font settings onto root CSS custom properties
-  (`--ah-accent*`, `--ah-ui-scale`, `--ah-font-scale`, `--ah-font-*`) and is applied at boot and on save;
-  the Settings page previews an unsaved draft live and restores the saved values on unmount. `--ah-ui-scale`
-  is what resizes the layout (it multiplies Tailwind's `--spacing` and the radii), `--ah-font-scale` resizes
-  type — keep that split when adding tokens.
-- **i18n**: add every new string to **both** `en.json` and `ru.json`; parity is enforced by
-  `src/shared/i18n/locales.test.ts`. Plurals use i18next `_one`/`_other`.
+- **Appearance**: `src/app/appearance.ts` maps the accent/size/font/width settings onto root CSS custom
+  properties (`--ah-accent*`, `--ah-ui-scale`, `--ah-font-scale`, `--ah-font-*`, `--ah-content-width`) and is
+  applied at boot and on save; the Settings page previews an unsaved draft live and restores the saved values
+  on unmount. `--ah-ui-scale` is what resizes the layout (it multiplies Tailwind's `--spacing` and the radii),
+  `--ah-font-scale` resizes type, and `--ah-content-width` is the cap on a screen's content column — what the
+  shell wears as `max-w-[var(--ah-content-width)]` — so keep that split when adding tokens.
+- **i18n**: add every new string to **all** `shared/i18n/locales/*.json` (seven languages). Key parity is
+  enforced by `src/shared/i18n/locales.test.ts` (plural forms aside, since a language defines the forms its
+  own rules ask for), which also resolves every plural in every language and count: i18next asks for exactly
+  one form per count — `_one` for 1 and 21, `_few` for 2–4, `_many` for 0 and 5–20 in Russian — and answers
+  from the fallback language when that form is absent, so a missing `_few`/`_many` shows English inside a
+  Russian window. A language gets the categories its rules produce (`en`/`de`/`es`/`fr` `_one`/`_other`,
+  `zh`/`ja` `_other`, `ru` all four).
 - **Icons**: `AgentIcon` paints the manifest `icon` key with the brand palette from
   `src/shared/ui/agentBrands.ts` (background + contrasting mark, from `@lobehub/icons` `AVATAR_*`
   constants for the brands it ships, verified brand hexes with a `# SOURCE:` comment otherwise).
@@ -344,15 +373,21 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   shell owns (`AppShell` lazy-loads it the first time a terminal exists — xterm is the one heavy dependency the
   other screens should not pay for). The dock's tab strip is always on screen; collapsing it sets the body to
   zero height instead of unmounting it, so a background agent goes on painting into its own scrollback, and
-  `focusable={false}` is what stops a hidden terminal from keeping the keyboard. The tab store is the source of
-  truth for the backend sessions (anything it does not know is closed on startup, and a tab whose session is
-  gone is finished rather than left swallowing keystrokes), and `app/providers.tsx` routes `terminal://output`
-  into `lib/session.ts`, which buffers the bytes of a tab whose emulator is not attached yet. **The emulator is
-  the session's, not the component's**: `lib/terminals.ts` (loaded with the dock, never with the shell) creates
-  one xterm per session and re-homes its element on every attach, so a remount — which React does twice per
-  mount in development — shows the same scrollback instead of a blank terminal, and only a tab the store has
-  forgotten disposes it; the same module owns the keystroke, resize and link handlers, because those belong to
-  the session too. The xterm theme is read from the design tokens (`lib/theme.ts`) because a canvas cannot use
+  `focusable={false}` is what stops a hidden terminal from keeping the keyboard. The dock's own buttons also
+  maximize it and end every session at once: `maximized` lives in the same store, and `AppShell` reads it to
+  hide the screen above and the rail — hidden, never unmounted, so the page comes back with its scroll and its
+  answers — while the panel becomes the content column's flexible row and the drag handle, whose height is now
+  the window's, goes away; folding the dock or closing its last tab leaves the mode, and closing them all goes
+  through one confirmation that names the count, because each tab takes a PTY and a scrollback with it. The tab
+  store is the source of truth for the backend sessions (anything it does not know is closed on startup, and a
+  tab whose session is gone is finished rather than left swallowing keystrokes), and `app/providers.tsx` routes
+  `terminal://output` into `lib/session.ts`, which buffers the bytes of a tab whose emulator is not attached yet.
+  **The emulator is the session's, not the component's**: `lib/terminals.ts` (loaded with the dock, never with
+  the shell) creates one xterm per session and re-homes its element on every attach, so a remount — which React
+  does twice per mount in development — shows the same scrollback instead of a blank terminal, and only a tab
+  the store has forgotten disposes it; the same module owns the keystroke, resize and link handlers, because
+  those belong to the session too. The xterm theme is read from the design tokens (`lib/theme.ts`) because a
+  canvas cannot use
   `var(--…)`; ANSI colours come from the token palette with a light and a dark variant. `Settings::terminal_theme`
   can replace that with a fixed scheme (`lib/themes.ts` holds the palettes, keyed by the ids the Rust enum
   validates): `paintTerminal` repaints an attached terminal, the settings query is what tells it to, so a save
@@ -608,10 +643,20 @@ not_supported, network, job_not_found, invalid_input, invalid_manifest, timeout,
   turns the name into `--ah-tag-hue` and `--ah-tag-tone` (an inline style on the chip or the badge), and the
   unlayered `.ah-tag` in `globals.css` paints `oklch()` from those plus the theme's `--ah-tag-l` / `--ah-tag-c`
   — so one tag keeps one colour in every theme and in every place it appears (the filter row, a card, a
-  dialog), and no component ever carries a hex of its own. The filter row shows the first few tags and folds
-  the rest behind a button, but never hides a tag that is switched on; its chips are coloured only while they
+  dialog), and no component ever carries a hex of its own. The row itself is one component,
+  `shared/ui/TagFilterRow`, worn by the Hub above its collections and by the Library above its skills: it
+  shows the first few tags and folds
+  the rest behind a button, but never hides a tag that is switched on — not even one the list it filters no
+  longer holds, since that chip is the only way back; its chips are coloured only while they
   are on (`globals.css` colours `.ah-tag` except `[aria-pressed='false']`, so a badge — which has no pressed
   state — is always coloured and an unselected filter stays quiet).
+- **A scanned skill carries the tags its own `SKILL.md` declares.** `Skill.tags` is what
+  `adapters::frontmatter::declared_tags` reads out of a skill Ahabby found on disk — the very function a
+  published skill goes through (`tags` or `keywords`, a YAML list or one comma separated line), normalized by
+  `domain::normalize_tags` (trimmed, deduplicated case-insensitively, 12 tags of 40 characters, the first
+  spelling winning) — so a skill's card, the chip in the filter row and the Hub's own entry tags are one
+  vocabulary. The Library's skills tab keeps its selection in `library.tags` and matches a skill carrying
+  _any_ of the chosen tags, the Hub's own rule; its search box matches tag names too.
 - `services::hub` is rebuilt on a settings save (`HubService::set_proxy`) the way the version checker is: a
   proxy change is about the connection, not the cached data. Its HTTP client follows `Settings::proxy` exactly
   like the version checker's (`None` → `no_proxy`, `System` → environment, `Manual` → one URL).
@@ -745,20 +790,27 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   context menu — plus a long collection mounted a batch at a time and grown as its sentinel comes into
   view, and the card-shaped placeholders a collection, the next page of one and the page itself wear while
   they are read), the Library page (the same for its own lists: one batch of a long library mounted and grown
-  as its sentinel comes into view, and a group the batch cuts keeping its heading with the cards under it
-  while the groups past the cut stay unheaded), the shell (`AppShell`: the rail as it was left and remembered
-  before its write lands, the screen the window is on remembered, and a screen mounting with the click rather
-  than after the last one's exit), the terminal tab store (buffered output, finishing and closing a tab, an exit that beat
-  its tab, and reconciling with the backend in both directions), `TerminalView` (the scheme it paints the
-  panel with, and that a remount shows the session's own emulator again rather than a fresh, blank one), the
+  as its sentinel comes into view, a group the batch cuts keeping its heading with the cards under it
+  while the groups past the cut stay unheaded, and the tags a skill's own `SKILL.md` declares — the chips on
+  its card and the row that narrows the list by them), the shell (`AppShell`: the rail as it was left and remembered
+  before its write lands, the screen the window is on remembered, a screen mounting with the click rather
+  than after the last one's exit, and the screen and the rail standing down — hidden, never unmounted — for a
+  maximized terminal), the terminal tab store (buffered output, finishing and closing a tab, an exit that beat
+  its tab, the window coming back to a collapsed or emptied dock, and reconciling with the backend in both
+  directions), `TerminalView` (the scheme it paints the panel with, and that a remount shows the session's own
+  emulator again rather than a fresh, blank one), the
   window's own header (`TitleBar`: nothing where the OS frames the window, a press on the bar dragging it
   while a press on a button does not, the second press maximizing instead of dragging, and the middle
   button turning into a restore as its answer lands), the animated
   list (the row order it renders, and a removed row staying in
-  the tree for its exit before it goes), `useSessionState` (a value handed to the next mount, an updater
+  the tree for its exit before it goes), `TagFilterRow` (a tag that is switched on staying in a folded row,
+  and the tag a chip reports when it is clicked),
+  `useSessionState` (a value handed to the next mount, an updater
   composed within one tick, and one key not leaking into another), `useLazyRows` (a batch at a time, never
-  more rows than the list has, and another list starting over at its first batch), the Settings areas (appearance,
-  window & tray: what the document says, and that a hidden window needs the tray icon, and Cloud sync:
+  more rows than the list has, and another list starting over at its first batch), the toasts (the corner a
+  message is painted in, the delay it was given, and that switching the messages off shows nothing), the
+  Settings areas (appearance, notifications: the choice a draft paints on the real toaster, window & tray:
+  what the document says, and that a hidden window needs the tray icon, and Cloud sync:
   a token that connects without touching the settings file, the account a verification names, the sync
   block carried through the one Save button, and a restore that previews before it confirms), the per-card
   cloud surface (`CloudActions`: a chip's Save addressing an item by id, its View and Compare reaching the
@@ -776,8 +828,9 @@ github, adapter, binaries, search_paths, configs, skills, mcp, extensions, other
   a path that stops existing cannot quietly fall through to the home screen, and
   `app/providers.test.tsx` drives each event bridge into the query cache and the stores, plus the
   one reconciliation of the terminal sessions per page load — `TerminalDock` (the strip stays
-  mounted, a collapsed body keeps its element and loses the keyboard, closing a tab ends its
-  session), `McpTab`, `SettingsTerminalPage`, and the cross-boundary contracts no compiler checks
+  mounted, a collapsed body keeps its element and loses the keyboard, a maximized dock taking the window and
+  giving the same emulator back, closing a tab ends its session, and closing them all ending every session
+  behind one question), `McpTab`, `SettingsTerminalPage`, and the cross-boundary contracts no compiler checks
   (`shared/api/contract.test.ts`: every IPC wrapper names a command the backend registers and
   no registered command is unreachable, the event names are `state::events`', and
   `shared/lib/mask.ts`/`features/sync/lib/fileFormat.ts` are held against their Rust originals).

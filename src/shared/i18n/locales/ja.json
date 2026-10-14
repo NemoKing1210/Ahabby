@@ -89,6 +89,12 @@
     "noneOff": "ここが切り替わるものはありません",
     "noneHint": "スイッチを切ったら、ここでスキルやサーバーが現れ、エージェントが忘れないように伝えます。"
   },
+  "tags": {
+    "label": "タグ",
+    "filter": "タグで絞り込む",
+    "more": "さらに{{count}}件表示",
+    "fewer": "折りたたむ"
+  },
   "agents": {
     "title": "エージェント",
     "installed": "インストール済み",
@@ -473,6 +479,7 @@
     "noResults": "\"  PH0  \" の検索結果はありません。",
     "filteredEmpty": "現在のフィルターにマッチしない",
     "clearFilters": "フィルターをクリア",
+    "copyPaths": "パスをコピー",
     "rescan": "リスカ",
     "lastScan": "最後のスキャン   PH0   ",
     "agents_one": " PH0 エージェント",
@@ -502,10 +509,6 @@
       "installed": "インストール済み",
       "missing": "インストールされていない"
     },
-    "tags": "ニュース",
-    "tagFilter": "タグ別フィルター",
-    "moreTags": "詳細情報",
-    "fewerTags": "ログイン",
     "source": "ソース",
     "sourceAll": "すべてのソース",
     "refresh": "リフレッシュ",
@@ -1000,6 +1003,13 @@
     "expand": "ターミナルを拡大",
     "collapse": "ターミナルを崩壊させる",
     "resize": "端末のサイズ変更",
+    "maximize": "端末を最大化",
+    "restore": "端末を元のサイズに戻す",
+    "closeAll": "すべての端末を閉じる",
+    "closeAllTitle": "すべての端末を閉じますか？",
+    "closeAllDescription_one": "開いているセッション{{count}}件を終了し、そこで実行中のエージェントも停止します。スクロールバックも失われます。",
+    "closeAllDescription_other": "開いているセッション{{count}}件を終了し、そこで実行中のエージェントも停止します。スクロールバックも失われます。",
+    "closeAllConfirm": "すべて閉じる",
     "new": "新ターミナル",
     "newHint": "自分のシェルでエージェントを起動します。 タブは、完全なスクロールバックを保持し、エージェントの終了後に開いたままにします。",
     "open": "ターミナルを開く",
@@ -1102,6 +1112,14 @@
       "jetbrains": "JetBrains Mono",
       "system": "システムモノ"
     },
+    "widths": {
+      "narrow": "狭い",
+      "comfortable": "標準",
+      "wide": "広い",
+      "full": "全幅"
+    },
+    "contentWidth": "コンテンツの幅",
+    "contentWidthHint": "画面の内容カラムをどこまで広げられるか。狭いと長い文章や一覧が読みやすい幅に保たれ、全幅ではカラムがウィンドウに合わせて広がります。",
     "resetAppearance": "アクセント、サイズ、フォントのリセット",
     "type": "サイズとフォント",
     "typeHint": "インターフェイスがどれだけ大きいか、どの型面が使用されるか。",
@@ -1141,6 +1159,36 @@
     "previewButton": "プライマリアクション",
     "previewBadge": "アセント",
     "scanning": "スキャン",
+    "notifications": "通知",
+    "notificationsHint": "保存・インストール・拒否のときに表示される短いメッセージです。どこに出るか、どれだけ残るか、まったく出さないか。",
+    "toasts": "メッセージ",
+    "toastsHint": "メッセージは保存・インストール完了・失敗を伝えます。インストールのコンソールやダイアログ内のエラーとは別で、それらはそのままの場所に残ります。",
+    "showToasts": "メッセージを表示",
+    "showToastsHint": "オフにすると失敗も含めすべてのメッセージを表示しません。",
+    "toastPosition": "表示位置",
+    "toastPositionHint": "画面のどこにメッセージを出すか。その端から入り、同じ方向へスワイプして閉じられます。",
+    "toastPositions": {
+      "top-left": "左上",
+      "top-center": "中央上",
+      "top-right": "右上",
+      "bottom-left": "左下",
+      "bottom-center": "中央下",
+      "bottom-right": "右下"
+    },
+    "toastDuration": "消えるまで",
+    "toastDurationHint": "メッセージが自動で消えるまでの長さです。「なし」は閉じるまで残ります。",
+    "toastDurations": {
+      "short": "3秒",
+      "normal": "6秒",
+      "long": "12秒",
+      "persistent": "なし"
+    },
+    "toastPreview": "プレビュー",
+    "toastPreviewHint": "上の設定どおりにメッセージを表示します。",
+    "toastPreviewOff": "メッセージをオンにすると表示できます。",
+    "showTestToast": "テストメッセージを表示",
+    "toastTestTitle": "これはメッセージです",
+    "toastTestBody": "保存・インストール完了・失敗はこのように伝わります。",
     "windowAndTray": "窓及び皿",
     "windowHint": "どのようにAhabbyが始まり、そのウィンドウを閉じる手段。",
     "startup": "スタートアップ",
@@ -1208,6 +1256,11 @@
       "appearance": {
         "hint": "テーマ、アクセントカラー、インターフェースの大きさ、書体 — ライブプレビュー付き。",
         "summary": "アクセント: {{accent}} · テーマ: {{theme}}"
+      },
+      "notifications": {
+        "hint": "メッセージの表示位置と表示時間、またはオフ。",
+        "summary": "{{position}} · {{duration}}",
+        "summaryOff": "メッセージはオフ"
       },
       "window": {
         "summary": "トレイアイコン: {{tray}} · ログイン時に起動: {{login}}"
@@ -1294,7 +1347,7 @@
       },
       "settings": {
         "title": "コンテンツ",
-        "body": "出現、窓および皿、ターミナル、ネットワーク、安全およびこのチュートリアルは再度。"
+        "body": "外観、通知、ウィンドウとトレイ、ターミナル、ネットワーク、安全、そしてこのチュートリアルをもう一度。"
       },
       "settingsReplay": {
         "title": "ツアーを再生する",

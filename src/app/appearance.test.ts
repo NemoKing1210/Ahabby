@@ -61,6 +61,19 @@ describe('createAppearanceApplier', () => {
     expect(harness.tokens()).toContain('--ah-font-scale: 1.5')
   })
 
+  it('caps the content column at the width that was chosen', () => {
+    const harness = createHarness()
+
+    harness.apply({ contentWidth: 'narrow' })
+    expect(harness.tokens()).toContain('--ah-content-width: 48rem')
+
+    harness.apply({ contentWidth: 'comfortable' })
+    expect(harness.tokens()).toContain('--ah-content-width: 64rem')
+
+    harness.apply({ contentWidth: 'full' })
+    expect(harness.tokens()).toContain('--ah-content-width: 100%')
+  })
+
   it('installs the font stacks of a non-default choice and drops them again', () => {
     const harness = createHarness()
 
@@ -114,5 +127,6 @@ describe('APPEARANCE_DEFAULTS', () => {
     expect(APPEARANCE_DEFAULTS.textScale).toBe(100)
     expect(fontFamily).toBe('inter')
     expect(monoFont).toBe('jetbrains')
+    expect(APPEARANCE_DEFAULTS.contentWidth).toBe('wide')
   })
 })

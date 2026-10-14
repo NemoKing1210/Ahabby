@@ -1,7 +1,8 @@
-import { Palette, Undo2 } from 'lucide-react'
+import { Check, Palette, Undo2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { APPEARANCE_DEFAULTS } from '@/app/appearance'
+import { APPEARANCE_DEFAULTS, CONTENT_WIDTHS } from '@/app/appearance'
+import type { ContentWidth } from '@/shared/bindings/ContentWidth'
 import type { FontFamily } from '@/shared/bindings/FontFamily'
 import type { MonoFont } from '@/shared/bindings/MonoFont'
 import type { Settings } from '@/shared/bindings/Settings'
@@ -43,6 +44,58 @@ const SCALE_LABEL_KEY: Record<(typeof SCALE_STEPS)[number], string> = {
 
 const FONT_FAMILIES: readonly FontFamily[] = ['inter', 'system', 'serif']
 const MONO_FONTS: readonly MonoFont[] = ['jetbrains', 'system']
+
+/** The width choices, narrowest first — the order the cards read in. */
+const CONTENT_WIDTH_ORDER: readonly ContentWidth[] = ['narrow', 'comfortable', 'wide', 'full']
+
+/**
+ * One width, as a diagram of a window with the content column in it.
+ *
+ * The band is drawn to scale off the very length the applier hands the stylesheet: `48rem` is
+ * 48% of a 1600px window, `100%` fills it. That is what makes the four cards comparable at a
+ * glance without printing a pixel count nobody can check.
+ */
+function WidthCard({
+  width,
+  name,
+  selected,
+  onSelect,
+}: {
+  width: ContentWidth
+  name: string
+  selected: boolean
+  onSelect: () => void
+}) {
+  const extent = CONTENT_WIDTHS[width]
+
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        'border-border ease-warm flex flex-col gap-2 rounded-xl border p-2 text-left transition-colors duration-150',
+        selected ? 'border-accent bg-accent-soft' : 'hover:border-border-strong',
+      )}
+    >
+      <span
+        aria-hidden
+        className="bg-surface-2 border-border flex h-11 items-center justify-center rounded-md border px-1.5"
+      >
+        <span
+          className={cn('h-6 rounded-[3px]', selected ? 'bg-accent' : 'bg-surface-3')}
+          style={{ width: `${Number.parseFloat(extent)}%` }}
+        />
+      </span>
+      <span className="flex min-w-0 items-center gap-1.5 px-0.5">
+        <span className="truncate text-[0.8125rem]">{name}</span>
+        {selected ? <Check className="text-accent-strong size-3.5 shrink-0" aria-hidden /> : null}
+      </span>
+      <span className="text-faint -mt-1.5 px-0.5 font-mono text-[0.75rem]">{extent}</span>
+    </button>
+  )
+}
 
 /** The step list both size knobs share; a hand-edited value outside it still shows up. */
 function ScaleSelect({
@@ -225,6 +278,24 @@ export function SettingsAppearancePage() {
                 )}
               </div>
             ) : null}
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.contentWidth')} hint={t('settings.contentWidthHint')}>
+          <div
+            role="radiogroup"
+            aria-label={t('settings.contentWidth')}
+            className="grid grid-cols-2 gap-2 pt-3 pb-1 sm:grid-cols-4"
+          >
+            {CONTENT_WIDTH_ORDER.map((width) => (
+              <WidthCard
+                key={width}
+                width={width}
+                name={t(`settings.widths.${width}`)}
+                selected={draft.contentWidth === width}
+                onSelect={() => update({ contentWidth: width })}
+              />
+            ))}
           </div>
         </SettingsSection>
 

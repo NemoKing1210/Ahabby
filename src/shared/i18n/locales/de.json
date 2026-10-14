@@ -89,6 +89,12 @@
     "noneOff": "Hier ist nichts ausgeschaltet",
     "noneHint": "Ein Skill oder Server erscheint hier, sobald er ausgeschaltet wurde, und nichts sagt dem Agenten, dass er ihn vergessen soll."
   },
+  "tags": {
+    "label": "Tags",
+    "filter": "Nach Tag filtern",
+    "more": "{{count}} weitere anzeigen",
+    "fewer": "Weniger anzeigen"
+  },
   "agents": {
     "title": "Agenten",
     "installed": "Installiert",
@@ -473,6 +479,7 @@
     "noResults": "Keine Ergebnisse für ‚  PH0  ‘",
     "filteredEmpty": "Nichts passt zu den aktuellen Filtern",
     "clearFilters": "Klarfilter",
+    "copyPaths": "Pfade kopieren",
     "rescan": "Recan",
     "lastScan": "letzter Scan   PH0  ",
     "agents_one": " PH0  Agent",
@@ -502,10 +509,6 @@
       "installed": "Installiert",
       "missing": "nicht installiert"
     },
-    "tags": "Tags",
-    "tagFilter": "Filtern nach Tag",
-    "moreTags": "Mehr anzeigen   PH0   mehr",
-    "fewerTags": "Kollaps",
     "source": "Quelle",
     "sourceAll": "Alle Quellen",
     "refresh": "Erfrischend",
@@ -1000,6 +1003,13 @@
     "expand": "Erweitern Sie das Terminal",
     "collapse": "Kollaps des Terminals",
     "resize": "Größe des Terminals ändern",
+    "maximize": "Terminal maximieren",
+    "restore": "Terminal wiederherstellen",
+    "closeAll": "Alle Terminals schließen",
+    "closeAllTitle": "Alle Terminals schließen?",
+    "closeAllDescription_one": "Die {{count}} offene Sitzung wird beendet, ein darin laufender Agent stoppt und ihr Verlauf geht verloren.",
+    "closeAllDescription_other": "Alle {{count}} offenen Sitzungen werden beendet, darin laufende Agenten stoppen und ihr Verlauf geht verloren.",
+    "closeAllConfirm": "Alle schließen",
     "new": "Neues Terminal",
     "newHint": "Starten Sie einen Agenten in einer eigenen Shell. Die Registerkarte behält einen vollständigen Scrollback und bleibt offen, nachdem der Agent beendet wurde.",
     "open": "Offenes Terminal",
@@ -1102,6 +1112,14 @@
       "jetbrains": "JetBrains Mono",
       "system": "System mono"
     },
+    "widths": {
+      "narrow": "Schmal",
+      "comfortable": "Komfortabel",
+      "wide": "Breit",
+      "full": "Volle Breite"
+    },
+    "contentWidth": "Inhaltsbreite",
+    "contentWidthHint": "Wie breit die Inhaltsspalte eines Bildschirms werden darf. Schmal hält lange Texte und Listen in lesbarer Breite, volle Breite folgt dem Fenster.",
     "resetAppearance": "Akzent, Größen und Schriftarten zurücksetzen",
     "type": "Größe und Schriftarten",
     "typeHint": "Wie groß das Interface zeichnet und welche Schriften es verwendet.",
@@ -1141,6 +1159,36 @@
     "previewButton": "Primärmaßnahme",
     "previewBadge": "Accent",
     "scanning": "Scannen",
+    "notifications": "Benachrichtigungen",
+    "notificationsHint": "Die kurzen Meldungen von Ahabby beim Speichern, Installieren oder Ablehnen: wo sie erscheinen, wie lange sie bleiben — oder gar nicht.",
+    "toasts": "Meldungen",
+    "toastsHint": "Meldungen berichten von einem Speichern, einer fertigen Installation oder einem Fehler. Sie sind nicht die Installationskonsole oder der Fehler in einem Dialog — die bleiben, wo sie sind.",
+    "showToasts": "Meldungen anzeigen",
+    "showToastsHint": "Aus blendet jede Meldung aus, auch Fehler.",
+    "toastPosition": "Position",
+    "toastPositionHint": "Wo auf dem Bildschirm eine Meldung erscheint. Sie gleitet von dieser Kante herein und lässt sich dorthin zurückwischen.",
+    "toastPositions": {
+      "top-left": "Oben links",
+      "top-center": "Oben mittig",
+      "top-right": "Oben rechts",
+      "bottom-left": "Unten links",
+      "bottom-center": "Unten mittig",
+      "bottom-right": "Unten rechts"
+    },
+    "toastDuration": "Ausblenden nach",
+    "toastDurationHint": "Wie lange eine Meldung bleibt, bevor sie sich selbst ausblendet. „Nie“ lässt sie stehen, bis du sie schließt.",
+    "toastDurations": {
+      "short": "3 Sekunden",
+      "normal": "6 Sekunden",
+      "long": "12 Sekunden",
+      "persistent": "Nie"
+    },
+    "toastPreview": "Vorschau",
+    "toastPreviewHint": "Zeigt eine Meldung genau so, wie oben gewählt.",
+    "toastPreviewOff": "Schalte die Meldungen ein, um eine zu sehen.",
+    "showTestToast": "Testmeldung anzeigen",
+    "toastTestTitle": "Das ist eine Meldung",
+    "toastTestBody": "So berichtet Ahabby von Speicherungen, fertigen Installationen und Fehlern.",
     "windowAndTray": "Fenster und Tray",
     "windowHint": "Wie Ahabby beginnt und was das Schließen seines Fensters bedeutet.",
     "startup": "Beim Start",
@@ -1208,6 +1256,11 @@
       "appearance": {
         "hint": "Design, Akzentfarbe, Größe der Oberfläche und Schriften — mit Live-Vorschau.",
         "summary": "Akzent: {{accent}} · Design: {{theme}}"
+      },
+      "notifications": {
+        "hint": "Wo die Meldungen erscheinen, wie lange sie bleiben — oder aus.",
+        "summary": "{{position}} · {{duration}}",
+        "summaryOff": "Meldungen sind aus"
       },
       "window": {
         "summary": "Tray-Symbol: {{tray}} · Beim Anmelden starten: {{login}}"
@@ -1294,7 +1347,7 @@
       },
       "settings": {
         "title": "Einstellungen",
-        "body": "Aussehen, Fenster und Tray, Terminal, Netzwerk, Sicherheit - und dieses Tutorial wieder."
+        "body": "Aussehen, Benachrichtigungen, Fenster und Tray, Terminal, Netzwerk, Sicherheit - und dieses Tutorial wieder."
       },
       "settingsReplay": {
         "title": "Wiedergabe der Tour",

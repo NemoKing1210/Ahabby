@@ -77,7 +77,14 @@ const CODEX: TerminalTab = {
 
 /** Put the dock where a user would find it: those tabs open, the first one in front. */
 function openDock(tabs: TerminalTab[], activeId = tabs[0]?.sessionId ?? null): void {
-  useTerminalStore.setState({ tabs, activeId, expanded: true, buffered: {}, exits: {} })
+  useTerminalStore.setState({
+    tabs,
+    activeId,
+    expanded: true,
+    maximized: false,
+    buffered: {},
+    exits: {},
+  })
 }
 
 /** The element the first of the mounted emulators paints into. */
@@ -87,12 +94,21 @@ function terminal(): HTMLElement {
   return element
 }
 
-/** The element the dock gives the terminals their height with — collapsing is a height of zero. */
+/** The dock's own row for its terminals, found from the emulator outwards. */
+function dockBody(element: HTMLElement): HTMLElement {
+  const body = element.closest<HTMLElement>('.absolute')?.parentElement?.parentElement
+  if (!body) throw new Error('the dock gave the terminals no body')
+  return body
+}
+
+/**
+ * The element the dock gives the terminals their height with — collapsing is a height of zero,
+ * and a maximized dock has no height of its own to give.
+ */
 function bodyOf(element: HTMLElement): HTMLElement {
-  for (let node = element.parentElement; node; node = node.parentElement) {
-    if (node.style.height !== '') return node
-  }
-  throw new Error('the dock did not size the terminal body')
+  const body = dockBody(element)
+  if (body.style.height === '') throw new Error('the dock did not size the terminal body')
+  return body
 }
 
 function renderDock() {
@@ -102,7 +118,17 @@ function renderDock() {
 afterEach(() => {
   // The emulators are keyed by session and live outside React, so a case hands its own back: the
   // store no longer listing the tab is what makes the unmount release it.
-  useTerminalStore.setState({ tabs: [], activeId: null, expanded: false, buffered: {}, exits: {} })
+  useTerminalStore.setState({
+    tabs: [],
+    activeId: null,
+    expanded: false,
+    maximized: false,
+    buffered: {},
+    exits: {},
+  })
+  // Every case counts the calls it makes, so none of them passes on the strength of the case
+  // before it: "closes all of them" has to mean two calls, not three minus one.
+  vi.clearAllMocks()
   cleanup()
   disposeTerminal(CLAUDE.sessionId)
   disposeTerminal(CODEX.sessionId)
@@ -244,5 +270,66 @@ describe('TerminalDock', () => {
       'aria-expanded',
       'false',
     )
+  })
+
+  it('fills the window when maximized, and gives the same terminals back', async () => {
+    const user = userEvent.setup()
+    openDock([CLAUDE, CODEX])
+    renderDock()
+
+    const element = terminal()
+    expect(bodyOf(element).style.height).toBe('320px')
+
+    await user.click(screen.getByRole('button', { name: 'Maximize the terminal' }))
+
+    // The height is the window's now, so the drag handle that sets it goes with it…
+    expect(useTerminalStore.getState().maximized).toBe(true)
+    expect(screen.queryByRole('separator')).toBeNull()
+    expect(dockBody(element).style.height).toBe('')
+    // …the dock is the column's flexible row, so the screen above it has somewhere to go…
+    expect(dockBody(element)).toHaveClass('flex-1')
+    expect(element.closest('section')).toHaveClass('flex-1')
+    // …and the terminal on screen is the very one it was: maximizing is room, not a rebuild.
+    expect(terminal()).toBe(element)
+
+    await user.click(screen.getByRole('button', { name: 'Restore the terminal' }))
+
+    expect(useTerminalStore.getState().maximized).toBe(false)
+    expect(screen.getByRole('separator')).toBeInTheDocument()
+    expect(bodyOf(element).style.height).toBe('320px')
+    expect(terminal()).toBe(element)
+  })
+
+  it('ends every session at once, and only once it has been asked', async () => {
+    const user = userEvent.setup()
+    openDock([CLAUDE, CODEX])
+    renderDock()
+
+    await user.click(screen.getByRole('button', { name: 'Close all terminals' }))
+
+    // An agent in another tab is work in progress: the question comes first, and nothing is ended
+    // while it is open.
+    expect(backend.closeTerminal).not.toHaveBeenCalled()
+    expect(screen.getByText('Close every terminal?')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'All 2 open sessions end and every agent running in one stops. Their scrollback goes too.',
+      ),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(backend.closeTerminal).not.toHaveBeenCalled()
+    expect(screen.queryByText('Close every terminal?')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Close all terminals' }))
+    await user.click(screen.getByRole('button', { name: 'Close all' }))
+
+    // Every tab goes and every PTY behind it is told, not just the one in front.
+    expect(backend.closeTerminal).toHaveBeenCalledTimes(2)
+    expect(backend.closeTerminal).toHaveBeenCalledWith(CLAUDE.sessionId)
+    expect(backend.closeTerminal).toHaveBeenCalledWith(CODEX.sessionId)
+    await waitFor(() => expect(screen.queryAllByRole('tab')).toHaveLength(0))
+    // The last tab takes the dock, and the maximized mode with it.
+    expect(useTerminalStore.getState().expanded).toBe(false)
   })
 })

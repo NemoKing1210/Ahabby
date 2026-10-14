@@ -8,13 +8,12 @@ import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Library } from '@/shared/bindings/Library'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { OtherResource } from '@/shared/bindings/OtherResource'
-import type { Settings } from '@/shared/bindings/Settings'
 import type { Skill } from '@/shared/bindings/Skill'
 import { SHARED_OWNER_ID } from '@/shared/lib/owners'
 import { renderWithProviders } from '@/test/render'
 
 import { LibraryPage } from './LibraryPage'
-import { emptySyncSettings } from '@/test/fixtures'
+import { testSettings } from '@/test/fixtures'
 
 // The stub has to be published before `lazyRows` is imported, which a hoisted callback does — see
 // `@/test/intersectionObserver` for why the module is reached through a dynamic import.
@@ -60,6 +59,7 @@ function skill(name: string, path: string, agents: AgentRef[], extra: Partial<Sk
     scope: { kind: 'global' },
     agents,
     frontmatter: [],
+    tags: [],
     content: '# body',
     sizeBytes: 10,
     enabled: true,
@@ -119,6 +119,7 @@ const LIBRARY: Library = {
     skill('pdf', '/a/pdf', [claude, opencode], {
       createdMs: Date.UTC(2025, 9, 1),
       modifiedMs: Date.UTC(2025, 9, 2),
+      tags: ['documents', 'forms'],
     }),
     skill('review', '/a/review', [claude]),
     // Agent-neutral, and the filesystem reported a modification time only.
@@ -151,35 +152,7 @@ function mountedCards(container: HTMLElement): number {
   return container.querySelectorAll('[role="switch"]').length
 }
 
-const SETTINGS: Settings = {
-  language: 'en',
-  theme: 'system',
-  accent: 'clay',
-  accentCustom: null,
-  interfaceScale: 100,
-  textScale: 100,
-  fontFamily: 'inter',
-  monoFont: 'jetbrains',
-  extraScanPaths: [],
-  networkVersionChecks: true,
-  backupDir: null,
-  versionCacheMinutes: 60,
-  proxyMode: 'none',
-  proxyUrl: null,
-  terminal: 'builtin',
-  terminalTheme: 'auto',
-  hiddenAgents: [],
-  favoriteAgents: [],
-  projectFolders: [],
-  launchAtLogin: false,
-  trayIcon: true,
-  closeToTray: true,
-  startMinimized: false,
-  sidebarCollapsed: false,
-  lastRoute: null,
-  tourCompleted: true,
-  sync: emptySyncSettings,
-}
+const SETTINGS = testSettings()
 
 /**
  * Agent brand marks ship an SVG `<title>` with the agent name, which `getByText` would count
@@ -249,6 +222,47 @@ describe('LibraryPage', () => {
     expect(within(container).getAllByRole('button', { name: 'review' })).toHaveLength(1)
     expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull()
     expect(within(container).getByRole('tab', { name: /^Skills/ })).toHaveTextContent('1')
+  })
+
+  it('offers the tags the skills declare and narrows the list by them', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    // The row is a view of this library: a tag no skill declares is not offered.
+    expect(within(container).queryByRole('button', { name: 'testing' })).toBeNull()
+    const documents = within(container).getByRole('button', { name: 'documents' })
+    expect(documents).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(documents)
+
+    // Only the skill whose own `SKILL.md` declares the tag is left, and the badge follows.
+    expect(within(container).getByRole('heading', { name: 'pdf' })).toBeTruthy()
+    expect(within(container).queryByRole('button', { name: 'review' })).toBeNull()
+    expect(within(container).getByRole('tab', { name: /^Skills/ })).toHaveTextContent('1')
+    expect(within(container).getByRole('button', { name: 'documents' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    // A chip is a switch, so the same click puts the rest of the library back.
+    await user.click(within(container).getByRole('button', { name: 'documents' }))
+    expect(within(container).getAllByRole('button', { name: 'review' })).toHaveLength(1)
+  })
+
+  it('wears a skill’s own tags on its card', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+    const pdf = await within(container).findByRole('button', { name: 'pdf' })
+
+    expect(within(pdf).getByText('documents')).toBeTruthy()
+    expect(within(pdf).getByText('forms')).toBeTruthy()
+    // A skill that declares none shows no tag at all, rather than an empty row.
+    const review = within(container).getByRole('button', { name: 'review' })
+    expect(within(review).queryByText('documents')).toBeNull()
   })
 
   it('shows the MCP servers with their owning agent', async () => {
@@ -406,6 +420,74 @@ describe('LibraryPage', () => {
     await waitFor(() => expect(within(container).queryByRole('button', { name: 'pdf' })).toBeNull())
     expect(within(container).getByRole('heading', { name: 'pdf' })).toBeTruthy()
     expect(within(container).getByRole('button', { name: 'Expand pdf' })).toBeTruthy()
+  })
+
+  it('wears one card per group, with the cards on it', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    const heading = await within(container).findByRole('heading', { name: 'pdf' })
+
+    // Folded away the group is that card alone — the strip, and nothing hanging under it.
+    const card = heading.closest('section')
+    expect(card).not.toBeNull()
+    expect(within(card as HTMLElement).queryByRole('button', { name: 'pdf' })).toBeNull()
+
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+
+    // Opened, its cards are still inside the same surface: a group is one card of the list — the
+    // strip on top, the skills on the canvas it frames — not a heading with a list beside it.
+    expect(await within(card as HTMLElement).findByRole('button', { name: 'pdf' })).toBeTruthy()
+  })
+
+  it('says where a group lives, and offers the group its own menu on the strip', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    const heading = await within(container).findByRole('heading', { name: 'pdf' })
+    const card = heading.closest('section')
+    expect(card).not.toBeNull()
+
+    // A folded group still answers what a folded list is read for: where the thing lives.
+    expect(within(card as HTMLElement).getByText('/a')).toBeTruthy()
+
+    fireEvent.contextMenu(heading, { clientX: 30, clientY: 40 })
+    const menu = within(await screen.findByRole('menu'))
+    expect(menu.getByRole('menuitem', { name: 'Show in file manager' })).toBeTruthy()
+    expect(menu.getByRole('menuitem', { name: 'Copy path' })).toBeTruthy()
+
+    // The menu's fold action is the heading's own, so the group opens from the right click too.
+    await user.click(menu.getByRole('menuitem', { name: 'Expand pdf' }))
+    expect(await within(container).findByRole('button', { name: 'pdf' })).toBeTruthy()
+  })
+
+  it('counts what a group holds switched off', async () => {
+    vi.mocked(ipc.listLibrary).mockResolvedValue({
+      ...LIBRARY,
+      skills: [...LIBRARY.skills, skill('pdf', '/b/pdf', [opencode], { enabled: false })],
+    })
+    const { container } = renderPage()
+    const heading = await within(container).findByRole('heading', { name: 'pdf' })
+    const card = heading.closest('section')
+    expect(card).not.toBeNull()
+
+    // Two skills share the name and one of them is off: the folded group says so, and says where
+    // each copy lives.
+    expect(within(card as HTMLElement).getByText('Off 1')).toBeTruthy()
+    expect(within(card as HTMLElement).getByText('/b')).toBeTruthy()
+  })
+
+  it('leaves a card inside a group a menu of its own', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    await within(container).findByRole('heading', { name: 'pdf' })
+    await user.click(within(container).getByRole('button', { name: 'Expand pdf' }))
+
+    const pdf = await within(container).findByRole('button', { name: 'pdf' })
+    fireEvent.contextMenu(pdf, { clientX: 30, clientY: 40 })
+
+    // The card's own menu, never the group's: that one belongs to the strip above it.
+    const menu = within(await screen.findByRole('menu'))
+    expect(menu.getByRole('menuitem', { name: 'Open' })).toBeTruthy()
+    expect(menu.queryByRole('menuitem', { name: 'Expand pdf' })).toBeNull()
   })
 
   it('keeps an opened group open across a tab switch, and folds each grouping on its own', async () => {

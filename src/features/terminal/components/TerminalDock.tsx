@@ -1,12 +1,23 @@
 import { useCallback, useMemo, useState, type PointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronUp, Plus, RotateCcw, Terminal as TerminalIcon, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Minimize2,
+  Plus,
+  RotateCcw,
+  SquareX,
+  Terminal as TerminalIcon,
+  X,
+} from 'lucide-react'
 
 import { cn } from '@/shared/lib/cn'
 import { fileName } from '@/shared/lib/format'
 import { AgentIcon } from '@/shared/ui/AgentIcon'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { Tooltip } from '@/shared/ui/Tooltip'
 import { toastAppError } from '@/shared/ui/Toast'
 
@@ -30,20 +41,28 @@ const DEFAULT_HEIGHT = 320
  * of the interface is being used above them; collapsing it keeps the tabs and keeps every terminal
  * mounted — a background agent goes on painting into its own scrollback, and nothing is lost by
  * making room. The top edge is a drag handle, which is what makes the height the user's decision.
+ *
+ * Maximized, the same dock takes the whole window: `AppShell` stands the screen and the rail down
+ * (`maximized` in the store is what it reads), the panel becomes the content column's flexible row,
+ * and the height stops being the user's — so the drag handle goes with it. Nothing about the tabs
+ * changes, because this is the same panel with a different amount of room.
  */
 export function TerminalDock({ onNew }: { onNew: () => void }) {
   const { t } = useTranslation()
   const tabs = useTerminalStore((state) => state.tabs)
   const activeId = useTerminalStore((state) => state.activeId)
   const expanded = useTerminalStore((state) => state.expanded)
+  const maximized = useTerminalStore((state) => state.maximized)
   const activate = useTerminalStore((state) => state.activate)
   const setExpanded = useTerminalStore((state) => state.setExpanded)
+  const toggleMaximized = useTerminalStore((state) => state.toggleMaximized)
   const open = useTerminalStore((state) => state.open)
   const closeTerminal = useCloseTerminal()
   const restart = useLaunchTerminal()
   const { data: report } = useAgents()
 
   const [height, setHeight] = useState(DEFAULT_HEIGHT)
+  const [confirmingCloseAll, setConfirmingCloseAll] = useState(false)
 
   const icons = useMemo(() => {
     const byId = new Map<string, string | null>()
@@ -78,15 +97,29 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
     [height],
   )
 
+  /**
+   * End every session at once: each tab goes and each PTY with it, which is why it is asked for
+   * rather than done. The tabs leave together, so the dock goes with the last of them.
+   */
+  const closeAll = useCallback(() => {
+    for (const tab of tabs) closeTerminal(tab.sessionId)
+    setConfirmingCloseAll(false)
+  }, [closeTerminal, tabs])
+
   // `TerminalView` hands the keyboard back when the dock is collapsed (it blurs its own terminal),
   // because a hidden terminal that still owns the focus would swallow every key the app expects.
 
   return (
     <section
       aria-label={t('terminal.panel')}
-      className="border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col overflow-hidden rounded-2xl border duration-150"
+      className={cn(
+        'border-border bg-surface shadow-panel ease-warm flex flex-col overflow-hidden rounded-2xl border duration-150',
+        // Maximized, the panel is the content column's flexible row behind the screen the shell
+        // stood down; docked, it keeps its place at the end of that column.
+        maximized ? 'min-h-0 flex-1' : 'shrink-0',
+      )}
     >
-      {expanded ? (
+      {expanded && !maximized ? (
         <div
           role="separator"
           aria-orientation="horizontal"
@@ -175,6 +208,31 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
             <Plus className="size-4" aria-hidden />
           </Button>
         </Tooltip>
+        <Tooltip content={t('terminal.closeAll')} side="top">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('terminal.closeAll')}
+            onClick={() => setConfirmingCloseAll(true)}
+          >
+            <SquareX className="size-4" aria-hidden />
+          </Button>
+        </Tooltip>
+        <Tooltip content={maximized ? t('terminal.restore') : t('terminal.maximize')} side="top">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={maximized ? t('terminal.restore') : t('terminal.maximize')}
+            aria-pressed={maximized}
+            onClick={toggleMaximized}
+          >
+            {maximized ? (
+              <Minimize2 className="size-4" aria-hidden />
+            ) : (
+              <Maximize2 className="size-4" aria-hidden />
+            )}
+          </Button>
+        </Tooltip>
         <Tooltip content={expanded ? t('terminal.collapse') : t('terminal.expand')} side="top">
           <Button
             variant="ghost"
@@ -193,9 +251,13 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
       </div>
 
       <div
-        // Collapsed means zero height, not unmounted: the terminals keep their scrollback.
-        style={{ height: expanded ? height : 0 }}
-        className="relative flex min-h-0 flex-col overflow-hidden"
+        // Collapsed means zero height, not unmounted: the terminals keep their scrollback. A
+        // maximized dock is a flexible row instead, because its height is the window's then.
+        style={!expanded ? { height: 0 } : maximized ? undefined : { height }}
+        className={cn(
+          'relative flex min-h-0 flex-col overflow-hidden',
+          expanded && maximized && 'flex-1',
+        )}
       >
         <div className="relative min-h-0 flex-1">
           {tabs.map((tab) => (
@@ -243,6 +305,19 @@ export function TerminalDock({ onNew }: { onNew: () => void }) {
           </div>
         ) : null}
       </div>
+
+      {/* The one question worth asking here: an agent in another tab is work in progress, and
+          ending its session takes the scrollback with it. */}
+      {confirmingCloseAll ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => (next ? undefined : setConfirmingCloseAll(false))}
+          title={t('terminal.closeAllTitle')}
+          description={t('terminal.closeAllDescription', { count: tabs.length })}
+          confirmLabel={t('terminal.closeAllConfirm')}
+          onConfirm={closeAll}
+        />
+      ) : null}
     </section>
   )
 }

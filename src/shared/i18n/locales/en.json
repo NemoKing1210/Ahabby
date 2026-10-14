@@ -89,6 +89,12 @@
     "noneOff": "Nothing here is switched off",
     "noneHint": "A skill or server appears here once it has been switched off, and nothing tells the agent to forget it."
   },
+  "tags": {
+    "label": "Tags",
+    "filter": "Filter by tag",
+    "more": "Show {{count}} more",
+    "fewer": "Collapse"
+  },
   "agents": {
     "title": "Agents",
     "installed": "Installed",
@@ -473,6 +479,7 @@
     "noResults": "No results for “{{query}}”",
     "filteredEmpty": "Nothing matches the current filters",
     "clearFilters": "Clear filters",
+    "copyPaths": "Copy paths",
     "rescan": "Rescan",
     "lastScan": "last scan {{when}}",
     "agents_one": "{{count}} agent",
@@ -502,10 +509,6 @@
       "installed": "Installed",
       "missing": "Not installed"
     },
-    "tags": "Tags",
-    "tagFilter": "Filter by tag",
-    "moreTags": "Show {{count}} more",
-    "fewerTags": "Collapse",
     "source": "Source",
     "sourceAll": "All sources",
     "refresh": "Refresh",
@@ -1000,6 +1003,13 @@
     "expand": "Expand the terminal",
     "collapse": "Collapse the terminal",
     "resize": "Resize the terminal",
+    "maximize": "Maximize the terminal",
+    "restore": "Restore the terminal",
+    "closeAll": "Close all terminals",
+    "closeAllTitle": "Close every terminal?",
+    "closeAllDescription_one": "The {{count}} open session ends and any agent running in it stops. Its scrollback goes too.",
+    "closeAllDescription_other": "All {{count}} open sessions end and every agent running in one stops. Their scrollback goes too.",
+    "closeAllConfirm": "Close all",
     "new": "New terminal",
     "newHint": "Start an agent in a shell of its own. The tab keeps a full scrollback and stays open after the agent exits.",
     "open": "Open terminal",
@@ -1102,6 +1112,14 @@
       "jetbrains": "JetBrains Mono",
       "system": "System mono"
     },
+    "widths": {
+      "narrow": "Narrow",
+      "comfortable": "Comfortable",
+      "wide": "Wide",
+      "full": "Full width"
+    },
+    "contentWidth": "Content width",
+    "contentWidthHint": "How wide a screen's content column may grow. Narrow holds long text and lists at a readable measure; full width follows the window.",
     "resetAppearance": "Reset accent, sizes and fonts",
     "type": "Size & fonts",
     "typeHint": "How large the interface draws and which typefaces it uses.",
@@ -1141,6 +1159,36 @@
     "previewButton": "Primary action",
     "previewBadge": "Accent",
     "scanning": "Scanning",
+    "notifications": "Notifications",
+    "notificationsHint": "The small messages Ahabby shows when something is saved, installed or refused: where they appear, how long they stay — or not at all.",
+    "toasts": "Messages",
+    "toastsHint": "Messages report a save, a finished install or a failure. They are not the install console or the error inside a dialog — those stay where they are.",
+    "showToasts": "Show messages",
+    "showToastsHint": "Off hides every message, a failure included.",
+    "toastPosition": "Position",
+    "toastPositionHint": "Where on the screen a message appears. It slides in from that edge, and can be swiped back out the same way.",
+    "toastPositions": {
+      "top-left": "Top left",
+      "top-center": "Top centre",
+      "top-right": "Top right",
+      "bottom-left": "Bottom left",
+      "bottom-center": "Bottom centre",
+      "bottom-right": "Bottom right"
+    },
+    "toastDuration": "Hide after",
+    "toastDurationHint": "How long a message stays before it hides itself. “Never” keeps it until you close it.",
+    "toastDurations": {
+      "short": "3 seconds",
+      "normal": "6 seconds",
+      "long": "12 seconds",
+      "persistent": "Never"
+    },
+    "toastPreview": "Preview",
+    "toastPreviewHint": "Shows a message painted exactly as chosen above.",
+    "toastPreviewOff": "Turn the messages on to see one.",
+    "showTestToast": "Show a test message",
+    "toastTestTitle": "This is a message",
+    "toastTestBody": "Ahabby reports saves, finished installs and failures this way.",
     "windowAndTray": "Window & tray",
     "windowHint": "How Ahabby starts, and what closing its window means.",
     "startup": "At startup",
@@ -1208,6 +1256,11 @@
       "appearance": {
         "hint": "Theme, accent, interface size and fonts — with a live preview.",
         "summary": "Accent: {{accent}} · Theme: {{theme}}"
+      },
+      "notifications": {
+        "hint": "Where the messages appear, how long they stay — or off.",
+        "summary": "{{position}} · {{duration}}",
+        "summaryOff": "Messages are off"
       },
       "window": {
         "summary": "Tray icon: {{tray}} · Launch at login: {{login}}"
@@ -1294,7 +1347,7 @@
       },
       "settings": {
         "title": "Settings",
-        "body": "Appearance, window and tray, terminal, network, safety — and this tutorial again."
+        "body": "Appearance, notifications, window and tray, terminal, network, safety — and this tutorial again."
       },
       "settingsReplay": {
         "title": "Replay the tour",

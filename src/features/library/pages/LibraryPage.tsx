@@ -1,29 +1,16 @@
 import { Fragment, useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  Boxes,
-  ChevronDown,
-  ChevronRight,
-  Plug,
-  Plus,
-  RefreshCw,
-  Server,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react'
+import { Boxes, Plug, Plus, RefreshCw, Server, Sparkles, type LucideIcon } from 'lucide-react'
 
 import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { McpServer } from '@/shared/bindings/McpServer'
 import type { OtherResource } from '@/shared/bindings/OtherResource'
 import type { Skill } from '@/shared/bindings/Skill'
-import { cn } from '@/shared/lib/cn'
 import { matchesActivity, type ActivityFilter } from '@/shared/lib/activity'
 import { formatRelative } from '@/shared/lib/format'
 import { useLazyRows } from '@/shared/lib/lazyRows'
 import { isSharedOwner, ownerName, SHARED_OWNER } from '@/shared/lib/owners'
 import { useSessionState } from '@/shared/lib/sessionState'
-import { AgentIcon } from '@/shared/ui/AgentIcon'
-import { AgentTag } from '@/shared/ui/AgentTag'
 import { AnimatedList } from '@/shared/ui/AnimatedList'
 import { Button } from '@/shared/ui/Button'
 import { CatalogProblems } from '@/shared/ui/CatalogProblems'
@@ -31,10 +18,8 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { EmptyState, ErrorState } from '@/shared/ui/EmptyState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { SkeletonList } from '@/shared/ui/Primitives'
-import { SectionHeader } from '@/shared/ui/SectionHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/Tabs'
 import { toast, toastAppError } from '@/shared/ui/Toast'
-import { Tooltip } from '@/shared/ui/Tooltip'
 import { anyAgentOption, ownerOption } from '@/shared/ui/agentOptions'
 
 import { useScanRefresh } from '@/features/agents/api/scan'
@@ -51,7 +36,9 @@ import { SkillCard } from '@/features/skills/components/SkillCard'
 import { SkillDetailDialog } from '@/features/skills/components/SkillDetailDialog'
 
 import { useLibrary } from '../api/queries'
+import { LibraryGroupCard } from '../components/LibraryGroupCard'
 import { LibraryToolbar } from '../components/LibraryToolbar'
+import { MCP_TRANSPORTS, serverGroupFacts, skillGroupFacts, type LibraryGroupFacts } from '../facts'
 import {
   groupServers,
   groupSkills,
@@ -70,11 +57,9 @@ import {
   sortItems,
   type LibrarySort,
 } from '../sorting'
+import { matchesTags, tagVocabulary } from '../tags'
 
 type LibraryTab = 'skills' | 'mcp' | 'other'
-
-/** Transport kinds the MCP facet offers, in display order. */
-const MCP_TRANSPORTS = ['stdio', 'http', 'unknown'] as const
 
 /**
  * The lists the page walks before the report lands, and for the two tabs that are not open. One
@@ -99,120 +84,20 @@ function transportText(server: McpServer): string {
 }
 
 /**
- * Heading of one group of a tab: the owner's tile (or the tab's icon), the title, the count of
- * what the group holds, and the agents that share it.
- *
- * Given a fold state it is also the fold control — the chevron beside it and the heading itself
- * fold the cards below away, which is what keeps a library holding many near-identical names
- * readable. A group that does not fold renders the same heading without the control.
- *
- * The fold is what the heading looks like, too: it is the *first row of the group's card run*,
- * so a folded group is a lone card of the list and an open one is the block's caption band.
- */
-function LibraryGroupHeading<T extends { id: string }>({
-  group,
-  mode,
-  icon,
-  collapsed,
-  onToggle,
-}: {
-  group: LibraryGroup<T>
-  mode: LibraryGroupMode
-  icon: LucideIcon
-  /** Fold state of the group; omit it for a heading that is not a control. */
-  collapsed?: boolean
-  onToggle?: () => void
-}) {
-  const { t } = useTranslation()
-  const owner = mode === 'agent' ? group.agents[0] : undefined
-  const shared = owner !== undefined && isSharedOwner(owner.id)
-  // The agent-neutral surface is not an agent: its header is named in the UI's language, while a
-  // real agent keeps the manifest's name.
-  const title = shared ? t('library.shared') : group.title
-
-  const heading = (
-    <SectionHeader
-      className="w-full"
-      leading={
-        owner ? (
-          <AgentIcon name={owner.name} icon={owner.icon} ownerId={owner.id} size="sm" />
-        ) : undefined
-      }
-      icon={icon}
-      title={title}
-      // A name held by a single entry does not need a count — its owners say it all.
-      count={mode === 'agent' || group.items.length > 1 ? group.items.length : undefined}
-    >
-      {/* The owners are the group's far end: pushed to the edge of the strip, the title and
-          its count stay in the same column down the whole list. */}
-      {mode === 'name' ? (
-        <span className="ml-auto flex flex-wrap items-center gap-2">
-          {group.agents.map((agent) => (
-            <AgentTag key={agent.id} agent={agent} />
-          ))}
-        </span>
-      ) : null}
-    </SectionHeader>
-  )
-
-  if (collapsed === undefined || onToggle === undefined) return heading
-
-  const label = collapsed
-    ? t('library.expandGroup', { name: title })
-    : t('library.collapseGroup', { name: title })
-
-  return (
-    // The heading is the first row of the group's own card run, and the run decides its corners:
-    // folded away it is a plain card of the list, wearing the surface and the lift the cards
-    // beside it wear; open it is the tinted band those cards hang under, welded to the first of
-    // them. The state is the look itself, not only the chevron.
-    <div
-      className={cn(
-        'border-border ease-warm flex min-w-0 items-center gap-1 rounded-xl border px-2.5 py-2 transition-[background-color,border-color,translate] duration-150',
-        collapsed
-          ? 'bg-surface hover:border-border-strong hover:-translate-y-px'
-          : 'bg-surface-2/60 hover:bg-surface-2/80',
-      )}
-    >
-      <Tooltip content={label}>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0"
-          aria-expanded={!collapsed}
-          aria-label={label}
-          onClick={onToggle}
-        >
-          {collapsed ? (
-            <ChevronRight className="size-3.5" aria-hidden />
-          ) : (
-            <ChevronDown className="size-3.5" aria-hidden />
-          )}
-        </Button>
-      </Tooltip>
-      <button
-        type="button"
-        aria-expanded={!collapsed}
-        onClick={onToggle}
-        className="focus-visible:outline-ring flex min-w-0 flex-1 items-center rounded-lg px-1 py-0.5 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
-      >
-        {heading}
-      </button>
-    </div>
-  )
-}
-
-/**
- * The grouped body of a tab. Grouping by agent always gets a header, because the header *is*
- * the owner. Grouping by name only heads the names several agents share — the rest fall into
- * one plain list, so a library of mostly one-of-a-kind names does not become a wall of
+ * The grouped body of a tab. Grouping by agent always gets a group of its own, because the strip of
+ * that group names the owner. Grouping by name only heads the names several agents share — the rest
+ * fall into one plain list, so a library of mostly one-of-a-kind names does not become a wall of
  * one-card sections.
  *
- * A foldable list starts with every group folded away — the library is everything this machine
- * holds, and a run of headings is its index — and keeps the ones the user opened for the session,
- * keyed by the list and the grouping: leaving the tab and coming back finds the list as it was
- * left, exactly as its filters do. The fold key names the group, so one list never folds a group
- * of another.
+ * Every group is one card, made the way a Hub source is: its strip is the fold control, its cards
+ * sit on the canvas the card frames, and the run welds the cards `--group-gap` apart — so the page
+ * reads as one stack of groups rather than a paste-up of separate cards, exactly as a collection of
+ * sources does.
+ *
+ * A list starts with every group folded away — the library is everything this machine holds, and a
+ * run of strips is its index — and keeps the ones the user opened for the session, keyed by the
+ * list and the grouping: leaving the tab and coming back finds the list as it was left, exactly as
+ * its filters do. The fold key names the group, so one list never folds a group of another.
  *
  * The blocks are mounted a batch of *rows* at a time, in the order the groups come: a library is
  * everything this machine holds — hundreds of cards, each one a card of its own with a switch and
@@ -228,7 +113,7 @@ function LibrarySections<T extends { id: string }>({
   icon,
   renderItem,
   scope,
-  foldable = false,
+  factsOf,
 }: {
   groups: LibraryGroup<T>[]
   mode: LibraryGroupMode
@@ -236,36 +121,48 @@ function LibrarySections<T extends { id: string }>({
   renderItem: (item: T) => ReactNode
   /** The list these groups belong to; its folds are kept per list and grouping. */
   scope: LibraryTab
-  /** Whether a group of this list can be folded away. */
-  foldable?: boolean
+  /** What one group of this list says about itself — see `facts.ts`. Reads its members only. */
+  factsOf: (items: T[]) => LibraryGroupFacts
 }) {
+  const { t } = useTranslation()
   const [opened, setOpened] = useSessionState<string[]>(`library.expanded.${scope}.${mode}`, [])
-  const named =
-    mode === 'name'
-      ? groups.filter((group) => group.items.length > 1 || group.agents.length > 1)
-      : groups
-  const singles =
-    mode === 'name'
-      ? groups
-          .filter((group) => group.items.length === 1 && group.agents.length === 1)
-          .flatMap((group) => group.items)
-      : []
+
+  // The two halves of a by-name list — the names several agents share, and the one-of-a-kind ones
+  // that need no strip of their own — together with what each group says about itself. Derived once
+  // per list rather than once per render: the page re-renders on every keystroke and every fold, and
+  // walking a group's members to describe it is exactly the work that would then be repeated.
+  const { described, singles } = useMemo(() => {
+    const named =
+      mode === 'name'
+        ? groups.filter((group) => group.items.length > 1 || group.agents.length > 1)
+        : groups
+    return {
+      described: named.map((group) => ({ group, facts: factsOf(group.items) })),
+      singles:
+        mode === 'name'
+          ? groups
+              .filter((group) => group.items.length === 1 && group.agents.length === 1)
+              .flatMap((group) => group.items)
+          : [],
+    }
+  }, [groups, mode, factsOf])
+
   const foldKeyOf = (group: LibraryGroup<T>) => `${scope}.${mode}.${group.key}`
   // Folded until the user opens it: the store holds the groups that were opened, so an untouched
-  // list is a run of headings and a restart starts the same way.
-  const isFolded = (group: LibraryGroup<T>) => foldable && !opened.includes(foldKeyOf(group))
+  // list is a run of strips and a restart starts the same way.
+  const isFolded = (group: LibraryGroup<T>) => !opened.includes(foldKeyOf(group))
   // What the budget below is spent on: every card that will be mounted. A folded group is its
-  // heading and nothing else, so it counts as the one row it is — counting the cards it hides would
+  // strip and nothing else, so it counts as the one row it is — counting the cards it hides would
   // spend the budget of the groups under it and leave a list that looks empty below the fold.
   const rows =
-    named.reduce((total, group) => total + (isFolded(group) ? 1 : group.items.length), 0) +
+    described.reduce((total, { group }) => total + (isFolded(group) ? 1 : group.items.length), 0) +
     singles.length
   const { count, sentinelRef } = useLazyRows(rows, { resetKey: groups })
 
   const blocks: ReactNode[] = []
   let mounted = 0
 
-  for (const group of named) {
+  for (const { group, facts } of described) {
     if (mounted >= count) break
     const collapsed = isFolded(group)
     const shown = collapsed ? [] : group.items.slice(0, count - mounted)
@@ -276,35 +173,32 @@ function LibrarySections<T extends { id: string }>({
         keys.includes(foldKey) ? keys.filter((key) => key !== foldKey) : [...keys, foldKey],
       )
     }
-    const heading = (
-      <LibraryGroupHeading
-        group={group}
-        mode={mode}
-        icon={icon}
-        collapsed={foldable ? collapsed : undefined}
-        onToggle={foldable ? toggle : undefined}
-      />
-    )
-    const cards = shown.map((item) => <Fragment key={item.id}>{renderItem(item)}</Fragment>)
+    const owner = mode === 'agent' ? group.agents[0] : undefined
+    const shared = owner !== undefined && isSharedOwner(owner.id)
 
     blocks.push(
-      <section key={group.key} className="flex flex-col gap-2">
-        {/* A foldable group's heading and its cards are one run — the heading is its first
-            row, so the run is what rounds it: a card like any other while the group is folded
-            away, the block's caption band while its cards hang under it. Folding is then the
-            rows leaving the run, with the motion a filtered row already leaves with. */}
-        {foldable ? (
-          <AnimatedList>
-            <Fragment key="heading">{heading}</Fragment>
-            {collapsed ? null : cards}
-          </AnimatedList>
-        ) : (
-          <>
-            {heading}
-            <AnimatedList>{cards}</AnimatedList>
-          </>
-        )}
-      </section>,
+      // One card per group, exactly as a Hub source wears one: the strip on top — which is also
+      // where the group says what it is — and the cards on the canvas it frames.
+      <LibraryGroupCard
+        key={group.key}
+        // The agent-neutral surface is not an agent: its header is named in the UI's language,
+        // while a real agent keeps the manifest's name.
+        title={shared ? t('library.shared') : group.title}
+        owner={owner}
+        owners={mode === 'name' ? group.agents : undefined}
+        icon={icon}
+        // A name held by a single entry does not need a count — its owners say it all.
+        count={mode === 'agent' || group.items.length > 1 ? group.items.length : undefined}
+        facts={facts}
+        collapsed={collapsed}
+        onToggle={toggle}
+      >
+        <AnimatedList>
+          {shown.map((item) => (
+            <Fragment key={item.id}>{renderItem(item)}</Fragment>
+          ))}
+        </AnimatedList>
+      </LibraryGroupCard>,
     )
   }
 
@@ -314,8 +208,15 @@ function LibrarySections<T extends { id: string }>({
 
   return (
     <div className="flex flex-col gap-6">
-      {blocks}
-      {singleCards.length > 0 ? <AnimatedList>{singleCards}</AnimatedList> : null}
+      {/* The groups are one card run, the way a page of Hub sources is: welded `--group-gap`
+          apart, only the ends of the stack keeping the full radius. The one-of-a-kind names below
+          ride in the same run — they are rows of the same list, they just have no strip. A plain
+          stack rather than an `AnimatedList`: a group is a whole block, and one leaving the list
+          under a filter leaves at once, as it did before it was a card. */}
+      <div className="ah-card-stack">
+        {blocks}
+        {singleCards}
+      </div>
       {count < rows ? <div ref={sentinelRef} className="h-px w-full" aria-hidden /> : null}
     </div>
   )
@@ -350,6 +251,7 @@ export function LibraryPage() {
   const [facet, setFacet] = useSessionState('library.facet', 'all')
   const [activity, setActivity] = useSessionState<ActivityFilter>('library.activity', 'all')
   const [groupMode, setGroupMode] = useSessionState<LibraryGroupMode>('library.group', 'name')
+  const [tags, setTags] = useSessionState<string[]>('library.tags', [])
   const [tab, setTab] = useSessionState<LibraryTab>('library.tab', 'skills')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<Skill | null>(null)
@@ -420,6 +322,16 @@ export function LibraryPage() {
     [],
   )
 
+  // The tag row's own toggle: a tag is off or on, and several at once ask for a skill carrying any
+  // of them — the Hub's rule for several tags, so the two screens answer the same question alike.
+  const toggleTag = useCallback(
+    (tag: string) =>
+      setTags((current) =>
+        current.includes(tag) ? current.filter((kept) => kept !== tag) : [...current, tag],
+      ),
+    [setTags],
+  )
+
   // Every tab has its own facets and its own activity filter, so a refinement never survives a
   // switch to another tab. The tab itself is remembered with the rest, which keeps the two in
   // step: a revisit returns to the tab its facet belongs to.
@@ -427,6 +339,7 @@ export function LibraryPage() {
     setTab(value as LibraryTab)
     setFacet('all')
     setActivity('all')
+    setTags([])
   }
 
   // The report in hand, or the same empties for every render until it lands: everything below is
@@ -453,6 +366,7 @@ export function LibraryPage() {
             skill.description,
             skill.path,
             ...skill.agents.map((agent) => ownerName(agent, sharedLabel)),
+            ...skill.tags,
           ]),
       ),
       servers: allServers.filter(
@@ -481,6 +395,11 @@ export function LibraryPage() {
     }
   }, [allSkills, allServers, allResources, agentFilter, origin, query, sharedLabel])
 
+  // What the tag row offers: the tags the skills the search left behind declare, most-used first.
+  // Derived from `bases`, never from the tag-narrowed list — a tag that is switched on has to stay
+  // in the row while it is what narrows the list.
+  const availableTags = useMemo(() => tagVocabulary(bases.skills), [bases])
+
   // Only the open tab is refined. Radix unmounts the tabs that are not on screen, but the JSX below
   // evaluates its arguments either way — so a tab that is not open is not walked, and neither is the
   // grouping below, which is the expensive half of this page.
@@ -490,10 +409,11 @@ export function LibraryPage() {
         ? bases.skills.filter(
             (skill) =>
               matchesActivity(skill.enabled, activity) &&
+              matchesTags(skill.tags, tags) &&
               (facet === 'all' || (facet === 'unverified' && skill.unverified)),
           )
         : NO_SKILLS,
-    [tab, bases, activity, facet],
+    [tab, bases, activity, facet, tags],
   )
   const servers = useMemo(
     () =>
@@ -621,13 +541,15 @@ export function LibraryPage() {
     agentFilter !== 'all' ||
     origin !== 'all' ||
     facet !== 'all' ||
-    activity !== 'all'
+    activity !== 'all' ||
+    tags.length > 0
   const clear = () => {
     setQuery('')
     setAgentFilter('all')
     setOrigin('all')
     setFacet('all')
     setActivity('all')
+    setTags([])
   }
   const clearAction = dirty ? (
     <Button variant="secondary" size="sm" onClick={clear}>
@@ -660,7 +582,7 @@ export function LibraryPage() {
       mode={groupMode}
       icon={Sparkles}
       scope="skills"
-      foldable
+      factsOf={skillGroupFacts}
       renderItem={(skill) => (
         <SkillCard
           skill={skill}
@@ -681,7 +603,7 @@ export function LibraryPage() {
       mode={groupMode}
       icon={Server}
       scope="mcp"
-      foldable
+      factsOf={serverGroupFacts}
       renderItem={(server) => (
         <McpCard
           server={server}
@@ -758,6 +680,9 @@ export function LibraryPage() {
                 value: activity,
                 onChange: setActivity,
               }
+        }
+        tagFilter={
+          tab === 'skills' ? { tags: availableTags, selected: tags, onToggle: toggleTag } : null
         }
         groupMode={groupMode}
         onGroupModeChange={setGroupMode}

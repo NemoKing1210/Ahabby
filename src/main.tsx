@@ -6,6 +6,7 @@ import '@/styles/globals.css'
 import { ipc } from '@/shared/api/ipc'
 import { queryKeys } from '@/shared/api/keys'
 import { DEFAULT_LANGUAGE, initI18n, type Language } from '@/shared/i18n'
+import { applyToastSettings } from '@/shared/ui/Toast'
 
 import { appearanceApplier } from './app/appearance'
 import { AppProviders, createQueryClient } from './app/providers'
@@ -22,9 +23,9 @@ if (!rootElement) {
 const container: HTMLElement = rootElement
 
 /**
- * Language, theme, the remembered screen and the query cache are resolved once, before the first
- * render: the settings live in the backend, and reading them here is what keeps the first paint
- * free of a language or theme flash — and lets the window open on the screen it was left on
+ * Language, theme, the toasts, the remembered screen and the query cache are resolved once, before
+ * the first render: the settings live in the backend, and reading them here is what keeps the first
+ * paint free of a language or theme flash — and lets the window open on the screen it was left on
  * instead of painting home and navigating away. Any later change is applied by `useSaveSettings`.
  */
 async function boot() {
@@ -38,6 +39,7 @@ async function boot() {
     language = settings.language
     themeApplier.apply(settings.theme)
     appearanceApplier.apply(settings)
+    applyToastSettings(settings.toast)
     // The remembered route goes into the hash before `AppRouter` builds the router; the shell's
     // first render reads the settings from the cache primed here, so the rail opens collapsed
     // (or not) on the first frame.

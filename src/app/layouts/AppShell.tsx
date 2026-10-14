@@ -283,6 +283,7 @@ export function AppShell() {
 
   const tabs = useTerminalStore((state) => state.tabs)
   const expanded = useTerminalStore((state) => state.expanded)
+  const maximized = useTerminalStore((state) => state.maximized)
   const catalog = useTerminals()
   const runInTerminal = useRunAgentInTerminal()
   const [newOpen, setNewOpen] = useState(false)
@@ -350,6 +351,9 @@ export function AppShell() {
           className={cn(
             'border-border bg-surface shadow-panel ease-warm flex shrink-0 flex-col gap-2 rounded-2xl border p-2.5 transition-[width] duration-200',
             collapsed ? 'w-[4.5rem]' : 'w-64',
+            // A terminal that took the window takes the rail with it; the dock's own restore
+            // button is the way back, and the rail keeps its state while it stands down.
+            maximized && 'hidden',
           )}
         >
           <div
@@ -501,14 +505,21 @@ export function AppShell() {
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <TitleBar />
-          <main ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex max-w-5xl flex-col gap-6 px-8 py-8">
+          {/* A maximized terminal takes the screen's room, not its place in the tree: hidden and
+              never unmounted, so the page it covered comes back as it was — same scroll position,
+              same filters, no query re-run. */}
+          <main
+            ref={scrollRef}
+            className={cn('min-w-0 flex-1 overflow-y-auto', maximized && 'hidden')}
+          >
+            <div className="mx-auto flex max-w-[var(--ah-content-width)] flex-col gap-6 px-8 py-8">
               <PageTransition scrollRef={scrollRef} />
             </div>
           </main>
 
           {/* The terminal sits under every screen, in the content column: the tab strip stays
-            visible while the pages above keep working, and the sidebar keeps its full height. */}
+            visible while the pages above keep working, and the sidebar keeps its full height.
+            Maximized, it is that column's flexible row and the two give way to it. */}
           {tabs.length > 0 ? (
             <Suspense
               fallback={

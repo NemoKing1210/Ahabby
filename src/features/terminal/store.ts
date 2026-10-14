@@ -56,6 +56,12 @@ interface TerminalState {
    * terminals stay mounted (a background agent keeps its scrollback), but nothing is interactive.
    */
   expanded: boolean
+  /**
+   * Whether the dock has taken the whole window: the screen above it and the rail give way and the
+   * terminal fills what is left, while its tabs and their scrollback stay exactly as they were.
+   * Only an open dock can be maximized — collapsing it, or closing its last tab, leaves the mode.
+   */
+  maximized: boolean
   buffered: Record<string, Uint8Array[]>
   /**
    * Sessions that have already ended, whether or not their tab existed at the time. A process can
@@ -73,6 +79,9 @@ interface TerminalState {
   close: (sessionId: string) => void
   setExpanded: (expanded: boolean) => void
   toggleExpanded: () => void
+  /** Fill the window (which opens the dock), or give the window back to the screens. */
+  setMaximized: (maximized: boolean) => void
+  toggleMaximized: () => void
   buffer: (sessionId: string, data: Uint8Array) => void
   takeBuffered: (sessionId: string) => Uint8Array[]
 }
@@ -81,6 +90,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   tabs: [],
   activeId: null,
   expanded: false,
+  maximized: false,
   buffered: {},
   exits: {},
 
@@ -122,12 +132,32 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const activeId =
         state.activeId === sessionId ? (tabs[tabs.length - 1]?.sessionId ?? null) : state.activeId
       // No tabs left means nothing to show: the dock goes away entirely.
-      return { tabs, buffered, exits, activeId, expanded: tabs.length > 0 && state.expanded }
+      return {
+        tabs,
+        buffered,
+        exits,
+        activeId,
+        expanded: tabs.length > 0 && state.expanded,
+        maximized: tabs.length > 0 && state.maximized,
+      }
     }),
 
-  setExpanded: (expanded) => set({ expanded }),
+  // A collapsed dock is a strip of tabs and nothing else, so it cannot be filling the window too:
+  // folding it is leaving the maximized mode, not hiding it.
+  setExpanded: (expanded) =>
+    set((state) => ({ expanded, maximized: expanded ? state.maximized : false })),
 
-  toggleExpanded: () => set((state) => ({ expanded: !state.expanded })),
+  toggleExpanded: () =>
+    set((state) => ({
+      expanded: !state.expanded,
+      maximized: state.expanded ? false : state.maximized,
+    })),
+
+  setMaximized: (maximized) =>
+    set((state) => ({ maximized, expanded: maximized ? true : state.expanded })),
+
+  toggleMaximized: () =>
+    set((state) => (state.maximized ? { maximized: false } : { maximized: true, expanded: true })),
 
   buffer: (sessionId, data) =>
     set((state) => {

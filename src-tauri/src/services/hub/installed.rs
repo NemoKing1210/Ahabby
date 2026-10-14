@@ -312,6 +312,7 @@ mod tests {
             scope: Scope::Global,
             agents: vec![owner(owner_id)],
             frontmatter: Vec::new(),
+            tags: Vec::new(),
             content: None,
             size_bytes: None,
             created_ms: None,

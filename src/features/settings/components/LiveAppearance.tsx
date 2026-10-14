@@ -14,8 +14,17 @@ import { initI18n } from '@/shared/i18n'
  * It lives in the settings layout, so walking between subpages neither re-applies nor restores.
  */
 export function LiveAppearance({ draft, saved }: { draft: Settings; saved: Settings }) {
-  const { theme, language, accent, accentCustom, interfaceScale, textScale, fontFamily, monoFont } =
-    draft
+  const {
+    theme,
+    language,
+    accent,
+    accentCustom,
+    interfaceScale,
+    textScale,
+    fontFamily,
+    monoFont,
+    contentWidth,
+  } = draft
   // The latest *saved* settings, so the unmount below restores them, not the values the page
   // was rendered with. Written from an effect, because refs must not change during render.
   const persisted = useRef(saved)
@@ -32,9 +41,20 @@ export function LiveAppearance({ draft, saved }: { draft: Settings; saved: Setti
       textScale,
       fontFamily,
       monoFont,
+      contentWidth,
     })
     initI18n(language)
-  }, [theme, language, accent, accentCustom, interfaceScale, textScale, fontFamily, monoFont])
+  }, [
+    theme,
+    language,
+    accent,
+    accentCustom,
+    interfaceScale,
+    textScale,
+    fontFamily,
+    monoFont,
+    contentWidth,
+  ])
 
   useEffect(
     () => () => {

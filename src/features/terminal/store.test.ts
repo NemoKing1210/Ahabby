@@ -49,6 +49,7 @@ describe('terminal tabs', () => {
       tabs: [],
       activeId: null,
       expanded: false,
+      maximized: false,
       buffered: {},
       exits: {},
     })
@@ -104,6 +105,32 @@ describe('terminal tabs', () => {
     expect(useTerminalStore.getState().expanded).toBe(false)
   })
 
+  it('gives the window back when the dock is collapsed or emptied', () => {
+    const store = useTerminalStore.getState()
+    store.open(session('term-1'))
+    store.toggleMaximized()
+
+    const maximized = useTerminalStore.getState()
+    expect(maximized.maximized).toBe(true)
+    // A maximized dock is an open one: there is no such thing as a strip of tabs filling the
+    // window.
+    expect(maximized.expanded).toBe(true)
+
+    // Folding it is leaving that mode, not hiding it — the next unfold opens as a dock again.
+    store.setExpanded(false)
+    expect(useTerminalStore.getState().maximized).toBe(false)
+    store.setExpanded(true)
+    expect(useTerminalStore.getState().maximized).toBe(false)
+
+    // …and so is closing the last tab: a maximized dock with nothing in it would be an empty
+    // window, and the state outlives the tab that asked for it.
+    store.setMaximized(true)
+    store.close('term-1')
+    const emptied = useTerminalStore.getState()
+    expect(emptied.tabs).toHaveLength(0)
+    expect(emptied.maximized).toBe(false)
+  })
+
   it('hands a terminal the output that arrived before it was mounted', () => {
     // A session starts printing the moment it is spawned, which is before React paints the tab.
     writeTerminalOutput({ sessionId: 'term-1', data: encoded('PS> ') })
@@ -151,6 +178,7 @@ describe('reconciling with the backend', () => {
       tabs: [],
       activeId: null,
       expanded: false,
+      maximized: false,
       buffered: {},
       exits: {},
     })

@@ -83,6 +83,17 @@ export function fileName(path: string): string {
   return segments[segments.length - 1] ?? path
 }
 
+/**
+ * The directory that holds `path` — a skill's own directory becomes the skills directory it sits
+ * in, which is what its neighbours in a group share. Both separators are understood, and a path
+ * with no directory above it is returned unchanged rather than emptied.
+ */
+export function parentPath(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, '')
+  const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  return cut > 0 ? trimmed.slice(0, cut) : trimmed
+}
+
 /** Stable grouping helper used by the library view. */
 export function groupBy<T, K extends string>(items: T[], key: (item: T) => K): Map<K, T[]> {
   const groups = new Map<K, T[]>()

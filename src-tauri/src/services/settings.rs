@@ -98,6 +98,28 @@ pub enum MonoFont {
     System,
 }
 
+/// How wide a screen's content column may grow.
+///
+/// Every screen draws one centred column; a wide window would otherwise stretch a card across the
+/// whole of it, and a narrow one wants the column to follow the window. The lengths belong to the
+/// frontend (`src/app/appearance.ts`) — this list is what *validates* the setting, so a
+/// hand-edited file cannot ask for a width nobody can paint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub enum ContentWidth {
+    /// A reading measure: one document, one column.
+    Narrow,
+    /// The width the interface was laid out at.
+    Comfortable,
+    /// Uses a large window without stretching a list across it.
+    #[default]
+    Wide,
+    /// Follows the window, however wide it is.
+    Full,
+}
+
 /// Colour scheme painted by the built-in terminal.
 ///
 /// `Auto` follows the rest of the interface — the app theme, the accent and the design tokens —
@@ -122,6 +144,66 @@ pub enum TerminalTheme {
     OneLight,
 }
 
+/// Which corner of the window a toast appears in.
+///
+/// The classes belong to the frontend (`src/shared/ui/Toast.tsx`) — this list is what *validates*
+/// the setting, so a hand-edited file cannot ask for a position nobody can paint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub enum ToastPosition {
+    TopLeft,
+    /// The middle of the top edge: a message is seen without covering what is being read.
+    #[default]
+    TopCenter,
+    TopRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
+}
+
+/// How long a toast stays on screen before it hides itself.
+///
+/// The milliseconds belong to the frontend (`src/shared/ui/Toast.tsx`); this list is what validates
+/// the setting. [`ToastDuration::Persistent`] is the one that never hides on its own — a message
+/// worth reading twice (a long failure, a path that has to be copied) is closed by the user.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+#[derive(Default)]
+pub enum ToastDuration {
+    Short,
+    #[default]
+    Normal,
+    Long,
+    Persistent,
+}
+
+/// The toasts: the small panels that report a save, a finished install or a failure.
+///
+/// A file written before the setting existed has no `toast` key and deserializes as
+/// [`ToastSettings::default`] — messages on, top centre, six seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export, export_to = "../../src/shared/bindings/")]
+pub struct ToastSettings {
+    /// Off means nothing is shown at all — a failure included.
+    pub enabled: bool,
+    pub position: ToastPosition,
+    pub duration: ToastDuration,
+}
+
+impl Default for ToastSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            position: ToastPosition::default(),
+            duration: ToastDuration::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export, export_to = "../../src/shared/bindings/")]
@@ -140,6 +222,8 @@ pub struct Settings {
     pub font_family: FontFamily,
     /// Typeface used for code, paths and the config editor.
     pub mono_font: MonoFont,
+    /// How wide a screen's content column may grow.
+    pub content_width: ContentWidth,
     /// Extra directories that are searched for agent binaries and configs.
     pub extra_scan_paths: Vec<String>,
     /// Turns the optional "a newer version exists" checks on/off (no network by default
@@ -185,6 +269,11 @@ pub struct Settings {
     /// (unless the tray could not be created, when the window is shown anyway so the user is
     /// never left with a process that has no surface).
     pub start_minimized: bool,
+    /// The toasts: where the interface's small messages appear, how long they stay, or whether
+    /// they are shown at all. Read by the frontend alone (`src/shared/ui/Toast.tsx`), which is
+    /// also where the seconds and the per-position classes live.
+    #[serde(default)]
+    pub toast: ToastSettings,
     /// Interface state the shell remembers between launches — *not* something the Settings page
     /// edits. The settings document is the one place Ahabby persists anything, so "where was I"
     /// lives here too instead of in a second file; [`SettingsService::save`] deliberately keeps
@@ -266,6 +355,7 @@ impl Default for Settings {
             text_scale: DEFAULT_SCALE,
             font_family: FontFamily::default(),
             mono_font: MonoFont::default(),
+            content_width: ContentWidth::default(),
             extra_scan_paths: Vec::new(),
             network_version_checks: true,
             backup_dir: None,
@@ -284,6 +374,7 @@ impl Default for Settings {
             tray_icon: true,
             close_to_tray: true,
             start_minimized: false,
+            toast: ToastSettings::default(),
             sidebar_collapsed: false,
             last_route: None,
             tour_completed: false,
@@ -612,6 +703,7 @@ mod tests {
         assert_eq!(settings.text_scale, DEFAULT_SCALE);
         assert_eq!(settings.font_family, FontFamily::Inter);
         assert_eq!(settings.mono_font, MonoFont::Jetbrains);
+        assert_eq!(settings.content_width, ContentWidth::Wide);
         assert!(settings.favorite_agents.is_empty());
         assert_eq!(settings.terminal, "builtin");
         assert_eq!(settings.terminal_theme, TerminalTheme::Auto);
@@ -683,6 +775,72 @@ mod tests {
             SettingsService::load(dir.path()).get().terminal_theme,
             TerminalTheme::SolarizedLight
         );
+    }
+
+    #[test]
+    fn the_content_width_round_trips_by_its_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        let mut settings = service.get();
+        settings.content_width = ContentWidth::Narrow;
+        service.save(settings).unwrap();
+
+        let raw = std::fs::read_to_string(service.path()).unwrap();
+        assert!(
+            raw.contains("\"contentWidth\": \"narrow\""),
+            "the stored value is the id the frontend knows: {raw}"
+        );
+        assert_eq!(
+            SettingsService::load(dir.path()).get().content_width,
+            ContentWidth::Narrow
+        );
+
+        // A file written before the setting existed keeps its other values and gets the default
+        // rather than failing to load at all.
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"language":"ru","theme":"dark"}"#,
+        )
+        .unwrap();
+        let reloaded = SettingsService::load(dir.path()).get();
+        assert_eq!(reloaded.theme, Theme::Dark);
+        assert_eq!(reloaded.content_width, ContentWidth::Wide);
+    }
+
+    #[test]
+    fn the_toast_settings_round_trip_by_their_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = SettingsService::load(dir.path());
+        // The defaults: messages are on, in the middle of the top edge, and go away by themselves.
+        assert!(service.get().toast.enabled);
+        assert_eq!(service.get().toast.position, ToastPosition::TopCenter);
+        assert_eq!(service.get().toast.duration, ToastDuration::Normal);
+
+        let mut settings = service.get();
+        settings.toast.position = ToastPosition::BottomLeft;
+        settings.toast.duration = ToastDuration::Persistent;
+        service.save(settings).unwrap();
+
+        let raw = std::fs::read_to_string(service.path()).unwrap();
+        assert!(
+            raw.contains("\"position\": \"bottom-left\"")
+                && raw.contains("\"duration\": \"persistent\""),
+            "the stored values are the ids the frontend knows: {raw}"
+        );
+        let reloaded = SettingsService::load(dir.path()).get();
+        assert_eq!(reloaded.toast.position, ToastPosition::BottomLeft);
+        assert_eq!(reloaded.toast.duration, ToastDuration::Persistent);
+
+        // A file written before the setting existed keeps its other values and gets the defaults
+        // rather than failing to load at all.
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"language":"ru","theme":"dark"}"#,
+        )
+        .unwrap();
+        let older = SettingsService::load(dir.path()).get();
+        assert_eq!(older.theme, Theme::Dark);
+        assert_eq!(older.toast, ToastSettings::default());
     }
 
     #[test]

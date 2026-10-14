@@ -35,6 +35,12 @@ pub struct Skill {
     pub agents: Vec<AgentRef>,
     #[serde(default)]
     pub frontmatter: Vec<FrontmatterEntry>,
+    /// What the skill declares about itself in its own `SKILL.md`: the frontmatter's `tags` (or
+    /// `keywords`), read by the same rule the Hub reads a published `SKILL.md` with
+    /// (`adapters::frontmatter::declared_tags`), so the same skill carries the same tags wherever
+    /// it is installed from. Empty when it declares none.
+    #[serde(default)]
+    pub tags: Vec<String>,
     /// Markdown body (frontmatter stripped). `None` when the skill is a bare directory.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,

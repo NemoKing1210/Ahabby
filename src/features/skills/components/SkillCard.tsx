@@ -6,6 +6,7 @@ import type { AgentRef } from '@/shared/bindings/AgentRef'
 import type { Skill } from '@/shared/bindings/Skill'
 import { cn } from '@/shared/lib/cn'
 import { formatBytes, shortenPath } from '@/shared/lib/format'
+import { tagColor } from '@/shared/lib/tagColor'
 import { AgentTag } from '@/shared/ui/AgentTag'
 import { Badge } from '@/shared/ui/Badge'
 import { Button } from '@/shared/ui/Button'
@@ -119,6 +120,18 @@ export const SkillCard = memo(function SkillCard({
 
               {skill.description ? (
                 <p className="text-muted max-w-prose text-[0.8125rem]">{skill.description}</p>
+              ) : null}
+
+              {/* What the skill's own `SKILL.md` declares, each tag in the colour its name hashes
+                  to: the very chips the filter row above the list offers. */}
+              {skill.tags.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {skill.tags.map((tag) => (
+                    <Badge key={tag} tone="outline" className="ah-tag" style={tagColor(tag)}>
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
               ) : null}
 
               {agents && agents.length > 0 ? (

@@ -25,6 +25,7 @@ function skill(name: string, enabled: boolean): Skill {
     scope: { kind: 'global' },
     agents: [claude],
     frontmatter: [],
+    tags: [],
     content: '# body',
     sizeBytes: 10,
     enabled,

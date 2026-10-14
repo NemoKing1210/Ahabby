@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   AppWindow,
+  Bell,
   CloudCog,
   EyeOff,
   Globe,
@@ -32,6 +33,12 @@ export const SECTIONS = [
     labelKey: 'settings.appearance',
     hintKey: 'settings.sections.appearance.hint',
     icon: Palette,
+  },
+  {
+    to: 'notifications',
+    labelKey: 'settings.notifications',
+    hintKey: 'settings.notificationsHint',
+    icon: Bell,
   },
   {
     to: 'window',
