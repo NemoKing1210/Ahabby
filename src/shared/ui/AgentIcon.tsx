@@ -11,8 +11,9 @@ import { AGENT_BRANDS } from './agentBrands'
  *
  * The manifest's `icon` key selects a brand palette from `agentBrands.ts`: the tile takes the
  * brand's own background and the mark (or, without one, the initials) is drawn in the brand's
- * contrasting colour. Keys without a palette — user manifests, mostly — fall back to a neutral
- * monogram tile, so an unknown agent never gets a made-up colour.
+ * contrasting colour. That mark is the icon library's own component where it ships one, and the
+ * outline the palette draws itself where it does not. Keys without a palette — user manifests,
+ * mostly — fall back to a neutral monogram tile, so an unknown agent never gets a made-up colour.
  */
 const SIZES = {
   xs: { tile: 'size-5 rounded-[5px] text-[0.625rem]', edge: 20 },
@@ -108,6 +109,8 @@ export function AgentIcon({
   const brand = icon ? AGENT_BRANDS[icon] : undefined
 
   if (brand) {
+    const mark = Math.round(edge * brand.multiple)
+
     return (
       <span
         aria-hidden
@@ -115,7 +118,19 @@ export function AgentIcon({
         style={{ backgroundColor: brand.background, color: brand.foreground }}
       >
         {brand.Logo ? (
-          <brand.Logo size={Math.round(edge * brand.multiple)} />
+          <brand.Logo size={mark} />
+        ) : brand.path ? (
+          // A brand the icon library does not ship: the mark Ahabby draws itself, on the grid its
+          // `viewBox` describes (see `agentBrands.ts`).
+          <svg
+            viewBox={brand.viewBox ?? '0 0 24 24'}
+            width={mark}
+            height={mark}
+            fill="currentColor"
+            fillRule={brand.fillRule}
+          >
+            <path d={brand.path} />
+          </svg>
         ) : (
           <span className="font-serif font-medium">{initials(name)}</span>
         )}

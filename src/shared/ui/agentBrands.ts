@@ -23,6 +23,7 @@ import Qoder from '@lobehub/icons/es/Qoder/components/Color'
 import Qwen from '@lobehub/icons/es/Qwen/components/Mono'
 import Trae from '@lobehub/icons/es/Trae/components/Mono'
 import Windsurf from '@lobehub/icons/es/Windsurf/components/Mono'
+import { siWarp } from 'simple-icons'
 
 /**
  * Brand palette for the agents Ahabby manages, keyed by the manifest `icon` value. An avatar
@@ -39,8 +40,18 @@ export interface AgentBrand {
   foreground: string
   /** Mark size relative to the tile edge. */
   multiple: number
-  /** Brand mark; initials are drawn when the library has none. */
+  /** Brand mark; initials are drawn when the brand ships none either. */
   Logo?: IconType
+  /**
+   * Mark Ahabby draws itself, for the brands the icon library does not ship. Same shape as
+   * `managerBrands`: an outline drawn in `currentColor` — the palette's `foreground` — on the
+   * grid `viewBox` describes (24×24 by default).
+   */
+  path?: string
+  /** Grid `path` is drawn on; a mark is not always on a 24×24 one. */
+  viewBox?: string
+  /** Rule a mark's cut-outs depend on. */
+  fillRule?: 'evenodd' | 'nonzero'
 }
 
 /**
@@ -82,15 +93,27 @@ const LIBRARY_BRANDS: Record<string, AgentBrand> = {
   trae: { background: '#000000', foreground: '#32F08C', multiple: 0.65, Logo: Trae },
 }
 
-type AgentColor = Omit<AgentBrand, 'Logo' | 'multiple'>
+type AgentColor = Omit<AgentBrand, 'multiple'> & { multiple?: number }
 
 /**
- * Agents the icon library does not ship: brand colour plus a contrasting foreground,
- * verified against the source below (checked 2026-10-05). No mark — the tile shows initials.
+ * Agents the icon library does not ship: brand colour plus a contrasting foreground, verified
+ * against the source named on each entry (checked 2026-10-05). Where the brand publishes a mark
+ * Ahabby can carry, the entry draws it; the tile falls back to the initials only where none
+ * exists.
  */
 const AGENT_COLORS: Record<string, AgentColor> = {
-  // SOURCE: https://github.com/Aider-AI/aider/blob/main/aider/website/assets/logo.svg
-  aider: { background: '#14b014', foreground: '#000000' },
+  // SOURCE: https://github.com/Aider-AI/aider `aider/website/assets/logo.svg` — the wordmark's
+  // green, `#14b014`. Aider publishes no vector mark: its identity is that wordmark, drawn in the
+  // Glass TTY VT220 pixel font, and its app icon (`icons/android-chrome-384x384.png`) draws the
+  // `a` of it as a 6 × 5 pixel grid whose cells are 1 × 1.545. The rectangles below are that grid,
+  // one per run of it.
+  aider: {
+    background: '#14b014',
+    foreground: '#000000',
+    multiple: 0.7,
+    viewBox: '0 0 6 7.725',
+    path: 'M1 0h3v1.545h-3zM4 1.545h1v4.635h-1zM1 3.09h3v1.545h-3zM0 4.635h1v1.545h-1zM1 6.18h3v1.545h-3zM5 6.18h1v1.545h-1z',
+  },
   // SOURCE: AWS Architecture Icons, Arch_Amazon-Q_64.svg tile fill
   amazonq: { background: '#01a88d', foreground: '#000000' },
   // SOURCE: https://www.augmentcode.com/ (`--primary`, `--augment-400`)
@@ -110,8 +133,16 @@ const AGENT_COLORS: Record<string, AgentColor> = {
   forge: { background: '#fb923c', foreground: '#181818' },
   // SOURCE: https://gptme.org/media/icon.svg
   gptme: { background: '#002938', foreground: '#a9bdcd' },
-  // SOURCE: https://omp.sh/favicon.svg (site accent)
-  omp: { background: '#ed4abf', foreground: '#000000' },
+  // SOURCE: https://omp.sh/favicon.svg — the site's own mark, translated to the origin. The favicon
+  // draws it on a 64×64 tile in a magenta-to-cyan gradient; `#ed4abf` is the gradient's first stop,
+  // which is the flat colour a tile can carry.
+  omp: {
+    background: '#ed4abf',
+    foreground: '#000000',
+    multiple: 0.78,
+    viewBox: '0 0 36 40',
+    path: 'M0 0h36v8H26v32h-8V8h-6v22h-8V8H0z',
+  },
   // SOURCE: https://www.openinterpreter.com/icon.svg
   openinterpreter: { background: '#000000', foreground: '#ffffff' },
   // SOURCE: https://plandex.ai/ (site accent; the logo is a magenta-to-teal gradient)
@@ -120,8 +151,9 @@ const AGENT_COLORS: Record<string, AgentColor> = {
   shellgpt: { background: '#000000', foreground: '#ffffff' },
   // SOURCE: https://www.tabbyml.com (`--burnt-gold`, `--rich-ocre`)
   tabby: { background: '#e68129', foreground: '#472209' },
-  // SOURCE: https://github.com/warpdotdev/brand-assets Warp-App-Icon.svg
-  warp: { background: '#0868f9', foreground: '#ffffff' },
+  // SOURCE: https://github.com/warpdotdev/brand-assets `Warp-App-Icon.svg` for Warp's own blue
+  // (`#0868F9`); the glyph is `siWarp` from simple-icons 15.22.0 (CC0-1.0), a 24×24 grid.
+  warp: { background: '#0868f9', foreground: '#ffffff', multiple: 0.66, path: siWarp.path },
   // SOURCE: https://zed.dev/brand (Brand Blue)
   zed: { background: '#1348dc', foreground: '#ffffff' },
 }
@@ -129,6 +161,6 @@ const AGENT_COLORS: Record<string, AgentColor> = {
 export const AGENT_BRANDS: Record<string, AgentBrand> = {
   ...LIBRARY_BRANDS,
   ...Object.fromEntries(
-    Object.entries(AGENT_COLORS).map(([key, color]) => [key, { ...color, multiple: 0.5 }]),
+    Object.entries(AGENT_COLORS).map(([key, color]) => [key, { multiple: 0.5, ...color }]),
   ),
 }

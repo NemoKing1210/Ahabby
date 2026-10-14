@@ -37,6 +37,21 @@ describe('AgentIcon', () => {
     expect(tile.textContent).toBe('Z')
   })
 
+  it('draws the mark Ahabby carries itself for the brands the icon library does not ship', () => {
+    for (const [name, icon] of [
+      ['Aider', 'aider'],
+      ['omp', 'omp'],
+      ['Warp', 'warp'],
+    ] as const) {
+      const { container, unmount } = renderWithProviders(<AgentIcon name={name} icon={icon} />)
+      const tile = tileOf(container)
+
+      expect(tile.querySelector('svg path')).not.toBeNull()
+      expect(tile.textContent).toBe('')
+      unmount()
+    }
+  })
+
   it('falls back to a neutral monogram for an unmapped or missing icon key', () => {
     const unknown = renderWithProviders(<AgentIcon name="Plandex" icon="not-in-the-catalog" />)
     const unknownTile = tileOf(unknown.container)
